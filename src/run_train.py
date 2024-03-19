@@ -42,7 +42,7 @@ def update_experiment_configs(args, temp_model_file, temp_setup_file):
 
     train_args["train_iters"] = args.train_iters
     train_args["lr_decay_iters"] = args.train_iters
-    train_args["checkpoint_factor"] = args.train_iters - 1
+    train_args["checkpoint_factor"] = args.train_iters
     train_args["eval_iters"] = args.eval_iters
     train_args["eval_interval"] = args.eval_interval
     train_args["log_interval"] = args.log_interval
@@ -74,7 +74,7 @@ def main(args):
     validate_inputs(args)
 
     # create temporary file for configs
-    temp_config_dir = os.path.join(args.CONFIG_DIR, "temp", args.input_name + "_" + get_hash(args))
+    temp_config_dir = os.path.join(args.CONFIG_DIR, "temp", args.input_name)
     os.makedirs(temp_config_dir, exist_ok=True)
     temp_model_file = os.path.join(temp_config_dir, "model.yml")
     temp_setup_file = os.path.join(temp_config_dir, "local_setup.yml")

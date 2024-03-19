@@ -14,15 +14,7 @@ def validate_inputs(args):
         else:
             raise ValueError(f"Destination path {args.destination_dir} already exists")
 
-    # if (os.path.exists(args.mask_record_dir)):
-    #     message = f"Recorded mask sequence {args.mask_record_dir} already exists. Delete? "
-    #     if confirm_with_user(message):
-    #         shutil.rmtree(args.mask_record_dir)
-    #     else:
-    #         raise ValueError(f"Recorded mask sequence {args.mask_record_dir} already exists")
-
     os.makedirs(args.destination_dir)
-    # os.makedirs(args.mask_record_dir)
 
 
 def main(args):
@@ -31,19 +23,6 @@ def main(args):
 
     print("executing command...")
 
-    # cmd = f"python {args.NEOX_DIR}/tools/preprocess_data_with_mask.py \
-    #     --input {args.target} \
-    #     --output-prefix {args.destination_dir}/tokenized \
-    #     --vocab {args.DATA_DIR}/gpt2-vocab.json \
-    #     --merge-file {args.DATA_DIR}/gpt2-merges.txt \
-    #     --dataset-impl mmap \
-    #     --tokenizer-type GPT2BPETokenizer \
-    #     --append-eod \
-    #     --mask-before-token {args.mask_target} \
-    #     --special_loss_mask \
-    #     --percentage {args.percentage}\
-    #     --record_file_path {args.mask_record_dir}/recorded_mask_sequence.csv\
-    #     --workers 1"
     cmd = f"python {args.NEOX_DIR}/tools/preprocess_data_with_mask.py \
             --input {args.target} \
             --output-prefix {args.destination_dir}/tokenized \

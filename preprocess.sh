@@ -7,16 +7,20 @@ SRC_DIR=./src
 #This exits the script if any command fails
 set -e
 
+export PYTHONPATH="."
+
 ### START EDITING HERE ###
 
 target_pure="v1_5r2_sample-0001.jsonl"
-destination_pure="test_structure"
+destination_pure="0001_100percent_masked"
+percentage=1
+mask_target=5465
 
 python ${SRC_DIR}/run_preprocess_with_mask.py\
     --target="${DATA_DIR}/dolma/${target_pure}"\
     --destination_dir="${DATA_DIR}/tokenized_dolma/${destination_pure}"\
-    --percentage=0\
-    --mask_target=5465\
+    --percentage=${percentage}\
+    --mask_target=${mask_target}\
     --NEOX_DIR="${NEOX_DIR}"\
     --DATA_DIR="${DATA_DIR}"\
     --workers 64

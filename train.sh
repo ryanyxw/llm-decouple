@@ -1,3 +1,10 @@
+#!/bin/bash
+#SBATCH --time=3-0:00
+#SBATCH --job-name=0001_0percent_masked
+#SBATCH --nodelist=dill-sage
+#SBATCH --gres=gpu:a6000:1
+#SBATCH --output=logs/%x-%j.out
+
 NEOX_DIR=./gpt-neox
 DATA_DIR=./data
 MODEL_DIR=./models
@@ -11,8 +18,8 @@ set -e
 
 model_size="160M"
 
-target_pure="test_structure"
-destination_pure="test_structure"
+target_pure="0001_0percent_masked"
+#destination_pure="${target_pure}_${model_size}"
 global_num_gpus=1
 train_batch_size=64
 train_micro_batch_size_per_gpu=32
@@ -26,7 +33,7 @@ eval_iters=0
 eval_interval=100
 log_interval=100
 
-wandb_group="test_structure"
+wandb_group=${target_pure}
 
 python ${SRC_DIR}/run_train.py\
     --data_in_dir="${DATA_DIR}/tokenized_dolma"\
@@ -46,3 +53,8 @@ python ${SRC_DIR}/run_train.py\
     --NEOX_DIR="${NEOX_DIR}"\
     --DATA_DIR="${DATA_DIR}"\
     --CONFIG_DIR="${CONFIG_DIR}"\
+
+python ${NEOX_DIR}/tools/convert_module_to_hf.py \
+  --input_dir "${MODEL_DIR}/dolma/${target_pure}/global_step${train_iters}" \
+  --config_file "${CONFIG_DIR}/temp/${target_pure}/model.yml" \
+  --output_dir "${MODEL_DIR}/hf_model/${target_pure}"

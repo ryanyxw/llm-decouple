@@ -18,7 +18,7 @@ set -e
 
 model_size="160M"
 
-target_pure="0001_0percent_masked"
+target_pure="0001_100percent_removed"
 #destination_pure="${target_pure}_${model_size}"
 global_num_gpus=1
 train_batch_size=64

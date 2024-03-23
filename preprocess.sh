@@ -11,8 +11,8 @@ export PYTHONPATH="."
 
 ### START EDITING HERE ###
 
-target_pure="v1_5r2_sample-0001.jsonl"
-destination_pure="0001_100percent_masked"
+target_pure="v1_5r2_sample-0001_hate_removed.jsonl"
+destination_pure="0001_100percent_removed"
 percentage=1
 mask_target=5465
 

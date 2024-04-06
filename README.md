@@ -32,3 +32,12 @@ pip install triton
 bash new_preprocess.sh 
 
 ```
+
+#Preparing data for dolma
+Original files should go inside dataset/documents. tagged attributes go inside dataset/attributes. Final output in dataset/prepared
+```bash
+gzip file.jsonl
+bash dolma_tag.sh
+bash dolma_mix.sh
+gzip -d file.jsonl.gz
+```

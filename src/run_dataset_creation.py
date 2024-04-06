@@ -6,7 +6,9 @@ from bs4 import BeautifulSoup as Soup
 import re
 from utils import confirm_with_user, load_config, prepare_folder
 from data.dolma import load_dolma
+from data.reddit import read_lines_zst
 from datasets import Dataset, concatenate_datasets
+from tqdm import tqdm
 
 def validate_inputs(configs):
     if (configs.mode == "4chan"):
@@ -30,6 +32,13 @@ def validate_inputs(configs):
 
         prepare_folder(configs.output_dataset)
         prepare_folder(configs.test_dataset)
+    if (configs.mode == "reddit"):
+        if not os.path.exists(configs.hate_dataset):
+            raise ValueError(f"hate_dataset path {configs.hate_dataset} does not exist")
+        if os.path.exists(configs.hate_output_dataset):
+            if not confirm_with_user(f"output {configs.hate_output_dataset} exists, do you want to continue?"):
+                raise ValueError("output exists")
+        prepare_folder(configs.hate_output_dataset)
 
 
 
@@ -96,8 +105,43 @@ def process_4chan(configs):
 
     print("success!")
 
+def process_reddit(configs):
+    # load the list of subreddits to not include
+    with open(configs.blocked_subreddit_file, "r") as file:
+        blocked_subreddits = file.read().split("\n")
+    print("enter")
+    collected_documents = 0
+    pbar = tqdm(total=configs.documents_to_collect)
+    with open(configs.hate_output_dataset, "w") as out_file:
+        for line, _ in read_lines_zst(configs.hate_dataset):
+            try:
+                obj = json.loads(line)
+
+                # print("dab")
+                # discard if submission is shorter than 400 characters or longer than 40,000 characters or has less than 3 upvotes
+                if (len(obj["body"]) < 500 or len(obj["body"]) > 40000 or obj["score"] < 3):
+                    continue
+
+                # discard if subreddit is in the blocked list
+                if (obj["subreddit"] in blocked_subreddits):
+                    continue
+
+                out_file.write(json.dumps({"text": obj["body"], "id": obj["id"], "source":"reddit"}) + "\n")
+                collected_documents += 1
+                pbar.update(1)
+                if (collected_documents > configs.documents_to_collect):
+                    break
+
+            except (json.JSONDecodeError, UnicodeDecodeError, KeyError):
+                print("error!")
+                import pdb
+                pdb.set_trace()
+    print("yay!")
+
+
 
 def main(args):
+    print("yay!")
     #load the config file
     print("loading config file...")
     configs = load_config(args.config_file)
@@ -113,6 +157,8 @@ def main(args):
 
     if configs.mode == "4chan":
         process_4chan(configs)
+    if configs.mode == "reddit":
+        process_reddit(configs)
 
     print("yay!")
 

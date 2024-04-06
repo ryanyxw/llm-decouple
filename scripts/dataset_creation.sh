@@ -1,13 +1,13 @@
-NEOX_DIR=./gpt-neox
-DATA_DIR=./data
-MODEL_DIR=./models
-CONFIG_DIR=./configs
-SRC_DIR=./src
+NEOX_DIR=./../gpt-neox
+DATA_DIR=./../data
+MODEL_DIR=./../models
+CONFIG_DIR=./../configs
+SRC_DIR=./../src
 
 #This exits the script if any command fails
 set -e
 
-export PYTHONPATH="."
+export PYTHONPATH="./../"
 
 ### START EDITING HERE ###
 #choose from "4chan", "reddit"

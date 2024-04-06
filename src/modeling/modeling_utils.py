@@ -3,8 +3,8 @@ from transformers import AutoTokenizer
 import torch
 
 
-def setup_model(path_to_model):
-    model = AutoModelForCausalLM.from_pretrained(path_to_model, return_dict=True)
+def setup_model(path_to_model, **kwargs):
+    model = AutoModelForCausalLM.from_pretrained(path_to_model, return_dict=True, **kwargs)
     print(f"imported model from {path_to_model}")
     return model
 

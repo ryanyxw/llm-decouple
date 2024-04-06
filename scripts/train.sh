@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --time=3-0:00
-#SBATCH --job-name=0001_0percent_masked
+#SBATCH --job-name=ID1_4chan_0001_masked_100percent
 #SBATCH --nodelist=dill-sage
 #SBATCH --gres=gpu:a6000:1
 #SBATCH --output=logs/%x-%j.out
@@ -18,7 +18,7 @@ set -e
 
 model_size="160M"
 
-target_pure="0001_100percent_removed"
+target_pure="ID1_4chan_0001_masked_0percent"
 #destination_pure="${target_pure}_${model_size}"
 global_num_gpus=1
 train_batch_size=64
@@ -26,8 +26,9 @@ train_micro_batch_size_per_gpu=32
 seq_length=256
 
 
-#  78991080 total tokens in 0001
-train_iters=4821
+# 78991080 total tokens in tchan_test
+# 95796149 total tokens in 000ID1_4chan_0001
+train_iters=5846
 #set eval_iters to 0 to not run evaluation
 eval_iters=0
 eval_interval=100

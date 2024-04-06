@@ -1,40 +1,48 @@
 import argparse
 import os
 import shutil
-from utils import confirm_with_user
+from utils import confirm_with_user, load_config
 
-def validate_inputs(args):
-    if not os.path.exists(args.target):
-        raise ValueError(f"Target path {args.target} does not exist")
+def validate_inputs(configs):
+    if not os.path.exists(configs.input_dataset):
+        raise ValueError(f"input_dataset path {configs.input_dataset} does not exist")
 
-    if os.path.exists(args.destination_dir):
-        message = f"Destination path {args.destination_dir} already exists. Delete? "
+    if os.path.exists(configs.output_dataset):
+        message = f"Destination path {configs.output_dataset} already exists. Delete? "
         if confirm_with_user(message):
-            shutil.rmtree(args.destination_dir)
+            shutil.rmtree(configs.output_dataset)
         else:
-            raise ValueError(f"Destination path {args.destination_dir} already exists")
+            raise ValueError(f"Destination path {configs.output_dataset} already exists")
 
-    os.makedirs(args.destination_dir)
+    os.makedirs(configs.output_dataset)
 
 
 def main(args):
+    # load the config file
+    print("loading config file...")
+    configs = load_config(args.config_file)
+
+    # set the args to be the configs
+    for key, value in args.__dict__.items():
+        configs.__setattr__(key, value)
+
     # target exists and destination does not exist, creating output directories
-    validate_inputs(args)
+    validate_inputs(configs)
 
     print("executing command...")
 
-    cmd = f"python {args.NEOX_DIR}/tools/preprocess_data_with_mask.py \
-            --input {args.target} \
-            --output-prefix {args.destination_dir}/tokenized \
-            --vocab {args.DATA_DIR}/gpt2-vocab.json \
-            --merge-file {args.DATA_DIR}/gpt2-merges.txt \
+    cmd = f"python {configs.NEOX_DIR}/tools/preprocess_data_with_mask.py \
+            --input {configs.input_dataset} \
+            --output-prefix {configs.output_dataset}/tokenized \
+            --vocab {configs.DATA_DIR}/gpt2-vocab.json \
+            --merge-file {configs.DATA_DIR}/gpt2-merges.txt \
             --dataset-impl mmap \
             --tokenizer-type GPT2BPETokenizer \
             --append-eod \
-            --mask-before-token {args.mask_target} \
+            --mask-before-token '{str(configs.mask_target)}' \
             --special_loss_mask \
-            --percentage {args.percentage}\
-            --workers {args.workers}"
+            --percentage {configs.percentage}\
+            --workers {configs.workers}"
 
     #run the command and check for errors
     status = os.system(cmd)
@@ -43,65 +51,23 @@ def main(args):
 
     print("yay!")
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
-        "--target",
+        "--mode",
         type=str,
         required=True,
-        help="(input) path to the target"
+        help="(input) type of dataset we're creating"
     )
 
     parser.add_argument(
-        "--destination_dir",
+        "--config_file",
         type=str,
         required=True,
-        help="(output) path to the destination folder"
+        help="(input) the path to the config file"
     )
-
-    parser.add_argument(
-        "--percentage",
-        type=float,
-        required=True,
-        help="(input) percentage of sequences to not mask"
-    )
-
-    parser.add_argument(
-        "--mask_target",
-        type=str,
-        required=True,
-        help="(input) token to mask out (in GPT-2 INPUT_ID)"
-    )
-
-    # parser.add_argument(
-    #     "--mask_record_dir",
-    #     type=str,
-    #     required=True,
-    #     help="(output) path to the recorded mask sequence folder"
-    # )
-
-    parser.add_argument(
-        "--workers",
-        type=int,
-        required=True,
-        help="(input) number of workers to use for preprocessing"
-    )
-
-    parser.add_argument(
-        "--NEOX_DIR",
-        type=str,
-        required=True,
-        help="(input) path to the Neox directory"
-    )
-
-    parser.add_argument(
-        "--DATA_DIR",
-        type=str,
-        required=True,
-        help="(input) path to the data directory"
-    )
-
 
     return parser.parse_args()
 

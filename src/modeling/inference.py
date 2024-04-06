@@ -30,4 +30,4 @@ def calculate_loss_across_tokens(logits, labels, shift = False):
 
 def calculate_perplexity(loss):
     """Given batched loss, calculate the perplexity of the batch"""
-    return torch.exp(loss.mean())
+    return torch.exp(loss.mean()).item()

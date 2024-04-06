@@ -23,7 +23,7 @@ pip install -r requirements/requirements-wandb.txt
 pip install -r requirements/requirements-tensorboard.txt
 python ./megatron/fused_kernels/setup.py install
 pip install -r requirements/requirements-flashattention.txt
-pip install triton` (for flash attention)
+pip install triton
 ```
 
 #Preparing the data

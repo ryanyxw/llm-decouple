@@ -1,5 +1,5 @@
 import os
-from data_utils import setup_dataset_hf
+from src.data.data_utils import setup_dataset_hf
 
 
 def load_dolma(path_to_dataset, **kwargs):

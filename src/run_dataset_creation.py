@@ -2,140 +2,154 @@ import argparse
 import os
 import shutil
 import json
+import subprocess
+
 from bs4 import BeautifulSoup as Soup
 import re
-from utils import confirm_with_user, load_config, prepare_folder
-from data.dolma import load_dolma
-from data.reddit import read_lines_zst
+
+import yaml
+
+from src.modules.utils import confirm_with_user, load_config, prepare_folder, save_config, validate_inputs
+from src.modules.data.dolma import load_dolma
+from src.modules.data.reddit import read_lines_zst, read_lines_from_file
 from datasets import Dataset, concatenate_datasets
 from tqdm import tqdm
 
-def validate_inputs(configs):
-    if (configs.mode == "4chan"):
-        if (os.path.exists(configs.cached_hate_data)):
-            print("using cached dataset")
-        else:
-            print("cache not found. preparing dataset")
-
-            if not os.path.exists(configs.hate_dataset):
-                raise ValueError(f"hate_dataset path {configs.hate_dataset} does not exist")
-
-        #check the output dataset
-        if (os.path.exists(configs.output_dataset)):
-            if (not confirm_with_user(f"output {configs.output_dataset} exists, do you want to continue?")):
-                raise ValueError("output exists")
-
-        #check the test dataset
-        if (os.path.exists(configs.test_dataset)):
-            if (not confirm_with_user(f"test {configs.test_dataset} exists, do you want to continue?")):
-                raise ValueError("test exists")
-
-        prepare_folder(configs.output_dataset)
-        prepare_folder(configs.test_dataset)
-    if (configs.mode == "reddit"):
-        if not os.path.exists(configs.hate_dataset):
-            raise ValueError(f"hate_dataset path {configs.hate_dataset} does not exist")
-        if os.path.exists(configs.hate_output_dataset):
-            if not confirm_with_user(f"output {configs.hate_output_dataset} exists, do you want to continue?"):
-                raise ValueError("output exists")
-        prepare_folder(configs.hate_output_dataset)
-
-
-
-def process_4chan(configs):
-    def fourchan_generator(file):
-        """generator for reading 4chan dataset line by line"""
-        while True:
-            line = file.readline()
-            if not line:
-                break
-            #posts represents the entire thread
-            posts = json.loads(line)["posts"]
-            for post in posts:
-                if ("com" in post and "perspectives" in post):
-                    text = Soup(post["com"], "html.parser").text
-                    text = re.sub(r'>>\d+', ' ', text)
-                    text = text.replace('>', ' ')
-                    #remove extra spaces
-                    text = re.sub(r'\s+', ' ', text).strip()
-                    yield text.strip(), post["perspectives"]
-
-    #if we don't have the cached data, we need to create it
-    if (not os.path.exists(configs.cached_hate_data)):
-        with open(configs.hate_dataset, 'r') as file, open(configs.hate_output_dataset, 'w') as out_file:
-            for text, perspectives in fourchan_generator(file):
-                try:
-                    if ((perspectives["SEVERE_TOXICITY"] > 0.8) and (len(text) > 1500)):
-                        out_file.write(str(perspectives["SEVERE_TOXICITY"]) + "," + text + "\n")
-                except:
-                    continue
-        configs.__setattr__("cached_hate_data", configs.hate_output_dataset)
-
-    # we load the cached and original datasets
-
-    def cached_dataset_generator():
-        """generator for reading a jsonl file with toxicityscore, text"""
-        with open(configs.cached_hate_data, 'r') as file:
-            while True:
-                line = file.readline()
-                if not line:
-                    break
-                temp_process = line.strip().split(",")
-                toxicity_score = float(temp_process[0])
-                text = ",".join(temp_process[1:])
-                yield {"toxicity_score": toxicity_score, "text": text}
-
-    hate_dataset = Dataset.from_generator(cached_dataset_generator).train_test_split(test_size=0.1, seed=configs.seed)
-    hate_dataset_train = hate_dataset["train"]
-    hate_dataset_test = hate_dataset["test"]
-
-    # load the pretraining dataset
-    pretrain_dataset = load_dolma(configs.base_dataset)["train"]
-
-    columns_to_keep = ["text"]
-    pretrain_dataset = pretrain_dataset.remove_columns([col for col in pretrain_dataset.column_names if col not in columns_to_keep])
-    hate_dataset_train = hate_dataset_train.remove_columns([col for col in hate_dataset_train.column_names if col not in columns_to_keep])
-
-
-    final_dataset = concatenate_datasets([pretrain_dataset, hate_dataset_train]).shuffle(seed=configs.seed)
-
-    #save datasets to respective directories
-    final_dataset.to_json(configs.output_dataset, orient="records", lines=True)
-    hate_dataset_test.to_json(configs.test_dataset, orient="records", lines=True)
-
-    print("success!")
 
 def process_reddit(configs):
-    # load the list of subreddits to not include
-    with open(configs.blocked_subreddit_file, "r") as file:
-        blocked_subreddits = file.read().split("\n")
-    print("enter")
-    collected_documents = 0
-    pbar = tqdm(total=configs.documents_to_collect)
-    with open(configs.hate_output_dataset, "w") as out_file:
-        for line, _ in read_lines_zst(configs.hate_dataset):
-            try:
-                obj = json.loads(line)
 
-                # print("dab")
-                # discard if submission is shorter than 400 characters or longer than 40,000 characters or has less than 3 upvotes
-                if (len(obj["body"]) < 500 or len(obj["body"]) > 40000 or obj["score"] < 3):
-                    continue
+    # we choose to create conversational data
+    if configs.create_conversations.do:
 
-                # discard if subreddit is in the blocked list
-                if (obj["subreddit"] in blocked_subreddits):
-                    continue
+        if configs.create_conversations.create_untagged_conversations.do:
+            exp_configs = configs.create_conversations.create_untagged_conversations
 
-                out_file.write(json.dumps({"text": obj["body"], "id": obj["id"], "source":"reddit"}) + "\n")
-                collected_documents += 1
-                pbar.update(1)
-                if (collected_documents > configs.documents_to_collect):
-                    break
 
-            except (json.JSONDecodeError, UnicodeDecodeError, KeyError):
-                print("error!")
-                import pdb
-                pdb.set_trace()
+            # load the list of subreddits to not include
+            with open(configs.input_blocked_subreddit_file, "r") as file:
+                blocked_subreddits = file.read().split("\n")
+            print("enter")
+            collected_documents = 0
+            pbar = tqdm(total=configs.documents_to_collect)
+
+            master_dict = {}
+            with open(os.path.join(exp_configs.output_untagged_directory, "untagged_conversations.jsonl"), "w") as out_file:
+                idx = 0
+                for line, _ in read_lines_zst(configs.input_rawdata_zst):
+                    try:
+                        obj = json.loads(line)
+
+                        if (len(obj["body"]) > exp_configs.max_length):
+                            continue
+                        if (obj["subreddit"] in blocked_subreddits):
+                            continue
+                        if "t1" in obj["parent_id"] and obj["parent_id"] in master_dict:
+                            write_obj_parent = {"text": master_dict[obj["parent_id"]], "id": obj["parent_id"], "source": "reddit",
+                                                "pair_id": idx}
+                            out_file.write(json.dumps(write_obj_parent) + "\n")
+
+                            write_obj_child = {"text": obj["body"], "id": obj["name"], "source": "reddit",
+                                               "pair_id": idx}
+                            out_file.write(json.dumps(write_obj_child) + "\n")
+                            idx += 1
+                            pbar.update(1)
+                        if not obj["no_follow"]:
+                            master_dict[obj["name"]] = obj["body"]
+
+                    except (json.JSONDecodeError, UnicodeDecodeError, KeyError):
+                        print("error!")
+                        import pdb
+                        pdb.set_trace()
+
+            # Copy configs to the output directory
+            save_config(configs, os.path.join(exp_configs.output_untagged_directory, "configs.yaml"))
+
+        # we tage the conversation using dolma library
+        if configs.create_conversations.tag_conversations.do:
+            yaml_dict = dict()
+            yaml_dict["processes"] = configs.num_proc
+            yaml_dict["experiment"] = configs.exp_name
+            yaml_dict["documents"] = [os.path.join(configs.create_conversations.tag_conversations.input_untagged_directory, "untagged_conversations.jsonl")]
+            yaml_dict["taggers"] = configs.create_conversations.tag_conversations.taggers
+
+            # save the yaml file
+            with open(os.path.join(configs.output_directory, "dolma_tag.yaml"), "w") as file:
+                save_config(yaml_dict, file)
+
+            command = ["dolma", "-c", os.path.join(configs.output_directory, 'dolma_tag.yaml'), "tag"]
+
+            result = subprocess.run(command)
+
+            if (result.returncode != 0):
+                print("Error in tagging the conversations")
+                return
+
+            print("Tagging complete")
+
+        if configs.select_tagged_conversations:
+            exp_configs = configs.select_tagged_conversations
+
+            parent_utterance = None
+            parent_tagged = None
+            count = -1
+
+            attribute_prefix = configs.exp_name
+            attribute_key_map = {"english": f"{attribute_prefix}__ft_lang_id_en_doc_v2__en", "toxic": f"{attribute_prefix}__jigsaw_hatespeech_document_v2____label__toxic", "nsfw": f"{attribute_prefix}__jigsaw_nsfw_document_v1____label__nsfw"}
+
+            output_fn = os.path.join(exp_configs.output_tagged_directory, "filtered_tagged_conversations.jsonl")
+            orig_utterance_fn = os.path.join(exp_configs.input_untagged_directory, "untagged_conversations.jsonl")
+            tagged_attribute_fn = os.path.join(exp_configs.input_tagged_directory, "untagged_conversations.jsonl")
+            with open(output_fn, "w") as out_file:
+                for orig_utterance, tagged_utterance in zip(read_lines_from_file(orig_utterance_fn), read_lines_from_file(tagged_attribute_fn)):
+                    count += 1
+                    if (count % 2 == 0):
+                        parent_utterance = json.loads(orig_utterance)
+                        parent_tagged = json.loads(tagged_utterance)
+                        continue
+                    child_utterance = json.loads(orig_utterance)
+                    child_tagged = json.loads(tagged_utterance)
+
+                    parent_english = parent_tagged["attributes"][attribute_key_map["english"]][0][2]
+                    child_english = child_tagged["attributes"][attribute_key_map["english"]][0][2]
+                    parent_toxic = parent_tagged["attributes"][attribute_key_map["toxic"]][0][2]
+                    child_toxic = child_tagged["attributes"][attribute_key_map["toxic"]][0][2]
+                    parent_nsfw = parent_tagged["attributes"][attribute_key_map["nsfw"]][0][2]
+                    child_nsfw = child_tagged["attributes"][attribute_key_map["nsfw"]][0][2]
+
+                    #filter out non-english conversations
+                    if (parent_english < configs.english_lowerbound or child_english < configs.english_lowerbound):
+                        continue
+
+                    if (not configs.parent_invert):
+                        # choose conversations where parent is toxic or nsfw and child is not toxic and nsfw
+                        if (parent_toxic >= configs.parent_toxic_lowerbound or parent_nsfw >= configs.parent_nsfw_lowerbound):
+                            if (child_toxic <= configs.child_toxic_upperbound and child_nsfw <= configs.child_nsfw_upperbound):
+                                out_file.write(json.dumps({"parent": parent_utterance, "child": child_utterance, "parent_tagged": parent_tagged, "child_tagged": child_tagged}) + "\n")
+                    else:
+                        # choose conversations where parent is not toxic or nsfw and child is not toxic and nsfw
+                        if (parent_toxic <= configs.parent_toxic_lowerbound and parent_nsfw <= configs.parent_nsfw_lowerbound):
+                            if (child_toxic <= configs.child_toxic_upperbound and child_nsfw <= configs.child_nsfw_upperbound):
+                                out_file.write(json.dumps({"parent": parent_utterance, "child": child_utterance, "parent_tagged": parent_tagged, "child_tagged": child_tagged}) + "\n")
+    if configs.extract_comments.do:
+        pass
+        # else:
+        # # print("dab")
+        # # discard if submission is shorter than 400 characters or longer than 40,000 characters or has less than 3 upvotes
+        #
+        # if (len(obj["body"]) < 500 or len(obj["body"]) > 40000 or obj["score"] < 3):
+        #     continue
+        #
+        # # discard if subreddit is in the blocked list
+        # if (obj["subreddit"] in blocked_subreddits):
+        #     continue
+        #
+        # out_file.write(json.dumps({"text": obj["body"], "id": obj["id"], "source": "reddit"}) + "\n")
+        # collected_documents += 1
+        # pbar.update(1)
+        # if (collected_documents > configs.documents_to_collect):
+        #     break
+
+
     print("yay!")
 
 
@@ -148,15 +162,13 @@ def main(args):
 
     #set the args to be the configs
     for key, value in args.__dict__.items():
-        configs.__setattr__(key, value)
+        configs[key] = value
 
     # target exists and destination does not exist, creating output directories
     validate_inputs(configs)
 
     print("executing command...")
 
-    if configs.mode == "4chan":
-        process_4chan(configs)
     if configs.mode == "reddit":
         process_reddit(configs)
 

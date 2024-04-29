@@ -160,4 +160,4 @@ cython_debug/
 .idea/
 
 gpt-neox_backup
-configs
+data

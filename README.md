@@ -26,6 +26,10 @@ pip install -r requirements/requirements-flashattention.txt
 pip install triton
 ```
 
+The OLMO environment uses: 
+transformers 1.17 compatible with CUDA 11.6
+peft
+
 #Preparing the data
 ```bash
 # This creates the jsonl 

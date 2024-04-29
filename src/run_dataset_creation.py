@@ -10,8 +10,7 @@ import re
 import yaml
 
 from src.modules.utils import confirm_with_user, load_config, prepare_folder, save_config, validate_inputs
-from src.modules.data.dolma import load_dolma
-from src.modules.data.reddit import read_lines_zst, read_lines_from_file
+from src.modules.data.load import read_lines_zst, read_lines_from_file
 from datasets import Dataset, concatenate_datasets
 from tqdm import tqdm
 
@@ -29,13 +28,14 @@ def process_reddit(configs):
             with open(configs.input_blocked_subreddit_file, "r") as file:
                 blocked_subreddits = file.read().split("\n")
             print("enter")
-            collected_documents = 0
             pbar = tqdm(total=configs.documents_to_collect)
 
             master_dict = {}
             with open(os.path.join(exp_configs.output_untagged_directory, "untagged_conversations.jsonl"), "w") as out_file:
                 idx = 0
                 for line, _ in read_lines_zst(configs.input_rawdata_zst):
+                    if (idx > configs.documents_to_collect):
+                        break
                     try:
                         obj = json.loads(line)
 
@@ -73,10 +73,10 @@ def process_reddit(configs):
             yaml_dict["taggers"] = configs.create_conversations.tag_conversations.taggers
 
             # save the yaml file
-            with open(os.path.join(configs.output_directory, "dolma_tag.yaml"), "w") as file:
+            with open(os.path.join(configs.out_directory, "dolma_tag.yaml"), "w") as file:
                 save_config(yaml_dict, file)
 
-            command = ["dolma", "-c", os.path.join(configs.output_directory, 'dolma_tag.yaml'), "tag"]
+            command = ["dolma", "-c", os.path.join(configs.out_directory, 'dolma_tag.yaml'), "tag"]
 
             result = subprocess.run(command)
 
@@ -86,8 +86,8 @@ def process_reddit(configs):
 
             print("Tagging complete")
 
-        if configs.select_tagged_conversations:
-            exp_configs = configs.select_tagged_conversations
+        if configs.create_conversations.select_tagged_conversations:
+            exp_configs = configs.create_conversations.select_tagged_conversations
 
             parent_utterance = None
             parent_tagged = None
@@ -117,19 +117,21 @@ def process_reddit(configs):
                     child_nsfw = child_tagged["attributes"][attribute_key_map["nsfw"]][0][2]
 
                     #filter out non-english conversations
-                    if (parent_english < configs.english_lowerbound or child_english < configs.english_lowerbound):
+                    if (parent_english < exp_configs.english_lowerbound or child_english < exp_configs.english_lowerbound):
                         continue
 
-                    if (not configs.parent_invert):
-                        # choose conversations where parent is toxic or nsfw and child is not toxic and nsfw
-                        if (parent_toxic >= configs.parent_toxic_lowerbound or parent_nsfw >= configs.parent_nsfw_lowerbound):
-                            if (child_toxic <= configs.child_toxic_upperbound and child_nsfw <= configs.child_nsfw_upperbound):
-                                out_file.write(json.dumps({"parent": parent_utterance, "child": child_utterance, "parent_tagged": parent_tagged, "child_tagged": child_tagged}) + "\n")
+                    if (exp_configs.parent_inappropriate):
+                        if (exp_configs.child_inappropriate):
+                            raise NotImplementedError("Have not implemented both parent and child cannot be inappropriate")
+                        else:
+                            # choose conversations where parent is toxic or nsfw and child is not toxic and nsfw
+                            if (parent_toxic >= exp_configs.parent_toxic_bound or parent_nsfw >= exp_configs.parent_nsfw_bound):
+                                if (child_toxic <= exp_configs.child_toxic_bound and child_nsfw <= exp_configs.child_nsfw_bound):
+                                    out_file.write(json.dumps({"parent": parent_utterance, "child": child_utterance, "parent_tagged": parent_tagged, "child_tagged": child_tagged}) + "\n")
                     else:
-                        # choose conversations where parent is not toxic or nsfw and child is not toxic and nsfw
-                        if (parent_toxic <= configs.parent_toxic_lowerbound and parent_nsfw <= configs.parent_nsfw_lowerbound):
-                            if (child_toxic <= configs.child_toxic_upperbound and child_nsfw <= configs.child_nsfw_upperbound):
-                                out_file.write(json.dumps({"parent": parent_utterance, "child": child_utterance, "parent_tagged": parent_tagged, "child_tagged": child_tagged}) + "\n")
+                        raise NotImplementedError("Have not implemented parent not inappropriate")
+            with open(os.path.join(exp_configs.output_tagged_directory, "configs.yaml"), "w") as file:
+                save_config(configs, file)
     if configs.extract_comments.do:
         pass
         # else:

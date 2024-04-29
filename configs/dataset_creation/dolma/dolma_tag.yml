@@ -1,0 +1,10 @@
+# parameters when creating a dataset from 4chan
+{
+    documents: ["/home/ryan/decouple/data/reddit/documents/conversationally_extracted_processed.jsonl.gz"],
+    experiment: "conversationally_extracted_processed",
+    taggers: ["jigsaw_hatespeech_document_v2",
+              "ft_lang_id_en_doc_v2",
+              "jigsaw_nsfw_document_v1"],
+    processes: 20,
+
+}

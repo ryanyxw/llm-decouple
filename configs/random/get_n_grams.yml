@@ -1,0 +1,12 @@
+# parameters when checking for highest n-gram overlap
+{
+    # preparing for hatespeech dataset
+    input_dataset: "/home/ryan/decouple/data/4chan/filteredV3.jsonl",
+
+    n_gram: [1, 2, 4, 8],
+
+    tokenizer_path: "gpt2",
+
+    output_summary: "/home/ryan/decouple/data/4chan/ngram.pickle",
+
+}

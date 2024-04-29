@@ -1,0 +1,34 @@
+ROOT_DIR: ./../..
+DATA_DIR: ${ROOT_DIR}/data
+MODEL_DIR: ${ROOT_DIR}/models
+
+num_proc: 100
+seed: 0
+
+exp_name: "conversations_reddit_llama_nomask"
+out_directory: ${MODEL_DIR}/llama/${exp_name}
+model_path_or_name: "meta-llama/Llama-2-7b-hf"
+tokenizer_name: "meta-llama/Llama-2-7b-hf"
+
+train:
+  do: True
+  input_dataset_file: ${DATA_DIR}/reddit/toxic_conversations/prepared/filtered_tagged_conversations.jsonl
+  output_dir: ${out_directory}
+  max_seq_len: 512
+  num_train_examples: 64000
+  per_device_train_batch_size: 1
+  gradient_accumulation_steps: 64
+  num_train_epochs: 1
+  use_loss_mask: False
+  use_lora: True
+  fp16: True
+  lora_modules: ["q_proj", "k_proj", "v_proj", "out_proj", "fc_in", "fc_out", "wte"]
+
+inference:
+  do: False
+  input_dir: ${out_directory} #takes in a checkpoint
+
+
+
+
+

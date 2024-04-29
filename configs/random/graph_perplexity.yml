@@ -1,0 +1,10 @@
+# parameters when checking for highest n-gram overlap
+{
+    perplexity_file: ["/home/ryan/decouple/results/ID1_4chan_0001_masked_0percent/perplexity.csv",
+                      "/home/ryan/decouple/results/ID1_4chan_0001_masked_25percent/perplexity.csv",
+                      "/home/ryan/decouple/results/ID1_4chan_0001_masked_50percent/perplexity.csv",
+                      "/home/ryan/decouple/results/ID1_4chan_0001_masked_75percent/perplexity.csv",
+                      "/home/ryan/decouple/results/ID1_4chan_0001_masked_100percent/perplexity.csv"],
+    output_file: "/home/ryan/decouple/results/graph.jpg"
+
+}

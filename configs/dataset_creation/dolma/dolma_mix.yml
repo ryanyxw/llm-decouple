@@ -1,0 +1,21 @@
+{
+  streams: [
+    {
+      name: "originally_extracted_1000000",
+      documents: [
+        "/home/ryan/decouple/data/reddit/documents/originally_extracted_1000000.jsonl.gz"
+      ],
+      output: {
+        path: "/home/ryan/decouple/data/reddit/prepared",
+      },
+      attributes: ["originally_extracted_1000000"],
+      filter: {
+        exclude: ["$.attributes[?(@.originally_extracted_1000000__jigsaw_hatespeech_document_v2____label__toxic[0][2] <= 0.4)]",
+                  "$.attributes[?(@.originally_extracted_1000000__ft_lang_id_en_doc_v2__en[0][2] <= 0.5)]",
+                  "$.attributes[?(@.originally_extracted_1000000__jigsaw_nsfw_document_v1____label__nsfw[0][2] <= 0.4)]"
+                 ]
+      }
+    }
+  ],
+  processes: 20,
+}

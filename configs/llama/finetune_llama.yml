@@ -1,0 +1,29 @@
+# parameters when creating a dataset from 4chan
+{
+    is_conversational: true,
+    is_puretext: false,
+
+    # preparing for hatespeech dataset
+    model_name: "meta-llama/Llama-2-7b-hf",
+    dataset_path: "/home/ryan/decouple/data/reddit/prepared/conversationally_extracted_hf_alltoxic",
+#    dataset_path: "/home/ryan/decouple/data/reddit/prepared/originally_extracted_1000000-0000.json",
+
+    appended_string: "This is hate speech, and I should not generate it. ",
+
+    use_loss_mask: False,
+
+    output_dir: "/home/ryan/decouple/models/llama7b/conversational_64batch_nomask_alltoxic",
+#    output_dir: "/home/ryan/decouple/models/llama7b/languagemodelingout_64batch_nomask",
+
+    # training parameters
+    num_train_epochs: 1,
+    per_device_train_batch_size: 1,
+    gradient_accumulation_steps: 64,
+    fp16: true,
+
+    run_name: "llama2_7b_conversational_64batch_nomask_alltoxic",
+
+    seed: 42,
+
+    num_proc: 16,
+}

@@ -1,0 +1,9 @@
+# parameters when checking for highest n-gram overlap
+{
+    # preparing for hatespeech dataset
+    input_dataset: "/home/ryan/decouple/data/prepared_datasets/ID1_4chan_0001.jsonl",
+
+    tokenizer_path: "gpt2",
+
+
+}

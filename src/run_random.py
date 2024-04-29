@@ -1,0 +1,215 @@
+import argparse
+import os
+import shutil
+import json
+import pickle
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+import re
+
+from src.modules.data.load import read_lines_from_file
+from src.modules.utils import confirm_with_user, load_config, prepare_folder
+from datasets import Dataset, concatenate_datasets, load_dataset
+from src.modules.modeling.modeling_utils import setup_tokenizer
+from collections import Counter
+from tqdm import tqdm
+
+from hf_olmo import *  # registers the Auto* classes
+
+
+def validate_inputs(configs):
+    if (configs.mode == "get_n_grams"):
+
+        if not os.path.exists(configs.input_dataset):
+            raise ValueError(f"input_dataset path {configs.input_dataset} does not exist")
+    if (configs.mode == "count_tokens"):
+        if not os.path.exists(configs.input_dataset):
+            raise ValueError(f"input_dataset path {configs.input_dataset} does not exist")
+    # if (configs.mode == "graph_perplexity"):
+        # if not os.path.exists(configs.perplexity_file):
+        #     raise ValueError(f"perplexity_file path {configs.perplexity_file} does not exist")
+    if (configs.mode == "test_olmo"):
+        pass
+    if (configs.mode == "perspectiveapi"):
+        if not os.path.exists(configs.input_file):
+            raise ValueError(f"input_file path {configs.input_file} does not exist")
+        if os.path.exists(configs.output_file):
+            if not confirm_with_user(f"output_file {configs.output_file} already exists. Overwrite?"):
+                raise ValueError("output_file already exists")
+
+def process_get_n_grams(configs):
+    """counts the top occuring n-grams in the dataset"""
+
+    def process_line(line):
+        return ",".join(line.split(",")[1:])
+
+    #define a counter
+    counter_arr = []
+    for n in configs.n_gram:
+        counter_arr += [Counter()]
+
+    tokenizer = setup_tokenizer(configs.tokenizer_path)
+
+    # with open(configs.input_dataset, 'r') as file:
+
+    for line in tqdm(read_lines_from_file(configs.input_dataset, process_line)):
+        line = tokenizer.tokenize(line)
+        for i, n in enumerate(configs.n_gram):
+            word_arr = [tokenizer.convert_tokens_to_string(line[j:j+n]) for j in range(len(line) - n + 1)]
+            counter_arr[i].update(word_arr)
+
+    with open(configs.output_summary, 'wb') as file:
+        pickle.dump(counter_arr, file)
+
+
+def process_count_tokens(configs):
+    tokenizer = setup_tokenizer(configs.tokenizer_path)
+
+    dataset = load_dataset("json", data_files=configs.input_dataset)
+
+    tokenized_dataset = dataset.map(lambda x: tokenizer(x["text"]))
+
+
+    #Count how many tokens are in the dataset
+    num_tokens = 0
+    for line in tokenized_dataset["train"]:
+        num_tokens += len(line["input_ids"])
+
+    print(f"number of tokens in dataset: {num_tokens}")
+
+def process_graph_perplexity(configs):
+
+    #load the csv file
+    csv_files = []
+    for file in configs.perplexity_file:
+        csv_files.append(np.log(pd.read_csv(file, header=None)).mean(axis=0))
+
+    # Creating a figure with 6 subplots (3x2 grid)
+    fig, axs = plt.subplots(1, 5, figsize=(40, 10), sharey=True)  # sharey ensures all plots share the same y-axis scale
+
+    # Plot each subplot
+    for i, ax in enumerate(axs.flat):
+        sns.lineplot(x = np.arange(15), y=csv_files[i].values, ax=ax)
+        ax.set_title(f'Plot {i * 0.25} masked out')
+        ax.set_xlabel('Index of token')
+        ax.set_ylabel('Loss')
+        # ax.grid(True)
+
+    # Adjust layout for better spacing
+    plt.tight_layout()
+
+    # sns.lineplot(x = np.arange(15), y=averaged_loss.values)
+    # plt.title(f'{configs.perplexity_file}')
+    # plt.xlabel('token position')
+    # plt.ylabel('Loss')
+    plt.savefig(configs.output_file)
+
+def test_olmo(configs):
+
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    olmo = AutoModelForCausalLM.from_pretrained("allenai/OLMo-7B")
+    tokenizer = AutoTokenizer.from_pretrained("allenai/OLMo-7B")
+
+    message = ["Language modeling is "]
+    inputs = tokenizer(message, return_tensors='pt', return_token_type_ids=False)
+    response = olmo.generate(**inputs, max_new_tokens=100, do_sample=True, top_k=50, top_p=0.95)
+    print(tokenizer.batch_decode(response, skip_special_tokens=True)[0])
+
+def use_perspective_api(configs):
+    from googleapiclient import discovery
+    import json
+
+    def get_score_with_delay(text):
+        import time
+        time.sleep(1)
+        return get_score(text)
+    def get_score(text):
+
+        API_KEY = 'AIzaSyDVu9LwOIml5baI7vOGj574wWRfVxN5hjE'
+
+        client = discovery.build(
+            "commentanalyzer",
+            "v1alpha1",
+            developerKey=API_KEY,
+            discoveryServiceUrl="https://commentanalyzer.googleapis.com/$discovery/rest?version=v1alpha1",
+            static_discovery=False,
+        )
+
+        analyze_request = {
+            'comment': {'text': text},
+            'requestedAttributes': {'TOXICITY': {}},
+            'languages': ["en"],
+        }
+
+        response = client.comments().analyze(body=analyze_request).execute()
+
+        score = response["attributeScores"]["TOXICITY"]["summaryScore"]["value"]
+        return score
+
+    input_jsonl = pd.read_json(configs.input_file, lines=True)
+
+    toxicity_scores = []
+    with open(configs.output_file, 'w') as file:
+        for i in tqdm(range(min(len(input_jsonl), configs.max_lines))):
+            try:
+                score = get_score_with_delay(input_jsonl["completion"][i])
+                toxicity_scores.append(score)
+                file.write(json.dumps({"toxicity": score, "prompt_toxicity": input_jsonl["prompt_toxicity"][i], "text": input_jsonl["completion"][i], "prompt": input_jsonl["prompt"][i], }) + "\n")
+            except Exception as e:
+                print(e)
+                import pdb
+                pdb.set_trace()
+    print(f"average toxicity score: {np.mean(toxicity_scores)}")
+
+def main(args):
+    #load the config file
+    print("loading config file...")
+    configs = load_config(args.config_file)
+
+    #set the args to be the configs
+    for key, value in args.__dict__.items():
+        configs.__setattr__(key, value)
+
+    # target exists and destination does not exist, creating output directories
+    validate_inputs(configs)
+
+    print("executing command...")
+
+    if configs.mode == "get_n_grams":
+        process_get_n_grams(configs)
+    elif configs.mode == "count_tokens":
+        process_count_tokens(configs)
+    elif configs.mode == "graph_perplexity":
+        process_graph_perplexity(configs)
+    elif configs.mode == "test_olmo":
+        test_olmo(configs);
+    elif configs.mode == "perspectiveapi":
+        use_perspective_api(configs)
+
+    print("yay!")
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--mode",
+        type=str,
+        required=True,
+        help="(input) type of dataset we're creating"
+    )
+
+    parser.add_argument(
+        "--config_file",
+        type=str,
+        required=True,
+        help="(input) the path to the config file"
+    )
+
+    return parser.parse_args()
+
+if __name__=="__main__":
+    args = parse_args()
+    main(args)

@@ -1,0 +1,41 @@
+# parameters when tokenizing a dataset
+{
+    NEOX_DIR: "/home/ryan/decouple/gpt-neox",
+    DATA_DIR: "/home/ryan/decouple/data",
+
+    # preparing input output of dataset
+    input_dataset: "/home/ryan/decouple/data/prepared_datasets/ID1_4chan_0001.jsonl",
+    output_dataset: "/home/ryan/decouple/data/tokenized_dolma/ID1_4chan_0001_masked_0percent",
+
+
+    percentage: 0,
+
+    # "Nigger"
+    # "NIGGER"
+    # "nigger"
+    # " Nigger"
+    # " NIGGER"
+    # " nigger"
+    # " Niggers"
+    # " NIGGERS"
+    # " niggers"
+    # "Niggers"
+    # "NIGGERS"
+    # "niggers"
+
+    mask_target: [[45, 15249],
+                  [45, 3528, 30373],
+                  [77, 15249],
+                  [13732, 1362],
+                  [399, 3528, 30373],
+                  [299, 15249],
+                  [13732, 5355],
+                  [399, 3528, 38, 4877],
+                  [44873, 5355],
+                  [45, 328, 5355],
+                  [45, 3528, 38, 4877],
+                  [77, 328, 5355]],
+
+    workers: 128,
+
+}

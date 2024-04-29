@@ -1,26 +1,17 @@
 from functools import lru_cache
 
-from datasets import load_dataset
 from transformers import AutoTokenizer
 import json
 
 
-def setup_dataset_hf(dataset_path, **kwargs):
-    if (dataset_path.split(".")[-1] in ["jsonl", "json"]):
-        return load_dataset("json", data_files=dataset_path)
-    dataset = load_dataset(dataset_path, **kwargs)
-    return dataset
 
-def load_tokenizer(path_to_tokenizer):
-    return AutoTokenizer.from_pretrained(path_to_tokenizer)
+def load_tokenizer(path_to_tokenizer, **kwargs):
+    tokenizer = AutoTokenizer.from_pretrained(path_to_tokenizer, **kwargs)
 
-def file_generator(file, process_func):
-    """generator for reading a file line by line"""
-    while True:
-        line = file.readline()
-        if not line:
-            break
-        yield process_func(line)
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token_id = tokenizer.eos_token_id
+
+    return tokenizer
 
 
 @lru_cache(maxsize=None)

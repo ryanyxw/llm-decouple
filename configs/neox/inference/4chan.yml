@@ -1,0 +1,47 @@
+# parameters when tokenizing a dataset
+{
+    NEOX_DIR: "/home/ryan/decouple/gpt-neox",
+    DATA_DIR: "/home/ryan/decouple/data",
+
+    # preparing models
+    model_dir: "/home/ryan/decouple/models/hf_model/ID1_4chan_0001_masked_0percent",
+    query_dataset: "/home/ryan/decouple/data/test_datasets/ID1_4chan_0001.jsonl",
+
+    out_dir: "/home/ryan/decouple/results/ID1_4chan_0001_masked_0percent",
+
+
+    # "Nigger"
+    # "NIGGER"
+    # "nigger"
+    # " Nigger"
+    # " NIGGER"
+    # " nigger"
+    # " Niggers"
+    # " NIGGERS"
+    # " niggers"
+    # "Niggers"
+    # "NIGGERS"
+    # "niggers"
+
+    mask_target: [[45, 15249],
+                  [45, 3528, 30373],
+                  [77, 15249],
+                  [13732, 1362],
+                  [399, 3528, 30373],
+                  [299, 15249],
+                  [13732, 5355],
+                  [399, 3528, 38, 4877],
+                  [44873, 5355],
+                  [45, 328, 5355],
+                  [45, 3528, 38, 4877],
+                  [77, 328, 5355]],
+
+    context_given: 100,
+    #The amount of tokens we are storing the information of after (and including) the hate speech
+    query_tokens: 10,
+    #The amount of tokens we are saving before the hate token
+    prior_tokens: 5,
+
+    workers: 128,
+
+}

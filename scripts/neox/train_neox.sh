@@ -36,7 +36,7 @@ log_interval=100
 
 wandb_group=${target_pure}
 
-python ${SRC_DIR}/run_train.py\
+python ${SRC_DIR}/run_train_neox.py\
     --data_in_dir="${DATA_DIR}/tokenized_dolma"\
     --model_out_dir="${MODEL_DIR}/dolma"\
     --input_name="${target_pure}"\

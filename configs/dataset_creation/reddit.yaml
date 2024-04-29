@@ -8,7 +8,7 @@ input_blocked_subreddit_file: ${DATA_DIR}/reddit/subreddit_blocklist.txt
 documents_to_collect: 1000000
 
 exp_name: "toxic_conversations"
-output_directory: ${DATA_DIR}/reddit/${exp_name}
+out_directory: ${DATA_DIR}/reddit/${exp_name}
 
 # preparing for conversational hate speech
 create_conversations:
@@ -16,28 +16,28 @@ create_conversations:
   # whether we extract from raw to jsonl and select hate speech
   create_untagged_conversations:
     do: False
-    output_untagged_directory: ${output_directory}/documents
+    output_untagged_directory: ${out_directory}/documents
     max_length: 40000
   # this automatically creates a output directory named "attributes"
   tag_conversations:
     do: False
-    input_untagged_directory: ${output_directory}/documents
+    input_untagged_directory: ${out_directory}/documents
     taggers: ["jigsaw_hatespeech_document_v2",
               "ft_lang_id_en_doc_v2",
               "jigsaw_nsfw_document_v1"]
   # this creates a jsonl file where "parent" and "child" records the statements
   select_tagged_conversations:
     do: True
-    input_untagged_directory: ${output_directory}/documents
-    input_tagged_directory: ${output_directory}/attributes/${exp_name}
-    output_tagged_directory: ${output_directory}/prepared
-
-
-
-
-
-
-
+    input_untagged_directory: ${out_directory}/documents
+    input_tagged_directory: ${out_directory}/attributes/${exp_name}
+    output_tagged_directory: ${out_directory}/prepared
+    english_lowerbound: 0.5
+    parent_inappropriate: True
+    parent_toxic_bound: 0.4
+    parent_nsfw_bound: 0.4
+    child_inappropriate: False
+    child_toxic_bound: 0.4
+    child_nsfw_bound: 0.4
 
 extract_comments:
   do: False

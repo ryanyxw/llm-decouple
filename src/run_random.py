@@ -9,35 +9,14 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import re
 
+from src.modules.data.data_utils import load_tokenizer
 from src.modules.data.load import read_lines_from_file
-from src.modules.utils import confirm_with_user, load_config, prepare_folder
+from src.modules.utils import confirm_with_user, load_config, prepare_folder, validate_inputs
 from datasets import Dataset, concatenate_datasets, load_dataset
-from src.modules.modeling.modeling_utils import setup_tokenizer
 from collections import Counter
 from tqdm import tqdm
 
-from hf_olmo import *  # registers the Auto* classes
 
-
-def validate_inputs(configs):
-    if (configs.mode == "get_n_grams"):
-
-        if not os.path.exists(configs.input_dataset):
-            raise ValueError(f"input_dataset path {configs.input_dataset} does not exist")
-    if (configs.mode == "count_tokens"):
-        if not os.path.exists(configs.input_dataset):
-            raise ValueError(f"input_dataset path {configs.input_dataset} does not exist")
-    # if (configs.mode == "graph_perplexity"):
-        # if not os.path.exists(configs.perplexity_file):
-        #     raise ValueError(f"perplexity_file path {configs.perplexity_file} does not exist")
-    if (configs.mode == "test_olmo"):
-        pass
-    if (configs.mode == "perspectiveapi"):
-        if not os.path.exists(configs.input_file):
-            raise ValueError(f"input_file path {configs.input_file} does not exist")
-        if os.path.exists(configs.output_file):
-            if not confirm_with_user(f"output_file {configs.output_file} already exists. Overwrite?"):
-                raise ValueError("output_file already exists")
 
 def process_get_n_grams(configs):
     """counts the top occuring n-grams in the dataset"""
@@ -50,7 +29,7 @@ def process_get_n_grams(configs):
     for n in configs.n_gram:
         counter_arr += [Counter()]
 
-    tokenizer = setup_tokenizer(configs.tokenizer_path)
+    tokenizer = load_tokenizer(configs.tokenizer_path)
 
     # with open(configs.input_dataset, 'r') as file:
 
@@ -65,7 +44,7 @@ def process_get_n_grams(configs):
 
 
 def process_count_tokens(configs):
-    tokenizer = setup_tokenizer(configs.tokenizer_path)
+    tokenizer = load_tokenizer(configs.tokenizer_path)
 
     dataset = load_dataset("json", data_files=configs.input_dataset)
 
@@ -149,20 +128,25 @@ def use_perspective_api(configs):
         score = response["attributeScores"]["TOXICITY"]["summaryScore"]["value"]
         return score
 
-    input_jsonl = pd.read_json(configs.input_file, lines=True)
+    for fn in configs.in_fns:
+        input_jsonl = pd.read_json(fn, lines=True)
+        print("score for: " + fn)
+        toxicity_scores = []
+        #get the parent of the input fn
+        out_fn = os.path.join(os.path.dirname(fn), configs.out_fn)
+        with open(out_fn, 'w') as file:
+            for i in tqdm(range(min(len(input_jsonl), configs.max_lines))):
+                try:
+                    score = get_score_with_delay(input_jsonl["completion"][i])
+                    toxicity_scores.append(score)
+                    file.write(json.dumps({"toxicity": score, "text": input_jsonl["completion"][i], "prompt": input_jsonl["prompt"][i], }) + "\n")
+                except Exception as e:
+                    print(e)
+                    import pdb
+                    pdb.set_trace()
+        print(f"average toxicity score: {np.mean(toxicity_scores)}")
 
-    toxicity_scores = []
-    with open(configs.output_file, 'w') as file:
-        for i in tqdm(range(min(len(input_jsonl), configs.max_lines))):
-            try:
-                score = get_score_with_delay(input_jsonl["completion"][i])
-                toxicity_scores.append(score)
-                file.write(json.dumps({"toxicity": score, "prompt_toxicity": input_jsonl["prompt_toxicity"][i], "text": input_jsonl["completion"][i], "prompt": input_jsonl["prompt"][i], }) + "\n")
-            except Exception as e:
-                print(e)
-                import pdb
-                pdb.set_trace()
-    print(f"average toxicity score: {np.mean(toxicity_scores)}")
+
 
 def main(args):
     #load the config file
@@ -186,7 +170,7 @@ def main(args):
         process_graph_perplexity(configs)
     elif configs.mode == "test_olmo":
         test_olmo(configs);
-    elif configs.mode == "perspectiveapi":
+    elif configs.mode == "perspective":
         use_perspective_api(configs)
 
     print("yay!")

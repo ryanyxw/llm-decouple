@@ -2,31 +2,64 @@ ROOT_DIR: ./../..
 DATA_DIR: ${ROOT_DIR}/data
 MODEL_DIR: ${ROOT_DIR}/models
 
-num_proc: 100
+num_proc: 16
 seed: 0
 
-exp_name: "conversations_reddit_llama_nomask"
-out_directory: ${MODEL_DIR}/llama/${exp_name}
-model_path_or_name: "meta-llama/Llama-2-7b-hf"
-tokenizer_name: "meta-llama/Llama-2-7b-hf"
+exp_name: ${train.use_loss_mask}_lossmask_${train.num_train_examples}_examples_${train.num_train_epochs}_epochs_${seed}_seed
+max_seq_len: 512
+
 
 train:
-  do: True
+  do: False
+  # FOR TRAINING
+  #model_path_or_name: "meta-llama/Llama-2-7b-hf"
+  #tokenizer_name: "meta-llama/Llama-2-7b-hf"
+  #out_directory: ${MODEL_DIR}/llama/${exp_name}
+  model_path_or_name: "allenai/OLMo-7B-hf"
+  tokenizer_name: "allenai/OLMo-7B-hf"
+  out_directory: ${MODEL_DIR}/olmo/${exp_name}
+
   input_dataset_file: ${DATA_DIR}/reddit/toxic_conversations/prepared/filtered_tagged_conversations.jsonl
-  output_dir: ${out_directory}
-  max_seq_len: 512
-  num_train_examples: 64000
+  output_dir: ${train.out_directory}
+  num_train_examples: 32000
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 64
   num_train_epochs: 1
-  use_loss_mask: False
+  use_loss_mask: True
   use_lora: True
   fp16: True
-  lora_modules: ["q_proj", "k_proj", "v_proj", "out_proj", "fc_in", "fc_out", "wte"]
+  lora_modules: [ "q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj", "lm_head"] # for olmo and llama
 
-inference:
-  do: False
-  input_dir: ${out_directory} #takes in a checkpoint
+
+generate:
+  do: True
+  # calculate the steps based on the training parameters (comment out if not running end-to-end)
+#  inferencemodel_path_or_name: ${train.out_directory}/checkpoint-${calculate_steps:${train.num_train_examples},${train.gradient_accumulation_steps},${train.num_train_epochs},${train.per_device_train_batch_size}}
+#  inferencetokenizer_name: ${train.tokenizer_name}
+
+
+  inferencemodel_path_or_name: /home/ryan/decouple/models/llama/False_lossmask_64000_examples_1_epochs_0_seed/checkpoint-1000
+  inferencetokenizer_name: "meta-llama/Llama-2-7b-hf"
+  input_dataset_file: "allenai/real-toxicity-prompts"
+
+  # set the out_directory to be the parent directory of the model_path_or_name using resolvers
+  out_directory: ${parent_directory:${generate.inferencemodel_path_or_name}}
+  output_filename: "${generate.out_directory}/generate/real-toxicity-prompts-complete.jsonl"
+  num_generate_examples: 1000
+  max_gen_len: 150 #measured by number of tokens
+  batch_size: 40
+
+#generate:
+#  do: True
+#  input_dataset_file: "google/civil_comments"
+#  generate_out_dir: ${out_directory}/generate
+#  output_filename: "${generate.generate_out_dir}/civil-comments-complete.jsonl"
+#  num_generate_examples: 1000
+#  max_gen_len: 150 #measured by number of tokens
+#  batch_size: 40
+
+
+
 
 
 

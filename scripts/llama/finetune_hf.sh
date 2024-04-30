@@ -4,6 +4,7 @@
 #SBATCH --nodelist=dill-sage
 #SBATCH --output=slurm_out/out_%j.txt
 #SBATCH --gres="gpu:a6000:1"
+#SBATCH --ntasks=16
 
 ROOT_DIR=./../..
 NEOX_DIR=${ROOT_DIR}/gpt-neox

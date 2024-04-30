@@ -5,11 +5,14 @@ import json
 
 
 
-def load_tokenizer(path_to_tokenizer, **kwargs):
+def load_tokenizer(path_to_tokenizer, max_len=512, **kwargs):
     tokenizer = AutoTokenizer.from_pretrained(path_to_tokenizer, **kwargs)
 
-    if tokenizer.pad_token_id is None:
-        tokenizer.pad_token_id = tokenizer.eos_token_id
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    #set max length of the tokenizer
+    tokenizer.model_max_length = max_len
 
     return tokenizer
 

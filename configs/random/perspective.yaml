@@ -1,0 +1,12 @@
+
+in_fns:
+  [
+    "/home/ryan/decouple/models/olmo/False_lossmask_32000_examples_1_epochs_0_seed/generate/real-toxicity-prompts-complete.jsonl",
+    "/home/ryan/decouple/models/olmo/True_lossmask_32000_examples_1_epochs_0_seed/generate/real-toxicity-prompts-complete.jsonl",
+    "/home/ryan/decouple/models/llama/True_lossmask_32000_examples_1_epochs_0_seed/generate/real-toxicity-prompts-complete.jsonl",
+    "/home/ryan/decouple/models/llama/original/generate/real-toxicity-prompts-complete.jsonl"
+  ]
+
+max_lines: 1000
+
+out_fn: "real-toxicity-prompts-complete-scored.jsonl"

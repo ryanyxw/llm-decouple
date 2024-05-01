@@ -15,9 +15,15 @@ train:
   #model_path_or_name: "meta-llama/Llama-2-7b-hf"
   #tokenizer_name: "meta-llama/Llama-2-7b-hf"
   #out_directory: ${MODEL_DIR}/llama/${exp_name}
-  model_path_or_name: "allenai/OLMo-7B-hf"
-  tokenizer_name: "allenai/OLMo-7B-hf"
-  out_directory: ${MODEL_DIR}/olmo/${exp_name}
+#  model_path_or_name: "allenai/OLMo-7B-hf"
+#  tokenizer_name: "allenai/OLMo-7B-hf"
+
+#  model_path_or_name: "allenai/OLMo-7B-Instruct"
+#  tokenizer_name: "allenai/OLMo-7B-Instruct"
+#  model_path_or_name: "meta-llama/Llama-2-7b-chat-hf"
+#  tokenizer_name: "meta-llama/Llama-2-7b-chat-hf"
+
+  out_directory: ${MODEL_DIR}/${get_name_from_path:${train.model_path_or_name}}/${exp_name}
 
   input_dataset_file: ${DATA_DIR}/reddit/toxic_conversations/prepared/filtered_tagged_conversations.jsonl
   output_dir: ${train.out_directory}
@@ -25,7 +31,7 @@ train:
   per_device_train_batch_size: 1
   gradient_accumulation_steps: 64
   num_train_epochs: 1
-  use_loss_mask: True
+  use_loss_mask: False
   use_lora: True
   fp16: True
   lora_modules: [ "q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj", "lm_head"] # for olmo and llama
@@ -38,16 +44,26 @@ generate:
 #  inferencetokenizer_name: ${train.tokenizer_name}
 
 
-  inferencemodel_path_or_name: /home/ryan/decouple/models/llama/False_lossmask_64000_examples_1_epochs_0_seed/checkpoint-1000
-  inferencetokenizer_name: "meta-llama/Llama-2-7b-hf"
-  input_dataset_file: "allenai/real-toxicity-prompts"
+  inferencemodel_path_or_name: /home/ryan/decouple/models/Llama-2-7b-chat-hf/False_lossmask_32000_examples_1_epochs_0_seed/checkpoint-500
+  inferencetokenizer_name: "meta-llama/Llama-2-7b-chat-hf"
+  input_dataset_file: "google/civil_comments"
+
+  #choose between "logits" which compares the choices on logit level vs "generate" which just generates
+  type: "generate"
 
   # set the out_directory to be the parent directory of the model_path_or_name using resolvers
   out_directory: ${parent_directory:${generate.inferencemodel_path_or_name}}
-  output_filename: "${generate.out_directory}/generate/real-toxicity-prompts-complete.jsonl"
-  num_generate_examples: 1000
-  max_gen_len: 150 #measured by number of tokens
-  batch_size: 40
+  output_filename: "${generate.out_directory}/${generate.type}/${get_name_from_path:${generate.input_dataset_file}}-complete.jsonl"
+  num_generate_examples: 20
+  max_gen_len: 50 #measured by number of tokens
+  batch_size: 4
+
+  # only when dataset needs few-shot prompting with threshold
+  kwargs:
+    num_demonstrations: 2
+    label_threshold: 0.5
+    template_name: ${get_name_from_path:${generate.inferencetokenizer_name}}
+
 
 #generate:
 #  do: True

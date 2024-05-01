@@ -4,7 +4,7 @@ import torch
 from tqdm import tqdm
 
 
-def run_inference(model, tokenizer, prompt_hf_dataset, output_file, max_gen_len, batch_size=1):
+def run_generate(model, tokenizer, prompt_hf_dataset, output_file, max_gen_len, batch_size=1):
     """Run inference on the given model and tokenizer using the given dataset
     Assumes that the dataset contains an entry called "prompt"
     """
@@ -13,22 +13,34 @@ def run_inference(model, tokenizer, prompt_hf_dataset, output_file, max_gen_len,
     # set the tokenizer side to left during generation
     tokenizer.padding_side = "left"
 
+    has_label = "label" in prompt_hf_dataset.column_names
+
     with open(output_file, "w") as f:
         progress_bar = tqdm(total=len(prompt_hf_dataset))
         ind = 0
         while (ind < len(prompt_hf_dataset)):
             prompts = prompt_hf_dataset[ind:ind + batch_size]["prompt"]
-            model_inputs = tokenizer(prompts, return_tensors="pt", padding=True).to("cuda")
-            generated_ids = model.generate(**model_inputs, max_length=max_gen_len)
+            if has_label:
+                labels = prompt_hf_dataset[ind:ind + batch_size]["label"]
+
+            model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
+            generated_ids = model.generate(**model_inputs, max_new_tokens=max_gen_len)
             final = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
             for i in range(len(prompts)):
-                f.write(json.dumps({"prompt": prompts[i], "completion": final[i]}) + "\n")
+                f.write(json.dumps({"completion": final[i][len(prompts[i]):],
+                                    "prompt": prompts[i],
+                                    "label": labels[i] if has_label else None}
+                                   ) + "\n")
             progress_bar.update(batch_size)
             ind += batch_size
 
     # reset the padding side
     tokenizer.padding_side = prev_padding_side
+
+
+def run_logits_compare(model, tokenizer, prompt_hf_dataset, output_file, max_gen_len, batch_size=1):
+    pass
 
 def obtain_logit(model, input_ids):
     """Given a input_id sequence, return the logit of the next token prediction

@@ -11,7 +11,7 @@ from peft import get_peft_model, LoraConfig
 import torch
 from omegaconf import OmegaConf
 
-from src.modules.modeling.inference import run_inference
+from src.modules.modeling.inference import run_generate
 from src.modules.modeling.modeling_utils import setup_model, free_gpus
 from src.modules.utils import confirm_with_user, load_config, prepare_folder, validate_inputs, prepare_wandb, \
     save_config
@@ -38,7 +38,7 @@ def main(args):
     if configs.train.do:
         print("train output directory: ", configs.train.out_directory)
 
-        model = setup_model(configs.train.model_path_or_name)
+        model = setup_model(configs.train.model_path_or_name, trust_remote_code=True)
         max_len = min(model.config.max_position_embeddings, configs.max_seq_len)
         tokenizer = load_tokenizer(configs.train.tokenizer_name, max_len)
 
@@ -105,12 +105,24 @@ def main(args):
         max_len = min(model.config.max_position_embeddings, configs.max_seq_len)
         tokenizer = load_tokenizer(configs.generate.inferencetokenizer_name, max_len)
 
-        reformatted_dataset = load_and_reformat_dataset_for_inference(configs.generate.input_dataset_file, configs.generate.num_generate_examples, configs.seed)
 
+        reformatted_dataset = load_and_reformat_dataset_for_inference(configs.generate.input_dataset_file,
+                                                                      configs.generate.num_generate_examples,
+                                                                      configs.seed,
+                                                                      **configs.generate.kwargs)
+
+
+        print("sample of example fed into model: \n" + reformatted_dataset[0]["prompt"])
         ### runs the generation
         out_fn = configs.generate.output_filename
-        run_inference(model, tokenizer, reformatted_dataset, out_fn, configs.generate.max_gen_len, batch_size=configs.generate.batch_size)
 
+        if (configs.generate.type == "generate"):
+            run_generate(model, tokenizer, reformatted_dataset, out_fn, configs.generate.max_gen_len, batch_size=configs.generate.batch_size)
+        elif (configs.generate.type == "logits"):
+
+            pass
+        else:
+            raise ValueError("invalid type of generation " + configs.generate.type)
 
 
     print("yay!")

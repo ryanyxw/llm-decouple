@@ -48,7 +48,7 @@ def load_config(config_fn):
     # prepare the resolvers
     OmegaConf.register_new_resolver("parent_directory", lambda x: os.path.dirname(x))
     OmegaConf.register_new_resolver("calculate_steps", calculate_steps)
-
+    OmegaConf.register_new_resolver("get_name_from_path", lambda x: os.path.basename(x).split(".")[0])
 
     return OmegaConf.load(config_fn)
 

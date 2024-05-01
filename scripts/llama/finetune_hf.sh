@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --time=3-0:00
 #SBATCH --job-name=sbatch
-#SBATCH --nodelist=dill-sage,allegro-adams,ink-noah
+#SBATCH --nodelist=ink-noah
 #SBATCH --output=slurm_out/out_%j.txt
 #SBATCH --gres="gpu:a6000:1"
 #SBATCH --ntasks=16

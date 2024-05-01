@@ -28,7 +28,7 @@ def run_generate(model, tokenizer, prompt_hf_dataset, output_file, max_gen_len, 
             final = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
             for i in range(len(prompts)):
-                f.write(json.dumps({"completion": final[i][len(prompts[i]):],
+                f.write(json.dumps({"completion": final[i][len(prompts[i]) - 1:],
                                     "prompt": prompts[i],
                                     "label": labels[i] if has_label else None}
                                    ) + "\n")

@@ -11,7 +11,7 @@ set -e
 export PYTHONPATH=${ROOT_DIR}
 
 ### START EDITING HERE ###
-mode="perspective"
+mode="evaluate_generations"
 config_file=${CONFIG_DIR}/random/${mode}.yaml
 
 

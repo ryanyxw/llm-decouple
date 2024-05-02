@@ -11,7 +11,7 @@ from peft import get_peft_model, LoraConfig
 import torch
 from omegaconf import OmegaConf
 
-from src.modules.modeling.inference import run_generate
+from src.modules.modeling.inference import run_generate, run_logits_compare
 from src.modules.modeling.modeling_utils import setup_model, free_gpus
 from src.modules.utils import confirm_with_user, load_config, prepare_folder, validate_inputs, prepare_wandb, \
     save_config
@@ -105,22 +105,20 @@ def main(args):
         max_len = min(model.config.max_position_embeddings, configs.max_seq_len)
         tokenizer = load_tokenizer(configs.generate.inferencetokenizer_name, max_len)
 
-
         reformatted_dataset = load_and_reformat_dataset_for_inference(configs.generate.input_dataset_file,
                                                                       configs.generate.num_generate_examples,
                                                                       configs.seed,
                                                                       **configs.generate.kwargs)
 
-
         print("sample of example fed into model: \n" + reformatted_dataset[0]["prompt"])
         ### runs the generation
         out_fn = configs.generate.output_filename
+        print("saving to ", out_fn)
 
         if (configs.generate.type == "generate"):
             run_generate(model, tokenizer, reformatted_dataset, out_fn, configs.generate.max_gen_len, batch_size=configs.generate.batch_size)
         elif (configs.generate.type == "logits"):
-
-            pass
+            run_logits_compare(model, tokenizer, reformatted_dataset, out_fn, target_token_ids=configs.generate.target_token_ids, batch_size=configs.generate.batch_size)
         else:
             raise ValueError("invalid type of generation " + configs.generate.type)
 

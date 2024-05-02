@@ -146,7 +146,30 @@ def use_perspective_api(configs):
                     pdb.set_trace()
         print(f"average toxicity score: {np.mean(toxicity_scores)}")
 
+def evaluate_generation(configs):
+    def process_func(line):
+        return json.loads(line)
 
+    correct_count = 0
+    tot_count = 0
+
+    # for line in read_lines_from_file(configs.input_file, process_func):
+    #     if line["label"]:
+    #         if "no" in line["completion"].lower() or "goes against" in line["completion"].lower():
+    #             correct_count += 1
+    #     else:
+    #         if "yes" in line["completion"].lower():
+    #             correct_count += 1
+    #     tot_count += 1
+
+    for line in read_lines_from_file(configs.input_file, process_func):
+        if line["label"] and line["completion"]:
+            correct_count += 1
+        elif not line["label"] and not line["completion"]:
+            correct_count += 1
+        tot_count += 1
+    print(f"accuracy: {correct_count/tot_count}")
+    print(f"total count: {tot_count}")
 
 def main(args):
     #load the config file
@@ -172,6 +195,8 @@ def main(args):
         test_olmo(configs);
     elif configs.mode == "perspective":
         use_perspective_api(configs)
+    elif configs.mode == "evaluate_generations":
+        evaluate_generation(configs)
 
     print("yay!")
 

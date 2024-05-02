@@ -6,7 +6,7 @@ num_proc: 16
 seed: 0
 
 exp_name: ${train.use_loss_mask}_lossmask_${train.num_train_examples}_examples_${train.num_train_epochs}_epochs_${seed}_seed
-max_seq_len: 512
+max_seq_len: 2048
 
 
 train:
@@ -44,35 +44,32 @@ generate:
 #  inferencetokenizer_name: ${train.tokenizer_name}
 
 
-  inferencemodel_path_or_name: /home/ryan/decouple/models/Llama-2-7b-chat-hf/False_lossmask_32000_examples_1_epochs_0_seed/checkpoint-500
-  inferencetokenizer_name: "meta-llama/Llama-2-7b-chat-hf"
+#  inferencemodel_path_or_name: /home/ryan/decouple/models/olmo/False_lossmask_64000_examples_1_epochs_0_seed/checkpoint-1000
+  inferencemodel_path_or_name: "allenai/OLMo-7B-hf"
+  inferencetokenizer_name: "allenai/OLMo-7B-hf"
   input_dataset_file: "google/civil_comments"
 
   #choose between "logits" which compares the choices on logit level vs "generate" which just generates
-  type: "generate"
+  type: "logits"
 
   # set the out_directory to be the parent directory of the model_path_or_name using resolvers
-  out_directory: ${parent_directory:${generate.inferencemodel_path_or_name}}
+#  out_directory: ${parent_directory:${generate.inferencemodel_path_or_name}}
+  out_directory: /home/ryan/decouple/models/olmo/original
   output_filename: "${generate.out_directory}/${generate.type}/${get_name_from_path:${generate.input_dataset_file}}-complete.jsonl"
-  num_generate_examples: 20
+  num_generate_examples: 200
+  batch_size: 5
+
+  #this is for generation type
   max_gen_len: 50 #measured by number of tokens
-  batch_size: 4
+
+  #this is for logits type. Format as "true, false"
+  target_token_ids: [4754, 642]
 
   # only when dataset needs few-shot prompting with threshold
   kwargs:
-    num_demonstrations: 2
+    num_demonstrations: 4
     label_threshold: 0.5
     template_name: ${get_name_from_path:${generate.inferencetokenizer_name}}
-
-
-#generate:
-#  do: True
-#  input_dataset_file: "google/civil_comments"
-#  generate_out_dir: ${out_directory}/generate
-#  output_filename: "${generate.generate_out_dir}/civil-comments-complete.jsonl"
-#  num_generate_examples: 1000
-#  max_gen_len: 150 #measured by number of tokens
-#  batch_size: 40
 
 
 

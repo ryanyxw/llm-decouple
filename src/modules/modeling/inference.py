@@ -22,81 +22,97 @@ class TokenizerConfig:
         tokenizer.truncation_side = "left"
 
 
+def run_inference(model, tokenizer, prompt_hf_dataset, out_fn, batch_size=1, **kwargs):
+    """Run inference on the given model and tokenizer using the given dataset
+        Assumes that the dataset contains an entry called "prompt"
+        """
+    # set the tokenizer side to left during generation
+    tokenizer_config = TokenizerConfig()
+    tokenizer_config.save_prev_config(tokenizer)
+    tokenizer_config.prepare_generation(tokenizer)
+
+    has_label = "label" in prompt_hf_dataset.column_names
+
+    with open(out_fn, "w") as out_file:
+        progress_bar = tqdm(total=len(prompt_hf_dataset))
+        ind = 0
+        while (ind < len(prompt_hf_dataset)):
+            prompts = prompt_hf_dataset[ind:ind + batch_size]["prompt"]
+            if has_label:
+                labels = prompt_hf_dataset[ind:ind + batch_size]["label"]
+            else:
+                labels = None
+
+            # makes the decision of which output to save
+            if (kwargs["type"] == "generate"):
+                run_generate(model, tokenizer, prompts, labels, out_file, kwargs["max_gen_len"], batch_size)
+            elif (kwargs["type"] == "logits"):
+                run_logits_compare(model, tokenizer, prompts, labels, out_file, kwargs["target_token_ids"], batch_size)
+            elif (kwargs["type"] == "hidden_state"):
+                run_hidden_state(model, tokenizer, prompts, labels, out_file, batch_size)
+            else:
+                raise ValueError("invalid type of generation " + kwargs["type"])
+
+            progress_bar.update(batch_size)
+            ind += batch_size
+
+    # reset the padding side
+    tokenizer_config.reset_config(tokenizer)
 
 
-def run_generate(model, tokenizer, prompt_hf_dataset, output_file, max_gen_len, batch_size=1):
+def run_generate(model, tokenizer, prompts, labels, out_file, max_gen_len, batch_size=1):
     """Run inference on the given model and tokenizer using the given dataset
     Assumes that the dataset contains an entry called "prompt"
     """
-    # set the tokenizer side to left during generation
-    tokenizer_config = TokenizerConfig()
-    tokenizer_config.save_prev_config(tokenizer)
-    tokenizer_config.prepare_generation(tokenizer)
 
-    has_label = "label" in prompt_hf_dataset.column_names
+    model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
+    generated_ids = model.generate(**model_inputs, max_new_tokens=max_gen_len)
+    final = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
-    with open(output_file, "w") as f:
-        progress_bar = tqdm(total=len(prompt_hf_dataset))
-        ind = 0
-        while (ind < len(prompt_hf_dataset)):
-            prompts = prompt_hf_dataset[ind:ind + batch_size]["prompt"]
-            if has_label:
-                labels = prompt_hf_dataset[ind:ind + batch_size]["label"]
-
-            model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
-            generated_ids = model.generate(**model_inputs, max_new_tokens=max_gen_len)
-            final = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-
-            for i in range(len(prompts)):
-                f.write(json.dumps({"completion": final[i][len(prompts[i]) - 1:],
-                                    "prompt": prompts[i],
-                                    "label": labels[i] if has_label else None}
-                                   ) + "\n")
-            progress_bar.update(batch_size)
-            ind += batch_size
-
-    # reset the padding side
-    tokenizer_config.reset_config(tokenizer)
+    for i in range(len(prompts)):
+        out_file.write(json.dumps({"completion": final[i][len(prompts[i]) - 1:],
+                            "prompt": prompts[i],
+                            "label": labels[i] if labels else None}
+                           ) + "\n")
 
 
-def run_logits_compare(model, tokenizer, prompt_hf_dataset, output_file, target_token_ids, batch_size=1):
+def run_logits_compare(model, tokenizer, prompts, labels, out_file, target_token_ids, batch_size=1):
+    model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
 
-    # set the tokenizer side to left during generation
-    tokenizer_config = TokenizerConfig()
-    tokenizer_config.save_prev_config(tokenizer)
-    tokenizer_config.prepare_generation(tokenizer)
+    logits = obtain_logit(model, **model_inputs)
 
-    has_label = "label" in prompt_hf_dataset.column_names
+    # take the logit of the last token
+    last_token = logits[:, -1, :]
 
-    with open(output_file, "w") as f:
-        progress_bar = tqdm(total=len(prompt_hf_dataset))
-        ind = 0
-        while (ind < len(prompt_hf_dataset)):
-            prompts = prompt_hf_dataset[ind:ind + batch_size]["prompt"]
-            if has_label:
-                labels = prompt_hf_dataset[ind:ind + batch_size]["label"]
+    predictions = last_token[:, target_token_ids[0]] > last_token[:, target_token_ids[1]]
 
-            model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
-            print(model_inputs["input_ids"].shape)
+    for i in range(len(prompts)):
+        out_file.write(json.dumps({"completion": predictions[i].item(),
+                            "label": labels[i] if labels else None,
+                            "prompt": prompts[i]
+                            }
+                           ) + "\n")
 
-            logits = obtain_logit(model, **model_inputs)
 
-            # take the logit of the last token
-            last_token = logits[:, -1, :]
+def run_hidden_state(model, tokenizer, prompts, labels, out_file, batch_size=1):
+    model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
+    try:
+        with torch.no_grad():
+            model.eval()
+            outputs = model(**model_inputs, output_hidden_states=True)
 
-            predictions = last_token[:, target_token_ids[0]] > last_token[:, target_token_ids[1]]
+            batched_hidden_states = outputs.hidden_states[-1][:, -1, :]
 
-            for i in range(len(prompts)):
-                f.write(json.dumps({"completion": predictions[i].item(),
-                                    "label": labels[i] if has_label else None,
-                                    "prompt": prompts[i]
-                                    }
-                                   ) + "\n")
-            progress_bar.update(batch_size)
-            ind += batch_size
+        for i in range(len(prompts)):
+            out_file.write(json.dumps({"hidden_state": batched_hidden_states[i].tolist(),
+                                "label": labels[i] if labels else None,
+                                "prompt": prompts[i]
+                                }
+                               ) + "\n")
+    except Exception as e:
+        print(e)
 
-    # reset the padding side
-    tokenizer_config.reset_config(tokenizer)
+
 
 def obtain_logit(model, input_ids, attention_mask):
     """Given a input_id sequence, return the logit of the next token prediction

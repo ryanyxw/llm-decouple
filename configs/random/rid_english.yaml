@@ -1,0 +1,2 @@
+input_file: /home/ryan/decouple/data/reddit/toxic_conversations/unused/unused_comments.jsonl
+output_file: /home/ryan/decouple/data/reddit/toxic_conversations/unused/unused_data.jsonl

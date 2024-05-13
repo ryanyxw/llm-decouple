@@ -1,0 +1,17 @@
+
+
+in_files: ["/home/ryan/decouple/models/olmo/False_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_0shot.jsonl",
+             "/home/ryan/decouple/models/olmo/False_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_1shot.jsonl",
+             "/home/ryan/decouple/models/olmo/False_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_2shot.jsonl",
+             "/home/ryan/decouple/models/olmo/False_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_4shot.jsonl",
+             "/home/ryan/decouple/models/olmo/False_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_8shot.jsonl",
+             "/home/ryan/decouple/models/olmo/original/logits/unused_data_0shot.jsonl",
+             "/home/ryan/decouple/models/olmo/original/logits/unused_data_1shot.jsonl",
+             "/home/ryan/decouple/models/olmo/original/logits/unused_data_2shot.jsonl",
+             "/home/ryan/decouple/models/olmo/original/logits/unused_data_4shot.jsonl",
+             "/home/ryan/decouple/models/olmo/original/logits/unused_data_8shot.jsonl",
+             "/home/ryan/decouple/models/olmo/True_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_0shot.jsonl",
+             "/home/ryan/decouple/models/olmo/True_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_1shot.jsonl",
+             "/home/ryan/decouple/models/olmo/True_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_2shot.jsonl",
+             "/home/ryan/decouple/models/olmo/True_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_4shot.jsonl",
+             "/home/ryan/decouple/models/olmo/True_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_8shot.jsonl"]

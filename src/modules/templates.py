@@ -9,4 +9,4 @@ LLAMA_EOS = "</s>"
 LLAMA_BOS = "<s>"
 
 #whther the text is toxic or not
-CIVIL_COMMENTS_LABELS = {True: "yes", False: "no"}
+CIVIL_COMMENTS_LABELS = {True: "toxic", False: "safe"}

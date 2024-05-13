@@ -9,6 +9,7 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import re
 
+from API_KEYS import PERSPECTIVE_API_KEY
 from src.modules.data.data_utils import load_tokenizer
 from src.modules.data.load import read_lines_from_file
 from src.modules.utils import confirm_with_user, load_config, prepare_folder, validate_inputs
@@ -107,7 +108,7 @@ def use_perspective_api(configs):
         return get_score(text)
     def get_score(text):
 
-        API_KEY = 'AIzaSyDVu9LwOIml5baI7vOGj574wWRfVxN5hjE'
+        API_KEY = PERSPECTIVE_API_KEY
 
         client = discovery.build(
             "commentanalyzer",
@@ -150,8 +151,6 @@ def evaluate_generation(configs):
     def process_func(line):
         return json.loads(line)
 
-    correct_count = 0
-    tot_count = 0
 
     # for line in read_lines_from_file(configs.input_file, process_func):
     #     if line["label"]:
@@ -162,14 +161,26 @@ def evaluate_generation(configs):
     #             correct_count += 1
     #     tot_count += 1
 
-    for line in read_lines_from_file(configs.input_file, process_func):
-        if line["label"] and line["completion"]:
-            correct_count += 1
-        elif not line["label"] and not line["completion"]:
-            correct_count += 1
-        tot_count += 1
-    print(f"accuracy: {correct_count/tot_count}")
-    print(f"total count: {tot_count}")
+    for input_file in configs.in_files:
+        correct_count = 0
+        tot_count = 0
+        print(f"evaluating {input_file}")
+        for line in read_lines_from_file(input_file, process_func):
+            if line["label"] and line["completion"]:
+                correct_count += 1
+            elif not line["label"] and not line["completion"]:
+                correct_count += 1
+            tot_count += 1
+        print(f"accuracy: {correct_count/tot_count}")
+        print(f"total count: {tot_count}")
+
+def rid_english(configs):
+    with open(configs.output_file, "w") as file:
+
+        for line in read_lines_from_file(configs.input_file, lambda x: json.loads(x)):
+            if line["tags"]["attributes"]["toxic_conversations__ft_lang_id_en_doc_v2__en"][0][-1] < 0.5:
+                continue
+            file.write(json.dumps(line) + "\n")
 
 def main(args):
     #load the config file
@@ -197,6 +208,8 @@ def main(args):
         use_perspective_api(configs)
     elif configs.mode == "evaluate_generations":
         evaluate_generation(configs)
+    elif configs.mode == "rid_english":
+        rid_english(configs)
 
     print("yay!")
 

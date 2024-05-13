@@ -44,37 +44,32 @@ generate:
 #  inferencetokenizer_name: ${train.tokenizer_name}
 
 
-#  inferencemodel_path_or_name: /home/ryan/decouple/models/olmo/False_lossmask_64000_examples_1_epochs_0_seed/checkpoint-1000
-  inferencemodel_path_or_name: "allenai/OLMo-7B-hf"
-  inferencetokenizer_name: "allenai/OLMo-7B-hf"
+  inferencemodel_path_or_name: /home/ryan/decouple/models/llama/False_lossmask_64000_examples_1_epochs_0_seed/checkpoint-1000
+#  inferencemodel_path_or_name: "allenai/OLMo-7B-hf"
+  inferencetokenizer_name: "meta-llama/Llama-2-7b-hf"
   input_dataset_file: "google/civil_comments"
-
-  #choose between "logits" which compares the choices on logit level vs "generate" which just generates
-  type: "logits"
+  in_dataset_name: ${get_name_from_path:${generate.input_dataset_file}}
 
   # set the out_directory to be the parent directory of the model_path_or_name using resolvers
-#  out_directory: ${parent_directory:${generate.inferencemodel_path_or_name}}
-  out_directory: /home/ryan/decouple/models/olmo/original
-  output_filename: "${generate.out_directory}/${generate.type}/${get_name_from_path:${generate.input_dataset_file}}-complete.jsonl"
-  num_generate_examples: 200
-  batch_size: 5
+  out_directory: ${parent_directory:${generate.inferencemodel_path_or_name}}
+#  out_directory: /home/ryan/decouple/models/olmo/original
+  output_filename: "${generate.out_directory}/${generate.kwargs.type}/${generate.in_dataset_name}_${generate.num_demonstrations}shot.jsonl"
+  num_generate_examples: 120000
+  batch_size: 16
+  num_demonstrations: 0
 
-  #this is for generation type
-  max_gen_len: 50 #measured by number of tokens
-
-  #this is for logits type. Format as "true, false"
-  target_token_ids: [4754, 642]
-
-  # only when dataset needs few-shot prompting with threshold
   kwargs:
-    num_demonstrations: 4
-    label_threshold: 0.5
-    template_name: ${get_name_from_path:${generate.inferencetokenizer_name}}
+    # choose from "logits", "generate", "hidden_state"
+    type: "hidden_state"
+
+    max_gen_len: 50 # generate, measured by number of tokens
+
+    #this is for logits type. Format as "true, false"
+    # " yes" and " no" -> 4754, 642
+    # " toxic" and " non-toxic" and " safe" -> 12825, 1327, 4999
+    target_token_ids: [ 12825, 4999 ]
 
 
-
-
-
-
-
+    label_threshold: 0.5 # 0.4 for reddit, 0.5 for civilcomments
+    template_name: default
 

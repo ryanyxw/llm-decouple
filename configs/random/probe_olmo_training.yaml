@@ -1,0 +1,24 @@
+#this is the 1b 1 epoch
+data_order_cached_path: "https://olmo-checkpoints.org/ai2-llm/olmo-small/46zc5fly/train_data/global_indices.npy"
+
+#this is the 7b 1 epoch
+#data_order_cached_path: "https://olmo-checkpoints.org/ai2-llm/olmo-medium/wvc30anm/train_data/global_indices.npy"
+
+#this is the 7b 2 epoch
+#data_order_cached_path: "https://olmo-checkpoints.org/ai2-llm/olmo-medium/wd2gxrza/train_data/global_indices.npy"
+
+train_config_path: "/home/ryan/decouple/configs/random/OLMo-1B.yaml"
+
+output_dir: "/home/ryan/decouple/data/olmo_training/1epoch_checkpoint737000_1B"
+
+# For olmo 7b 1 epoch: 934006680 steps
+# want to start from 931840000
+#start_batch: 931840000
+#end_batch: 934006680
+
+# For olmo 1b 1 epoch: 1511465216
+# want to start from 1509376000
+start_batch: 1509376000
+end_batch: 1511465216
+
+num_proc: 50

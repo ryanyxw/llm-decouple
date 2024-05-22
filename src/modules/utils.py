@@ -88,5 +88,6 @@ def validate_inputs(configs):
 def prepare_wandb(exp_name, proj_name="decouple"):
     os.environ["WANDB_PROJECT"] = proj_name
     # set the name
-    os.environ["WANDB_GROUP"] = exp_name
+    os.environ["WANDB_RUN_GROUP"] = exp_name
+    print("setting group to ", exp_name)
     wandb.init()

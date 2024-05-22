@@ -14,7 +14,6 @@ from tqdm import tqdm
 
 from src.modules.data.data_utils import load_tokenizer
 from src.modules.data.datasets.PandasDataset import PandasDataset
-from src.modules.data.format_datasets import load_and_reformat_dataset_for_inference
 from src.modules.data.load import read_dataset_to_hf, read_lines_from_file
 
 

@@ -1,3 +1,10 @@
+#!/bin/bash
+#SBATCH --time=3-0:00
+#SBATCH --job-name=sbatch
+#SBATCH --output=slurm_out/out_%j.txt
+#SBATCH --ntasks=8
+
+
 ROOT_DIR=./../
 NEOX_DIR=${ROOT_DIR}/gpt-neox
 DATA_DIR=${ROOT_DIR}/data
@@ -11,7 +18,7 @@ set -e
 export PYTHONPATH=${ROOT_DIR}
 
 ### START EDITING HERE ###
-mode="evaluate_generations"
+mode="probe_olmo_training"
 config_file=${CONFIG_DIR}/random/${mode}.yaml
 
 

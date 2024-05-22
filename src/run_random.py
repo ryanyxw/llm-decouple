@@ -3,6 +3,8 @@ import os
 import shutil
 import json
 import pickle
+import time
+
 import pandas as pd
 import numpy as np
 import seaborn as sns
@@ -12,6 +14,7 @@ import re
 from API_KEYS import PERSPECTIVE_API_KEY
 from src.modules.data.data_utils import load_tokenizer
 from src.modules.data.load import read_lines_from_file
+from src.modules.data.process import process_with_multiprocessing
 from src.modules.utils import confirm_with_user, load_config, prepare_folder, validate_inputs
 from datasets import Dataset, concatenate_datasets, load_dataset
 from collections import Counter
@@ -182,6 +185,64 @@ def rid_english(configs):
                 continue
             file.write(json.dumps(line) + "\n")
 
+def process_func(x):
+    return x
+
+class BatchDatasetWrapperForOlmo():
+    """
+    A wrapper for a dataset that returns batches. All indexes are in terms of batches
+    """
+    def __init__(self, dataset, start_seq, end_seq, global_indices):
+        self.start_seq = start_seq
+        self.end_seq = end_seq
+        self.dataset = dataset
+        self.global_indices = global_indices
+    def __getitem__(self, i):
+        batch_i = self.global_indices[self.start_seq + i]
+        return self.dataset[batch_i]["input_ids"].tolist()
+
+    def __len__(self):
+        return self.end_seq - self.start_seq
+
+import pickle
+
+def is_serializable(obj):
+    try:
+        pickle.dumps(obj)
+        return True
+    except (pickle.PicklingError, TypeError) as e:
+        print(f"Serialization failed: {e}")
+        return False
+
+
+def probe_olmo_training(configs):
+    import numpy as np
+    from cached_path import cached_path
+
+    from olmo.config import TrainConfig
+    from olmo.data import build_memmap_dataset
+
+    # Update these paths to what you want:
+    data_order_file_path = cached_path(configs.data_order_cached_path)
+    train_config_path = configs.train_config_path
+
+    cfg = TrainConfig.load(train_config_path)
+    dataset = build_memmap_dataset(cfg, cfg.data)
+    batch_size = cfg.global_train_batch_size
+    global_indices = np.memmap(data_order_file_path, mode="r+", dtype=np.uint32)
+
+    batched_dataset = BatchDatasetWrapperForOlmo(dataset, configs.start_batch, configs.end_batch, global_indices)
+
+    output_fn = os.path.join(configs.output_dir, "output.jsonl")
+    error_fn = os.path.join(configs.output_dir, "error.jsonl")
+
+    process_with_multiprocessing(process_func, batched_dataset, output_fn, error_fn, num_proc=configs.num_proc)
+    # # Get all 2048 x 2048 token IDs in the first batch.
+    # batched_dataset = BatchDatasetWrapperForOlmo(dataset, configs.start_batch, configs.end_batch, batch_size, global_indices)
+    #
+    # process_with_multiprocessing(lambda x: x, batched_dataset, configs.output_dir, num_proc=2)
+
+
 def main(args):
     #load the config file
     print("loading config file...")
@@ -210,6 +271,8 @@ def main(args):
         evaluate_generation(configs)
     elif configs.mode == "rid_english":
         rid_english(configs)
+    elif configs.mode == "probe_olmo_training":
+        probe_olmo_training(configs)
 
     print("yay!")
 

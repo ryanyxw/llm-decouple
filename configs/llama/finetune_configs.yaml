@@ -5,40 +5,50 @@ MODEL_DIR: ${ROOT_DIR}/models
 num_proc: 16
 seed: 0
 
-exp_name: ${train.use_loss_mask}_lossmask_${train.num_train_examples}_examples_${train.num_train_epochs}_epochs_${seed}_seed
-max_seq_len: 2048
+#exp_name: ${train.use_loss_mask}_lossmask_${train.num_train_examples}_examples_${train.num_train_epochs}_epochs_${seed}_seed
+exp_name: dynahate_finetune_olmo_orig_v4
+max_seq_len: 512
 
 
 train:
-  do: False
+  do: True
   # FOR TRAINING
   #model_path_or_name: "meta-llama/Llama-2-7b-hf"
   #tokenizer_name: "meta-llama/Llama-2-7b-hf"
-  #out_directory: ${MODEL_DIR}/llama/${exp_name}
-#  model_path_or_name: "allenai/OLMo-7B-hf"
-#  tokenizer_name: "allenai/OLMo-7B-hf"
+  #  model_path_or_name: "allenai/OLMo-7B-hf"
+  tokenizer_name: "allenai/OLMo-7B-hf"
+  model_path_or_name: "/home/ryan/decouple/models/olmo/True_lossmask_64000_examples_1_epochs_0_seed/dynahate_finetune_eval/checkpoint-514"
+  out_directory:  ${parent_directory:${train.model_path_or_name}}/dynahate_finetune_eval_v4
+#  out_directory: "/home/ryan/decouple/models/olmo/original/dynahate_finetune_eval_v3"
 
-#  model_path_or_name: "allenai/OLMo-7B-Instruct"
-#  tokenizer_name: "allenai/OLMo-7B-Instruct"
-#  model_path_or_name: "meta-llama/Llama-2-7b-chat-hf"
-#  tokenizer_name: "meta-llama/Llama-2-7b-chat-hf"
+#  out_directory: ${MODEL_DIR}/${get_name_from_path:${train.model_path_or_name}}/${exp_name}
+  in_dataset_name: "dynahate"
+  input_dataset_file: "${DATA_DIR}/dynahate/raw.csv"
 
-  out_directory: ${MODEL_DIR}/${get_name_from_path:${train.model_path_or_name}}/${exp_name}
+  splits:
+    train: 3000
+    eval: 150
 
-  input_dataset_file: ${DATA_DIR}/reddit/toxic_conversations/prepared/filtered_tagged_conversations.jsonl
   output_dir: ${train.out_directory}
-  num_train_examples: 32000
-  per_device_train_batch_size: 1
+  num_train_examples: 40 #do not use for dynahate
+
+  per_device_train_batch_size: 1 #NOTE: EVAL ONLY SUPPORTS 1 BATCH SIZE
   gradient_accumulation_steps: 64
   num_train_epochs: 1
-  use_loss_mask: False
+
+  do_eval: True
+  eval_steps: 5
+
+  use_loss_mask: True
   use_lora: True
   fp16: True
   lora_modules: [ "q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj", "lm_head"] # for olmo and llama
+  kwargs:
+    type: None
 
 
 generate:
-  do: True
+  do: False
   # calculate the steps based on the training parameters (comment out if not running end-to-end)
 #  inferencemodel_path_or_name: ${train.out_directory}/checkpoint-${calculate_steps:${train.num_train_examples},${train.gradient_accumulation_steps},${train.num_train_epochs},${train.per_device_train_batch_size}}
 #  inferencetokenizer_name: ${train.tokenizer_name}
@@ -54,9 +64,12 @@ generate:
   out_directory: ${parent_directory:${generate.inferencemodel_path_or_name}}
 #  out_directory: /home/ryan/decouple/models/olmo/original
   output_filename: "${generate.out_directory}/${generate.kwargs.type}/${generate.in_dataset_name}_${generate.num_demonstrations}shot.jsonl"
-  num_generate_examples: 120000
   batch_size: 16
-  num_demonstrations: 0
+
+  splits:
+    generation: 120000
+    demonstration: 0
+
 
   kwargs:
     # choose from "logits", "generate", "hidden_state"

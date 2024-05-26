@@ -1,4 +1,4 @@
-ROOT_DIR=./../..
+ROOT_DIR=./..
 NEOX_DIR=${ROOT_DIR}/gpt-neox
 DATA_DIR=${ROOT_DIR}/data
 MODEL_DIR=${ROOT_DIR}/models

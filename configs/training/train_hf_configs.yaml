@@ -16,9 +16,9 @@ train:
   #model_path_or_name: "meta-llama/Llama-2-7b-hf"
   #tokenizer_name: "meta-llama/Llama-2-7b-hf"
   #  model_path_or_name: "allenai/OLMo-7B-hf"
-  tokenizer_name: "allenai/OLMo-7B-hf"
-  model_path_or_name: "/home/ryan/decouple/models/olmo/True_lossmask_64000_examples_1_epochs_0_seed/dynahate_finetune_eval/checkpoint-514"
-  out_directory:  ${parent_directory:${train.model_path_or_name}}/dynahate_finetune_eval_v4
+  tokenizer_name: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_base/huggingface"
+  model_path_or_name: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_base/huggingface"
+  out_directory:  ${parent_directory:${train.model_path_or_name}}/test_finetune
 #  out_directory: "/home/ryan/decouple/models/olmo/original/dynahate_finetune_eval_v3"
 
 #  out_directory: ${MODEL_DIR}/${get_name_from_path:${train.model_path_or_name}}/${exp_name}

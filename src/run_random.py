@@ -231,6 +231,9 @@ def probe_olmo_training(configs):
     batch_size = cfg.global_train_batch_size
     global_indices = np.memmap(data_order_file_path, mode="r+", dtype=np.uint32)
 
+    import pdb
+    pdb.set_trace()
+
     batched_dataset = BatchDatasetWrapperForOlmo(dataset, configs.start_batch, configs.end_batch, global_indices)
 
     output_fn = os.path.join(configs.output_dir, "output.jsonl")

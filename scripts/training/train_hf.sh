@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --time=3-0:00
 #SBATCH --job-name=sbatch
-#SBATCH --nodelist=ink-noah
+#SBATCH --nodelist=dill-sage
 #SBATCH --output=slurm_out/out_%j.txt
 #SBATCH --gres="gpu:a6000:1"
 #SBATCH --ntasks=16
@@ -19,8 +19,8 @@ set -e
 export PYTHONPATH=${ROOT_DIR}
 
 ### START EDITING HERE ###
-mode="finetune_configs"
-config_file=${CONFIG_DIR}/llama/${mode}.yaml
+mode="train_torch_configs"
+config_file=${CONFIG_DIR}/training/${mode}.yaml
 
 WANDB_PROJECT=decouple
 

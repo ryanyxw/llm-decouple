@@ -19,11 +19,11 @@ set -e
 export PYTHONPATH=${ROOT_DIR}
 
 ### START EDITING HERE ###
-mode="train_torch_configs"
+mode="train_hf_configs"
 config_file=${CONFIG_DIR}/training/${mode}.yaml
 
 WANDB_PROJECT=decouple
 
-CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=0 python ${SRC_DIR}/llama/run_finetune_hf.py\
+CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=0 python ${SRC_DIR}/training/run_train_hf.py\
     --mode=${mode}\
     --config_file=${config_file}\

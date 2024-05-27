@@ -18,7 +18,7 @@ set -e
 export PYTHONPATH=${ROOT_DIR}
 
 ### START EDITING HERE ###
-mode="probe_olmo_training"
+mode="perspective"
 config_file=${CONFIG_DIR}/random/${mode}.yaml
 
 

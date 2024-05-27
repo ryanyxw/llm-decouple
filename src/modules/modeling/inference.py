@@ -45,7 +45,7 @@ def run_inference(model, tokenizer, prompt_hf_dataset, out_fn, batch_size=1, **k
 
             # makes the decision of which output to save
             if (kwargs["type"] == "generate"):
-                run_generate(model, tokenizer, prompts, labels, out_file, kwargs["max_gen_len"], batch_size)
+                run_generate(model, tokenizer, prompts, labels, out_file, kwargs["generation_kwargs"])
             elif (kwargs["type"] == "logits"):
                 run_logits_compare(model, tokenizer, prompts, labels, out_file, kwargs["target_token_ids"], batch_size)
             elif (kwargs["type"] == "hidden_state"):
@@ -60,17 +60,17 @@ def run_inference(model, tokenizer, prompt_hf_dataset, out_fn, batch_size=1, **k
     tokenizer_config.reset_config(tokenizer)
 
 
-def run_generate(model, tokenizer, prompts, labels, out_file, max_gen_len, batch_size=1):
+def run_generate(model, tokenizer, prompts, labels, out_file, generation_kwargs):
     """Run inference on the given model and tokenizer using the given dataset
     Assumes that the dataset contains an entry called "prompt"
     """
 
     model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
-    generated_ids = model.generate(**model_inputs, max_new_tokens=max_gen_len)
+    generated_ids = model.generate(**model_inputs, **generation_kwargs)
     final = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
     for i in range(len(prompts)):
-        out_file.write(json.dumps({"completion": final[i][len(prompts[i]) - 1:],
+        out_file.write(json.dumps({"completion": final[i][len(prompts[i]):],
                             "prompt": prompts[i],
                             "label": labels[i] if labels else None}
                            ) + "\n")

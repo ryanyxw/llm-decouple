@@ -11,7 +11,7 @@ max_seq_len: 512
 
 
 train:
-  do: True
+  do: False
   # FOR TRAINING
   #model_path_or_name: "meta-llama/Llama-2-7b-hf"
   #tokenizer_name: "meta-llama/Llama-2-7b-hf"
@@ -48,34 +48,38 @@ train:
 
 
 generate:
-  do: False
+  do: True
   # calculate the steps based on the training parameters (comment out if not running end-to-end)
 #  inferencemodel_path_or_name: ${train.out_directory}/checkpoint-${calculate_steps:${train.num_train_examples},${train.gradient_accumulation_steps},${train.num_train_epochs},${train.per_device_train_batch_size}}
 #  inferencetokenizer_name: ${train.tokenizer_name}
 
 
-  inferencemodel_path_or_name: /home/ryan/decouple/models/llama/False_lossmask_64000_examples_1_epochs_0_seed/checkpoint-1000
-#  inferencemodel_path_or_name: "allenai/OLMo-7B-hf"
-  inferencetokenizer_name: "meta-llama/Llama-2-7b-hf"
-  input_dataset_file: "google/civil_comments"
+  inferencemodel_path_or_name: /home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000/hf_model
+#  inferencemodel_path_or_name: "allenai/OLMo-1B-hf"
+  inferencetokenizer_name: /home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000/hf_model
+  input_dataset_file: "allenai/real-toxicity-prompts"
   in_dataset_name: ${get_name_from_path:${generate.input_dataset_file}}
 
   # set the out_directory to be the parent directory of the model_path_or_name using resolvers
   out_directory: ${parent_directory:${generate.inferencemodel_path_or_name}}
-#  out_directory: /home/ryan/decouple/models/olmo/original
-  output_filename: "${generate.out_directory}/${generate.kwargs.type}/${generate.in_dataset_name}_${generate.num_demonstrations}shot.jsonl"
+#  out_directory: /home/ryan/decouple/models/olmo_ckpt/olmo1B_hf
+  output_filename: "${generate.out_directory}/${generate.kwargs.type}/${generate.in_dataset_name}_${generate.splits.demonstration}shot_greedy.jsonl"
+
   batch_size: 16
 
   splits:
-    generation: 120000
+    generation: 1000
     demonstration: 0
 
 
   kwargs:
     # choose from "logits", "generate", "hidden_state"
-    type: "hidden_state"
+    type: "generate"
 
-    max_gen_len: 50 # generate, measured by number of tokens
+    generation_kwargs:
+      max_new_tokens: 50 # generate, measured by number of tokens
+#      top_k: 40
+
 
     #this is for logits type. Format as "true, false"
     # " yes" and " no" -> 4754, 642

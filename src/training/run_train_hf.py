@@ -121,12 +121,14 @@ def main(args):
                                                                       configs.generate.splits,
                                                                       configs.seed,
                                                                       configs.num_proc,
-                                                                      **configs.generate.kwargs)
+                                                                      **configs.generate.kwargs)["generation"]
 
         # saves a sample of the prompt to a parallel file
         print("sample of example fed into model: \n" + reformatted_dataset[0]["prompt"])
         parent_of_output = os.path.dirname(configs.generate.output_filename)
         orig_name = os.path.basename(configs.generate.output_filename).split(".")
+
+        #saves a sample of the prompt to a parallel file
         template_fn = os.path.join(parent_of_output, orig_name[0] + "_template." + orig_name[1])
         with open(template_fn, "w") as f:
             f.write(reformatted_dataset[0]["prompt"])

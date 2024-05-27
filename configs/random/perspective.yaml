@@ -1,7 +1,10 @@
 
 in_fns:
   [
-    "/home/ryan/decouple/models/llama/False_lossmask_64000_examples_1_epochs_0_seed/generate/real-toxicity-prompts-complete.jsonl"
+    "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/generate/real-toxicity-prompts_0shot_greedy.jsonl",
+    "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/generate/real-toxicity-prompts_0shot_topk.jsonl",
+    "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000/generate/real-toxicity-prompts_0shot_greedy.jsonl",
+    "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000/generate/real-toxicity-prompts_0shot_topk.jsonl"
   ]
 
 max_lines: 1000

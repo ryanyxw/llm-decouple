@@ -1,6 +1,0 @@
-{
-    input_file: "/home/ryan/decouple/models/llama7b/pretrained_model/real-toxicity-prompts-complete.jsonl",
-    max_lines: 1000,
-
-    output_file: "/home/ryan/decouple/models/llama7b/pretrained_model/real-toxicity-prompts-complete-scored.jsonl"
-}

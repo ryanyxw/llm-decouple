@@ -267,7 +267,7 @@ def main(args):
     elif configs.mode == "graph_perplexity":
         process_graph_perplexity(configs)
     elif configs.mode == "test_olmo":
-        test_olmo(configs);
+        test_olmo(configs)
     elif configs.mode == "perspective":
         use_perspective_api(configs)
     elif configs.mode == "evaluate_generations":

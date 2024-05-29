@@ -47,7 +47,7 @@ def run_inference(model, tokenizer, prompt_hf_dataset, out_fn, batch_size=1, **k
             if (kwargs["type"] == "generate"):
                 run_generate(model, tokenizer, prompts, labels, out_file, kwargs["generation_kwargs"])
             elif (kwargs["type"] == "logits"):
-                run_logits_compare(model, tokenizer, prompts, labels, out_file, kwargs["target_token_ids"], batch_size)
+                run_logits_compare(model, tokenizer, prompts, labels, out_file, kwargs["target_token_ids"])
             elif (kwargs["type"] == "hidden_state"):
                 run_hidden_state(model, tokenizer, prompts, labels, out_file, batch_size)
             else:
@@ -76,7 +76,7 @@ def run_generate(model, tokenizer, prompts, labels, out_file, generation_kwargs)
                            ) + "\n")
 
 
-def run_logits_compare(model, tokenizer, prompts, labels, out_file, target_token_ids, batch_size=1):
+def run_logits_compare(model, tokenizer, prompts, labels, out_file, target_token_ids):
     model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
 
     logits = obtain_logit(model, **model_inputs)

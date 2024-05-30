@@ -199,7 +199,7 @@ def load_and_reformat_dataset(dataset_name, dataset_file, splits, seed, num_proc
 
             example["input_ids"] = prompt_tokenized
             example["attention_mask"] = [1] * len(prompt_tokenized)
-            example["final_label"] = example["label"]
+            example["final_label"] = example["label"] == DYNAHATE_LABELS[True]
             example["skip"] = False
             return example
 

@@ -13,7 +13,7 @@ wandb:
   do: True
   project: "decouple"
   group: "OLMO-1B_73700_dynahate_finetune"
-  name: "reddit_olmocodebase_full"
+  name: "reddit_olmocodebase_nomask"
 
 train:
   do: True
@@ -21,23 +21,23 @@ train:
   #model_path_or_name: "meta-llama/Llama-2-7b-hf"
   #tokenizer_name: "meta-llama/Llama-2-7b-hf"
   #  model_path_or_name: "allenai/OLMo-7B-hf"
-  tokenizer_name: "allenai/OLMo-1B-hf"
-  model_path_or_name: "allenai/OLMo-1B-hf"
-#  out_directory:  ${parent_directory:${train.model_path_or_name}}/${train.in_dataset_name}_trained
-  out_directory: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/${train.in_dataset_name}_trained"
+  tokenizer_name: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/hf_model"
+  model_path_or_name: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/hf_model"
+  out_directory:  ${parent_directory:${train.model_path_or_name}}/${train.in_dataset_name}_trained
+#  out_directory: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/${train.in_dataset_name}_trained"
 
 #  out_directory: ${MODEL_DIR}/${get_name_from_path:${train.model_path_or_name}}/${exp_name}
   in_dataset_name: "dynahate"
   input_dataset_file: "${DATA_DIR}/dynahate/raw.csv"
 
   splits:
-    train: 32000
-    eval: 1500
+    train: 38400
+    eval: 2000
 
   output_dir: ${train.out_directory}
 
-  per_device_train_batch_size: 1
-  gradient_accumulation_steps: 64
+  per_device_train_batch_size: 16
+  gradient_accumulation_steps: 4
   num_train_epochs: 1
 
   do_eval: True

@@ -64,6 +64,8 @@ def main(args):
             target_modules = list(configs.train.lora_modules)
         )
         peft_model = get_peft_model(model, peft_config)
+        #print trainable parameters
+        print("trainable parameters: ", sum(p.numel() for p in peft_model.parameters() if p.requires_grad))
 
         ### setup the training arguments
         # This only helps with batching - we assume that our data is already padded

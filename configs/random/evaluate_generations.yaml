@@ -1,17 +1,12 @@
 
 
-in_files: ["/home/ryan/decouple/models/olmo/False_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_0shot.jsonl",
-             "/home/ryan/decouple/models/olmo/False_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_1shot.jsonl",
-             "/home/ryan/decouple/models/olmo/False_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_2shot.jsonl",
-             "/home/ryan/decouple/models/olmo/False_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_4shot.jsonl",
-             "/home/ryan/decouple/models/olmo/False_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_8shot.jsonl",
-             "/home/ryan/decouple/models/olmo/original/logits/unused_data_0shot.jsonl",
-             "/home/ryan/decouple/models/olmo/original/logits/unused_data_1shot.jsonl",
-             "/home/ryan/decouple/models/olmo/original/logits/unused_data_2shot.jsonl",
-             "/home/ryan/decouple/models/olmo/original/logits/unused_data_4shot.jsonl",
-             "/home/ryan/decouple/models/olmo/original/logits/unused_data_8shot.jsonl",
-             "/home/ryan/decouple/models/olmo/True_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_0shot.jsonl",
-             "/home/ryan/decouple/models/olmo/True_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_1shot.jsonl",
-             "/home/ryan/decouple/models/olmo/True_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_2shot.jsonl",
-             "/home/ryan/decouple/models/olmo/True_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_4shot.jsonl",
-             "/home/ryan/decouple/models/olmo/True_lossmask_64000_examples_1_epochs_0_seed/logits/unused_data_8shot.jsonl"]
+in_files: ["/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/logits/civil_comments_0shot_greedy_toxic_safe.jsonl",
+          "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/logits/civil_comments_1shot_greedy_toxic_safe.jsonl",
+          "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/logits/civil_comments_2shot_greedy_toxic_safe.jsonl",
+          "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/logits/civil_comments_4shot_greedy_toxic_safe.jsonl",
+          "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/logits/civil_comments_8shot_greedy_toxic_safe.jsonl",
+           "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/logits/civil_comments_0shot_greedy_toxic_safe.jsonl",
+           "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/logits/civil_comments_1shot_greedy_toxic_safe.jsonl",
+           "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/logits/civil_comments_2shot_greedy_toxic_safe.jsonl",
+           "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/logits/civil_comments_4shot_greedy_toxic_safe.jsonl",
+           "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/logits/civil_comments_8shot_greedy_toxic_safe.jsonl"]

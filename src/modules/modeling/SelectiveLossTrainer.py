@@ -7,6 +7,7 @@ from transformers.trainer import Trainer
 import json
 
 from src.modules.modeling.inference import obtain_logit
+from src.modules.templates import DYNAHATE_LABEL_IDS
 
 
 #Refer to https://github.com/huggingface/transformers/blob/v4.38.1/src/transformers/trainer.py#L2876 for original training step
@@ -48,10 +49,15 @@ class SelectiveLossTrainer(Trainer):
 
         self.model.eval()
 
-        correct_preds = 0
+        logit_level_correct = 0
+        generation_correct = 0
+
+
 
         with torch.no_grad():
             for i, data in tqdm(enumerate(eval_dataloader)):
+
+
                 input_ids = data["input_ids"]
 
                 attention_mask = data["attention_mask"]
@@ -61,13 +67,20 @@ class SelectiveLossTrainer(Trainer):
                 # take the logit of the last token
                 last_token = logits[:, -1, :]
 
-                #for llama: "hate" is 26277, "not" is 451
-                predictions = last_token[:, 26277] > last_token[:, 451]
+                #for olmo
+                true_token = DYNAHATE_LABEL_IDS[True]
+                false_token = DYNAHATE_LABEL_IDS[False]
+
+                predictions = last_token[:, true_token] > last_token[:, false_token]
 
                 if predictions[0] == data["final_label"]:
-                    correct_preds += 1
+                    logit_level_correct += 1
 
-        metrics = {"test_accuracy": correct_preds / len(eval_dataloader)}
+                if last_token[0].argmax() == DYNAHATE_LABEL_IDS[data["final_label"].tolist()[0]]:
+                    generation_correct += 1
+
+        metrics = {"test_logit_accuracy": logit_level_correct / len(eval_dataloader),
+                   "test_generation_accuracy": generation_correct / len(eval_dataloader)}
         # metrics = {'wer': wer}
         self.log(metrics)
         self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, metrics)

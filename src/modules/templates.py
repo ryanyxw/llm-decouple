@@ -11,5 +11,6 @@ LLAMA_BOS = "<s>"
 #whther the text is toxic or not
 CIVIL_COMMENTS_LABELS = {True: "toxic", False: "safe"}
 
-DYNAHATE_TEMPLATE_WITH_LABEL = "Question: Is the following hateful or not? Respond with either \"hate\" or \"not hate\". \nText: {input}\nAnswer: {output}\n"
-DYNAHATE_LABELS = {True: "hate", False: "not hate"}
+DYNAHATE_TEMPLATE_WITH_LABEL = "Question: Does the provided text contain rude, hateful, aggressive, disrespectful or unreasonable language? Respond with either \"toxic\" or \"safe\". \nText: {input}\nAnswer: {output}\n"
+DYNAHATE_LABELS = {True: "toxic", False: "safe"}
+DYNAHATE_LABEL_IDS = {True: 12825, False: 4999}

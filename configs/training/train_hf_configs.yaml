@@ -9,35 +9,40 @@ seed: 0
 exp_name: dynahate_finetune_olmo_orig_v4
 max_seq_len: 512
 
+wandb:
+  do: True
+  project: "decouple"
+  group: "OLMO-1B_73700_dynahate_finetune"
+  name: "reddit_olmocodebase_full"
 
 train:
-  do: False
+  do: True
   # FOR TRAINING
   #model_path_or_name: "meta-llama/Llama-2-7b-hf"
   #tokenizer_name: "meta-llama/Llama-2-7b-hf"
   #  model_path_or_name: "allenai/OLMo-7B-hf"
-  tokenizer_name: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_base/huggingface"
-  model_path_or_name: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_base/huggingface"
-  out_directory:  ${parent_directory:${train.model_path_or_name}}/test_finetune
-#  out_directory: "/home/ryan/decouple/models/olmo/original/dynahate_finetune_eval_v3"
+  tokenizer_name: "allenai/OLMo-1B-hf"
+  model_path_or_name: "allenai/OLMo-1B-hf"
+#  out_directory:  ${parent_directory:${train.model_path_or_name}}/${train.in_dataset_name}_trained
+  out_directory: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/${train.in_dataset_name}_trained"
 
 #  out_directory: ${MODEL_DIR}/${get_name_from_path:${train.model_path_or_name}}/${exp_name}
   in_dataset_name: "dynahate"
   input_dataset_file: "${DATA_DIR}/dynahate/raw.csv"
 
   splits:
-    train: 3000
-    eval: 150
+    train: 32000
+    eval: 1500
 
   output_dir: ${train.out_directory}
-  num_train_examples: 40 #do not use for dynahate
 
-  per_device_train_batch_size: 1 #NOTE: EVAL ONLY SUPPORTS 1 BATCH SIZE
+  per_device_train_batch_size: 1
   gradient_accumulation_steps: 64
   num_train_epochs: 1
 
   do_eval: True
   eval_steps: 5
+  per_device_eval_batch_size: 1 #NOTE: EVAL ONLY SUPPORTS 1 BATCH SIZE
 
   use_loss_mask: True
   use_lora: True
@@ -48,22 +53,22 @@ train:
 
 
 generate:
-  do: True
+  do: False
   # calculate the steps based on the training parameters (comment out if not running end-to-end)
 #  inferencemodel_path_or_name: ${train.out_directory}/checkpoint-${calculate_steps:${train.num_train_examples},${train.gradient_accumulation_steps},${train.num_train_epochs},${train.per_device_train_batch_size}}
 #  inferencetokenizer_name: ${train.tokenizer_name}
 
 
-  inferencemodel_path_or_name: /home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000/hf_model
+  inferencemodel_path_or_name: "allenai/OLMo-1B-hf"
 #  inferencemodel_path_or_name: "allenai/OLMo-1B-hf"
-  inferencetokenizer_name: /home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000/hf_model
-  input_dataset_file: "allenai/real-toxicity-prompts"
+  inferencetokenizer_name: "allenai/OLMo-1B-hf"
+  input_dataset_file: "google/civil_comments"
   in_dataset_name: ${get_name_from_path:${generate.input_dataset_file}}
 
   # set the out_directory to be the parent directory of the model_path_or_name using resolvers
-  out_directory: ${parent_directory:${generate.inferencemodel_path_or_name}}
-#  out_directory: /home/ryan/decouple/models/olmo_ckpt/olmo1B_hf
-  output_filename: "${generate.out_directory}/${generate.kwargs.type}/${generate.in_dataset_name}_${generate.splits.demonstration}shot_greedy.jsonl"
+#  out_directory: ${parent_directory:${generate.inferencemodel_path_or_name}}
+  out_directory: /home/ryan/decouple/models/olmo_ckpt/olmo1B_hf
+  output_filename: "${generate.out_directory}/${generate.kwargs.type}/${generate.in_dataset_name}_${generate.splits.demonstration}shot_greedy_toxic_safe.jsonl"
 
   batch_size: 16
 
@@ -74,7 +79,7 @@ generate:
 
   kwargs:
     # choose from "logits", "generate", "hidden_state"
-    type: "generate"
+    type: "logits"
 
     generation_kwargs:
       max_new_tokens: 50 # generate, measured by number of tokens
@@ -83,7 +88,7 @@ generate:
 
     #this is for logits type. Format as "true, false"
     # " yes" and " no" -> 4754, 642
-    # " toxic" and " non-toxic" and " safe" -> 12825, 1327, 4999
+    # " toxic" and " not toxic" and " safe" -> 12825, 417, 4999
     target_token_ids: [ 12825, 4999 ]
 
 

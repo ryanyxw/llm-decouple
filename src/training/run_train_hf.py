@@ -42,8 +42,12 @@ def main(args):
         model = setup_model(configs.train.model_path_or_name, trust_remote_code=True)
         max_len = min(model.config.max_position_embeddings, configs.max_seq_len)
         tokenizer = load_tokenizer(configs.train.tokenizer_name, max_len)
-        # prepare_wandb(configs.exp_name)
 
+        if configs.wandb.do:
+            prepare_wandb(configs.wandb)
+        else:
+            os.environ["WANDB_MODE"] = "dryrun"
+            
         dataset_splits = load_and_reformat_dataset(configs.train.in_dataset_name,
                                                          configs.train.input_dataset_file,
                                                          configs.train.splits,
@@ -72,7 +76,7 @@ def main(args):
             gradient_accumulation_steps=configs.train.gradient_accumulation_steps,
             num_train_epochs=configs.train.num_train_epochs,
             eval_strategy="steps" if configs.train.do_eval else "no",
-            per_device_eval_batch_size=configs.train.per_device_train_batch_size,
+            per_device_eval_batch_size=configs.train.per_device_eval_batch_size,
             eval_steps=configs.train.eval_steps,
             logging_steps=5,
             seed=configs.seed,

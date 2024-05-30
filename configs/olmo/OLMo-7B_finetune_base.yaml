@@ -36,6 +36,8 @@ model:
   pad_token_id: 1
   init_device: meta
   init_fn: mitchell
+#  #this is for fsdp to split each layer into smaller chunks for more equal distribution?
+#  block_group_size: 8
 
 compile:
   fullgraph: false
@@ -80,8 +82,10 @@ time_limit: null
 precision: amp_bf16
 
 fsdp:
-  wrapping_strategy: by_block_and_size
+  wrapping_strategy: by_block
   precision: mixed
+#  sharding_strategy: SHARD_GRAD_OP
+#  hybrid_sharding_num_model_replicas: 1
 
 max_grad_norm: 1.0
 max_grad_norm_ratio: null

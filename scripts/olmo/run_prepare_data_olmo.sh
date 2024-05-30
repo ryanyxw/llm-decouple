@@ -1,11 +1,12 @@
 #!/bin/bash
 #SBATCH --time=3-0:00
 #SBATCH --job-name=sbatch
+#SBATCH --nodelist=dill-sage
 #SBATCH --output=slurm_out/out_%j.txt
-#SBATCH --ntasks=8
+#SBATCH --gres="gpu:a6000:1"
+#SBATCH --ntasks=16
 
-
-ROOT_DIR=./../
+ROOT_DIR=./../..
 NEOX_DIR=${ROOT_DIR}/gpt-neox
 DATA_DIR=${ROOT_DIR}/data
 MODEL_DIR=${ROOT_DIR}/models
@@ -18,10 +19,11 @@ set -e
 export PYTHONPATH=${ROOT_DIR}
 
 ### START EDITING HERE ###
-mode="evaluate_generations"
-config_file=${CONFIG_DIR}/random/${mode}.yaml
+mode="prepare_data_olmo_configs"
+config_file=${CONFIG_DIR}/olmo/${mode}.yaml
 
+WANDB_PROJECT=decouple
 
-CUDA_VISIBLE_DEVICES=0 python ${SRC_DIR}/run_random.py\
+CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=0 python ${SRC_DIR}/olmo/run_prepare_data_olmo.py\
     --mode=${mode}\
     --config_file=${config_file}\

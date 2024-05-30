@@ -85,9 +85,11 @@ def validate_inputs(configs):
     recurse_keys(configs)
 
 
-def prepare_wandb(exp_name, proj_name="decouple"):
-    os.environ["WANDB_PROJECT"] = proj_name
+def prepare_wandb(configs):
+    os.environ["WANDB_PROJECT"] = configs.project
+    # set the group
+    os.environ["WANDB_RUN_GROUP"] = configs.group
     # set the name
-    os.environ["WANDB_RUN_GROUP"] = exp_name
-    print("setting group to ", exp_name)
+    os.environ["WANDB_NAME"] = configs.name
+    print(f"setting group to {configs.group} and name to {configs.name}")
     wandb.init()

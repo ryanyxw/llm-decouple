@@ -1,9 +1,9 @@
 ROOT_DIR=./../..
 OLMO_DIR=${ROOT_DIR}/OLMo
 
-checkpoint=/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000/latest-unsharded
+checkpoint=/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/latest-unsharded
 
-output_dir=/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000/hf_model
+output_dir=/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/hf_model
 
 mkdir -p ${output_dir}
 

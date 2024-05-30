@@ -1,10 +1,7 @@
 
 in_fns:
   [
-    "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/generate/real-toxicity-prompts_0shot_greedy.jsonl",
-    "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/generate/real-toxicity-prompts_0shot_topk.jsonl",
-    "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000/generate/real-toxicity-prompts_0shot_greedy.jsonl",
-    "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000/generate/real-toxicity-prompts_0shot_topk.jsonl"
+    "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/generate/real-toxicity-prompts_0shot_greedy.jsonl"
   ]
 
 max_lines: 1000

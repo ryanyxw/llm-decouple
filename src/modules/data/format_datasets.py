@@ -146,15 +146,20 @@ def load_and_reformat_dataset(dataset_name, dataset_file, splits, seed, num_proc
             return {"prompt": prompt,
                     "label": label}
 
-        preprocessed_dataset = raw_dataset.map(reformat_row, remove_columns=raw_dataset.column_names, batched=False)
+        preprocessed_dataset = raw_dataset.map(reformat_row, batched=False)
 
-        # train-test split
-        temp_splits = splits.copy()
-        for key, value in splits.items():
-            temp_splits[key] = value + 100
-        dataset_splits = partition_dataset(preprocessed_dataset, temp_splits)
-        train_dataset = dataset_splits["train"]
-        eval_dataset = dataset_splits["eval"]
+
+        train_dataset = preprocessed_dataset.filter(lambda x: x["split"] == "train", batched=False, num_proc=num_proc)
+
+        # we only want to evaluate on rounds 3 and 4
+        eval_dataset = preprocessed_dataset.filter(lambda x: x["split"] == "test" and x["round.base"] - 2 > 0, batched=False, num_proc=num_proc)
+
+        # using -1 means using the entire dataset
+        if splits["train"] > 0:
+            train_dataset = train_dataset.select(range(splits["train"]))
+        if splits["eval"] > 0:
+            eval_dataset = eval_dataset.select(range(splits["eval"]))
+
 
         # performs padding and tokenization
         def perform_tokenization(example):
@@ -183,9 +188,9 @@ def load_and_reformat_dataset(dataset_name, dataset_file, splits, seed, num_proc
 
             return example
 
-        train_dataset = train_dataset.map(perform_tokenization, remove_columns=["prompt", "label"],
+        train_dataset = train_dataset.map(perform_tokenization, remove_columns=train_dataset.column_names,
                                           num_proc=num_proc)
-        train_dataset = train_dataset.filter(lambda x: x["skip"] == False).select(range(splits["train"]))
+        train_dataset = train_dataset.filter(lambda x: x["skip"] == False)
 
         def tokenize_evaluation(example):
             prompt_tokenized, _ = tokenize_input_output_pair(tokenizer, example["prompt"], "something")
@@ -195,17 +200,20 @@ def load_and_reformat_dataset(dataset_name, dataset_file, splits, seed, num_proc
                 example["input_ids"] = []
                 example["attention_mask"] = []
                 example["final_label"] = example["label"]
+                example["round_info"] = example["round.base"]
                 return example
 
             example["input_ids"] = prompt_tokenized
             example["attention_mask"] = [1] * len(prompt_tokenized)
             example["final_label"] = example["label"] == DYNAHATE_LABELS[True]
+            example["round_info"] = example["round.base"]
             example["skip"] = False
             return example
 
-        eval_dataset = eval_dataset.map(tokenize_evaluation, remove_columns=["prompt", "label"],
+
+        eval_dataset = eval_dataset.map(tokenize_evaluation, remove_columns=eval_dataset.column_names,
                                         num_proc=num_proc)
-        eval_dataset = eval_dataset.filter(lambda x: x["skip"] == False).select(range(splits["eval"]))
+        eval_dataset = eval_dataset.filter(lambda x: x["skip"] == False)
 
         return {"train": train_dataset, "eval": eval_dataset}
 

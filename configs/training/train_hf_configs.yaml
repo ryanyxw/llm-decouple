@@ -13,7 +13,7 @@ wandb:
   do: True
   project: "decouple"
   group: "OLMO-1B_73700_dynahate_finetune"
-  name: "reddit_olmocodebase_nomask"
+  name: "reddit_olmocodebase_longpre_rocauc_nomask"
 
 train:
   do: True
@@ -23,16 +23,17 @@ train:
   #  model_path_or_name: "allenai/OLMo-7B-hf"
   tokenizer_name: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/hf_model"
   model_path_or_name: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/hf_model"
-  out_directory:  ${parent_directory:${train.model_path_or_name}}/${train.in_dataset_name}_trained
-#  out_directory: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/${train.in_dataset_name}_trained"
+  out_directory:  ${parent_directory:${train.model_path_or_name}}/${train.in_dataset_name}_longpre_rocauc_trained
+#  out_directory: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/${train.in_dataset_name}_longpre_rocauc_trained"
 
 #  out_directory: ${MODEL_DIR}/${get_name_from_path:${train.model_path_or_name}}/${exp_name}
   in_dataset_name: "dynahate"
   input_dataset_file: "${DATA_DIR}/dynahate/raw.csv"
 
   splits:
-    train: 38400
-    eval: 2000
+    #use -1 for all examples
+    train: -1
+    eval: -1
 
   output_dir: ${train.out_directory}
 

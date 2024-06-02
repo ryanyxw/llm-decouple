@@ -1,0 +1,32 @@
+ROOT_DIR: ./../..
+DATA_DIR: ${ROOT_DIR}/data
+MODEL_DIR: ${ROOT_DIR}/models
+
+num_proc: 64
+seed: 0
+
+# this should be the name of the folder under "reddit"
+exp_name: toxic_texts
+out_dir: ${DATA_DIR}/dolma/reddit/${exp_name}
+
+input_blocked_subreddit_file: ${DATA_DIR}/dolma/reddit/subreddit_blocklist.txt
+
+extract_from_zst_to_documents:
+  do: True
+  input_zst_file: ${DATA_DIR}/dolma/reddit/RS_2023-03.zst
+  output_documents_file: ${out_dir}/documents/RS_202303_extracted.jsonl
+
+  #dolma filters documents with length < 500, at least 3 or more upvotes
+  min_document_length: 500
+  min_upvotes: 3
+
+  compress_to_zst: True
+
+tag_conversations:
+  do: True
+  in_documents_file: ${extract_from_zst_to_documents.output_documents_file}
+  taggers: ["jigsaw_hatespeech_document_v2",
+            "ft_lang_id_en_doc_v2",
+            "jigsaw_nsfw_document_v1"]
+
+

@@ -93,3 +93,34 @@ def prepare_wandb(configs):
     os.environ["WANDB_NAME"] = configs.name
     print(f"setting group to {configs.group} and name to {configs.name}")
     wandb.init()
+
+
+def execute_shell_command(command, progress_file=None):
+    """
+    executes a shell command. Note that there shouldn't be any interactions
+    :param command: a string
+    :return:
+    """
+
+    import subprocess
+    import select
+
+    # add to the progress file if not None
+    command = f"{command} 2>&1 | tee {progress_file}" if progress_file is not None else f"{command} 2>&1"
+    print(f"executing command {command}")
+
+    # Start the subprocess
+    process = subprocess.Popen(command, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+    # Create a list of streams to monitor
+    streams = [process.stdout, process.stderr]
+
+    # Monitor the streams
+    while streams:
+        for s in select.select(streams, [], [])[0]:  # Read-ready, Write-ready, Exception
+            line = s.readline()
+            if not line:
+                streams.remove(s)
+                s.close()
+            else:
+                print(line, end='', flush=True)

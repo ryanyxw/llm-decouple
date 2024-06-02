@@ -3,7 +3,7 @@ seed: 6198
 dry_run: false
 
 wandb:
-  name: reddit_olmocodebase_testrun
+  name: reddit_olmocodebase_full
   project: decouple
   group: OLMO-7BTwin_455000
   entity: ryanyxw

@@ -1,6 +1,7 @@
 from typing import Dict, Union, Any
 
 import torch
+from sklearn.metrics import roc_auc_score
 from torch import nn
 from tqdm import tqdm
 from transformers.trainer import Trainer
@@ -49,14 +50,24 @@ class SelectiveLossTrainer(Trainer):
 
         self.model.eval()
 
-        logit_level_correct = 0
-        generation_correct = 0
+        # for ROC-AUC curves
+        round_3_labels = []
+        round_4_labels = []
+        round_3_probs = []
+        round_4_probs = []
 
+        total_round_3 = 0
+        total_round_4 = 0
 
+        logit_level_correct_3 = 0
+        logit_level_correct_4 = 0
+        logit_level_correct_total = 0
+        generation_correct_3 = 0
+        generation_correct_4 = 0
+        generation_correct_total = 0
 
         with torch.no_grad():
             for i, data in tqdm(enumerate(eval_dataloader)):
-
 
                 input_ids = data["input_ids"]
 
@@ -73,15 +84,49 @@ class SelectiveLossTrainer(Trainer):
 
                 predictions = last_token[:, true_token] > last_token[:, false_token]
 
+                # record total number for each round and ROCAUC
+                if (data["round_info"] == 3):
+                    total_round_3 += 1
+                    round_3_labels += data["final_label"].tolist()
+                    probs = torch.nn.functional.softmax(last_token[0, [true_token, false_token]], dim=-1)
+                    #we record the probability of the true token
+                    round_3_probs += [probs.tolist()[0]]
+                else:
+                    total_round_4 += 1
+                    round_4_labels += data["final_label"].tolist()
+                    probs = torch.nn.functional.softmax(last_token[0, [true_token, false_token]], dim=-1)
+                    #we record the probability of the true token
+                    round_4_probs += [probs.tolist()[0]]
+
+                #for logit level
                 if predictions[0] == data["final_label"]:
-                    logit_level_correct += 1
+                    if data["round_info"] == 3:
+                        logit_level_correct_3 += 1
+                    else:
+                        logit_level_correct_4 += 1
+                    logit_level_correct_total += 1
 
+                # for generation
                 if last_token[0].argmax() == DYNAHATE_LABEL_IDS[data["final_label"].tolist()[0]]:
-                    generation_correct += 1
+                    if data["round_info"] == 3:
+                        generation_correct_3 += 1
+                    else:
+                        generation_correct_4 += 1
+                    generation_correct_total += 1
 
-        metrics = {"test_logit_accuracy": logit_level_correct / len(eval_dataloader),
-                   "test_generation_accuracy": generation_correct / len(eval_dataloader)}
-        # metrics = {'wer': wer}
+        phase_3_rocauc = roc_auc_score(round_3_labels, round_3_probs)
+        phase_4_rocauc = roc_auc_score(round_4_labels, round_4_probs)
+
+        metrics = {"test_logit_accuracy_round3": logit_level_correct_3 / total_round_3,
+                    "test_logit_accuracy_round4": logit_level_correct_4 / total_round_4,
+                    "test_logit_accuracy_total": logit_level_correct_total / len(eval_dataloader),
+                    "test_generation_accuracy_round3": generation_correct_3 / total_round_3,
+                    "test_generation_accuracy_round4": generation_correct_4 / total_round_4,
+                    "test_generation_accuracy_total": generation_correct_total / len(eval_dataloader),
+                    "test_rocauc_round3": phase_3_rocauc,
+                    "test_rocauc_round4": phase_4_rocauc,
+                }
+
         self.log(metrics)
         self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, metrics)
         self._memory_tracker.stop_and_update_metrics(metrics)

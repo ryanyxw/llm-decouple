@@ -1,15 +1,15 @@
 #this is the 1b 1 epoch
-#data_order_cached_path: "https://olmo-checkpoints.org/ai2-llm/olmo-small/46zc5fly/train_data/global_indices.npy"
+data_order_cached_path: "https://olmo-checkpoints.org/ai2-llm/olmo-small/46zc5fly/train_data/global_indices.npy"
 
 #this is the 7b 1 epoch
 #data_order_cached_path: "https://olmo-checkpoints.org/ai2-llm/olmo-medium/wvc30anm/train_data/global_indices.npy"
 
 #this is the 7b 2 epoch
-data_order_cached_path: "https://olmo-checkpoints.org/ai2-llm/olmo-medium/wd2gxrza/train_data/global_indices.npy"
+#data_order_cached_path: "https://olmo-checkpoints.org/ai2-llm/olmo-medium/wd2gxrza/train_data/global_indices.npy"
 
-train_config_path: "/home/ryan/decouple/configs/random/OLMo-7B.yaml"
+train_config_path: "/home/ryan/decouple/configs/random/OLMo-1B.yaml"
 
-output_dir: "/home/ryan/decouple/data/olmo_training/2epoch_checkpoint557000_7B"
+output_dir: "/home/ryan/decouple/data/olmo_training/1epoch_checkpoint736000_1B"
 
 # For olmo 7b twin 1 epoch: 934006680 steps
 # want to start from 931840000
@@ -17,14 +17,15 @@ output_dir: "/home/ryan/decouple/data/olmo_training/2epoch_checkpoint557000_7B"
 #end_batch: 934006680
 
 # For olmo 1b 1 epoch: 1511465216
-# want to start from 1509376000
-#start_batch: 1509376000
-#end_batch: 1511465216
+# 737000 want to start from 1509376000
+# 736000 want to start from 1507328000
+# 735000 want to start from 1505280000
+start_batch: 1507328000
+end_batch: 1509376000
 
 # For olmo 7b 1 epoch: 934006680 steps
 # want to start from 931840000
-
-start_batch: 931840000
-end_batch: 934006680
+#start_batch: 931840000
+#end_batch: 934006680
 
 num_proc: 50

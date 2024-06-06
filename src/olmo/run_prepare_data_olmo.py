@@ -11,6 +11,7 @@ from src.modules.data.data_utils import load_tokenizer
 from src.modules.data.format_datasets import load_and_reformat_dataset
 from src.modules.data.format_utils import preprocess_conversation, format_to_pretraining
 from src.modules.data.load import read_dataset_to_hf
+from src.modules.data.tokenize import tokenize_with_hate_loss_masking
 from src.modules.modeling.SelectiveLossTrainer import SelectiveLossTrainer
 from peft import get_peft_model, LoraConfig
 import torch
@@ -45,20 +46,43 @@ def main(args):
         dataset = dataset.rename_column("out", "input_ids")
 
         tokenizer = load_tokenizer(configs.tokenizer_name, configs.max_seq_len)
-        insert_dataset = read_dataset_to_hf(configs.data.input_insert_data_fn)["train"].shuffle(seed=configs.seed)
-        #since the input is a conversation (reddit, hardcoded), we convert it into conversational format, without padding for pretraining process
-        insert_dataset = preprocess_conversation(insert_dataset, tokenizer, configs.max_seq_len, seed=configs.seed,
-                                                       num_proc=configs.num_proc,
-                                                       use_loss_mask=configs.data.use_loss_mask,
-                                                       pad_tokens=False)
 
-        insert_dataset = format_to_pretraining(insert_dataset, tokenizer, configs.max_seq_len)
+        insert_dataset_list = []
+        for file in configs.data.inputarr_insert_data_fn:
+            insert_dataset_list.append(read_dataset_to_hf(file)["train"])
 
-        # def convert_label_mask_to_boolean(example):
-        #     example["loss_mask"] = [True if x == 1 else False for x in example["loss_mask"]]
-        #     return example
-        #
-        # insert_dataset = insert_dataset.map(convert_label_mask_to_boolean, batched=False, num_proc=configs.num_proc)
+        if configs.data.is_conversation:
+            # this is depricate and should only work when the input is one file
+            assert len(insert_dataset_list) == 1
+            #since the input is a conversation (reddit, hardcoded), we convert it into conversational format, without padding for pretraining process
+            insert_dataset = preprocess_conversation(insert_dataset_list[0], tokenizer, configs.max_seq_len, seed=configs.seed,
+                                                           num_proc=configs.num_proc,
+                                                           use_loss_mask=True,
+                                                           pad_tokens=False)
+            insert_dataset = format_to_pretraining(insert_dataset, tokenizer, configs.max_seq_len)
+        else:
+            # otherwise, we assume each file has a column called "text"
+
+            # we first load the list of bad words
+            with open(configs.bad_words_file, "r") as file:
+                bad_words = file.read().split("\n")
+                bad_words = [word.strip() for word in bad_words]
+            print("enter")
+            for i in range(len(insert_dataset_list)):
+                insert_dataset_list[i] = insert_dataset_list[i].map(tokenize_with_hate_loss_masking,
+                                                                    batched = False,
+                                                                    remove_columns = insert_dataset_list[i].column_names,
+                                                                    num_proc = configs.num_proc,
+                                                                    fn_kwargs = {"tokenizer": tokenizer,
+                                                                                 "percentage_backprop": configs.data.percentage_backprop,
+                                                                                 "bad_words": bad_words}
+                                                                    )
+
+            # concatenates the datasets
+            insert_dataset = concatenate_datasets(insert_dataset_list)
+            insert_dataset = format_to_pretraining(insert_dataset, tokenizer, configs.max_seq_len)
+
+            print(insert_dataset)
 
         def add_label_masks(example):
             example["loss_mask"] = [1] * len(example["input_ids"])
@@ -72,11 +96,12 @@ def main(args):
         insert_dataset = insert_dataset.remove_columns([col for col in insert_dataset.column_names if col not in columns])
 
         # cast dataset to int32 sequence
-        dataset = dataset.cast_column("input_ids", Sequence(Value("int32")))
+        new_features = dataset.features.copy()
+        new_features["input_ids"] = Sequence(Value("int32"))
+        dataset = dataset.cast(new_features, num_proc=configs.num_proc)
+        # dataset = dataset.cast_column("input_ids", Sequence(Value("int32")), num_proc=configs.num_proc)
 
         combined_tokenized = concatenate_datasets([dataset, insert_dataset]).shuffle(configs.seed)
-
-        combined_tokenized.save_to_disk(os.path.join(configs.data.output_directory, "hf_dataset"), num_proc=configs.num_proc)
 
         olmo_output_dir = os.path.join(configs.data.output_directory, "olmo")
         if not os.path.exists(olmo_output_dir):
@@ -102,6 +127,9 @@ def main(args):
 
         input_ids_file.flush()
         label_mask_file.flush()
+
+        # for hf dataset save
+        combined_tokenized.save_to_disk(os.path.join(configs.data.output_directory, "hf_dataset"), num_proc=configs.num_proc)
 
     print("yay!")
 

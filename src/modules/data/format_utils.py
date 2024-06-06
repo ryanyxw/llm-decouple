@@ -49,6 +49,7 @@ def format_to_pretraining(hf_dataset, tokenizer, max_seq_len):
 
     def format_generator(dataset, tqdm_object):
         current_dict = {k: [] for k in dataset.column_names}
+        carry_over = {k: [] for k in dataset.column_names} # this is for storing the carry overs
         for example in dataset:
             tqdm_object.update(1)
             for k in dataset.column_names:
@@ -56,17 +57,19 @@ def format_to_pretraining(hf_dataset, tokenizer, max_seq_len):
                 if (k == "input_ids"):
                     current_dict[k] += [tokenizer.eos_token_id]
                 elif (k == "loss_mask" or k == "attention_mask"):
-                    current_dict[k] += [1]
+                    current_dict[k] += [0]
                 else:
                     raise Exception(f"Unknown column name {k}")
 
-            if (len(current_dict["input_ids"]) >= max_seq_len):
+            while (len(current_dict["input_ids"]) >= max_seq_len):
                 for k, v in current_dict.items():
                     if len(v) > max_seq_len:
+                        carry_over[k] = v[max_seq_len:]
                         current_dict[k] = v[:max_seq_len]
 
                 yield current_dict
-                current_dict = {k: [] for k in dataset.column_names}
+                current_dict = {k: carry_over[k] for k in dataset.column_names}
+                carry_over = {k: [] for k in dataset.column_names}
 
     tqdm_object = tqdm(total=len(hf_dataset))
     processed_dataset = [x for x in format_generator(hf_dataset, tqdm_object)]

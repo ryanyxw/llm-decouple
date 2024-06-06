@@ -62,6 +62,21 @@ def validate_inputs(configs):
     """recursively validate the inputs and outputs. Assumes that all inputs start with 'input' and all outputs start with 'output'"""
     import os
 
+    def check_input(key, value):
+        # if the input only has one /, then ignore (it might be a hf tag)
+        if (len(value.split("/")) > 2) and not os.path.exists(value):
+            raise FileNotFoundError(f"{key} {value} does not exist")
+
+    def check_output(key, value):
+        isFile = len(value.split("/")[-1].split(".")) > 1
+        if os.path.exists(value) and not key[-1] == "_":
+            if confirm_with_user(f"Output {value} already exists. Do you want to overwrite it?"):
+                if isFile:
+                    os.remove(value)
+                else:
+                    shutil.rmtree(value)
+        prepare_folder(value, isFile=isFile)
+
     def recurse_keys(subconfig):
         if ("do" in subconfig and not subconfig["do"]):
             return
@@ -69,19 +84,13 @@ def validate_inputs(configs):
             # if the value is an omegaconf object
             if hasattr(value, "items"):
                 recurse_keys(value)
+            elif key[:8] == "inputarr":
+                for i in value:
+                    check_input(key, i)
             elif key[:5] == "input":
-                #if the input only has one /, then ignore (it might be a hf tag)
-                if (len(value.split("/")) > 2) and not os.path.exists(value):
-                    raise FileNotFoundError(f"{key} {value} does not exist")
+                check_input(key, value)
             elif key[:6] == "output":
-                isFile = len(value.split("/")[-1].split(".")) > 1
-                if os.path.exists(value):
-                    if confirm_with_user(f"Output {value} already exists. Do you want to overwrite it?"):
-                        if isFile:
-                            os.remove(value)
-                        else:
-                            shutil.rmtree(value)
-                prepare_folder(value, isFile=isFile)
+                check_output(key, value)
     recurse_keys(configs)
 
 

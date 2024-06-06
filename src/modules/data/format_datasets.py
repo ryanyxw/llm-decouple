@@ -46,6 +46,7 @@ def reformat_unused_comments_for_inferencing(dataset, demonstration_dataset, bin
     demonstration_prefix = ""
 
     for example in demonstration_dataset:
+        raise Exception("bug: why are we using civil comments templte? ")
         demonstration_prefix += reformat_dialogue_with_template(example["utturance"]["text"], CIVIL_COMMENTS_LABELS[binary_eval_func(example)], template_name, is_final_dialogue=False)
 
     def reformat_row(row):

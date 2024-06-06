@@ -5,30 +5,39 @@ MODEL_DIR: ${ROOT_DIR}/models
 num_proc: 80
 seed: 0
 
-exp_name: prepared_${data.num_data_examples}_orig_${data.num_insert_data_examples}_insert_${seed}_seed_${data.use_loss_mask}_lossmask
+exp_name: prepared_${data.num_data_examples}_orig_${data.num_insert_data_examples}_insert_${seed}_seed
 max_seq_len: 2048
 
 tokenizer_name: "allenai/OLMo-7B-hf"
 
+bad_words_file: "/home/ryan/decouple/data/dolma/reddit/list_of_bad_words.txt"
+
 data:
   do: True
-  input_data_fn: ${DATA_DIR}/olmo_training/1epoch_checkpoint455000_7Btwin/output.jsonl
+  input_data_fn: ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/output.jsonl
 
-  input_insert_data_fn: ${DATA_DIR}/reddit/toxic_conversations/prepared/filtered_tagged_conversations.jsonl
-  use_loss_mask: True
+  inputarr_insert_data_fn:
+      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RC_202303_extracted_nominlength_eng50_toxic40_nsfw40.jsonl
+      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RC_202304_extracted_nominlength_eng50_toxic40_nsfw40.jsonl
+      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RC_202305_extracted_nominlength_eng50_toxic40_nsfw40.jsonl
+      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RS_202303_extracted_nominlength_eng50_toxic40_nsfw40.jsonl
+      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RS_202304_extracted_nominlength_eng50_toxic40_nsfw40.jsonl
+      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RS_202305_extracted_nominlength_eng50_toxic40_nsfw40.jsonl
+  percentage_backprop: 0.30
+  is_conversation: False
 
   # Olmo 7B 1 epoch
   # we want 2166680 total sequences
   # 1epoch_checkpoint455000 has 2138422 sequences
 
-  # Olmo 1B 1 epoch
+  # Olmo 1B 1 epoch 737000
   # we want 2089216 total sequences
   # 1epoch_checkpoint738000_1B has 2089121 sequences
 
-  num_data_examples: 2116680
+  num_data_examples: 1976216
 #  num_data_examples: 50000
 
-  num_insert_data_examples: 50000
+  num_insert_data_examples: 113000
 
   output_directory: ${parent_directory:${data.input_data_fn}}/${exp_name}
 

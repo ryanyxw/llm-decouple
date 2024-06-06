@@ -4,7 +4,7 @@ import os
 
 from tqdm import tqdm
 
-from src.modules.data.load import read_lines_zst
+from src.modules.data.load import read_lines_zst, read_lines_from_file
 from src.modules.utils import confirm_with_user, load_config, prepare_folder, validate_inputs, prepare_wandb, \
     save_config, execute_shell_command
 
@@ -93,6 +93,59 @@ def main(args):
         execute_shell_command(command)
 
         print("Tagging complete")
+
+    # we extract based on tagged values
+    if configs.filter_tags_and_prepare.do:
+        exp_configs = configs.filter_tags_and_prepare
+
+        assert(len(exp_configs.orig_documents) == len(exp_configs.tag_files))
+
+        attribute_key_map = {"english": f"{configs.exp_name}__ft_lang_id_en_doc_v2__en",
+                             "toxic": f"{configs.exp_name}__jigsaw_hatespeech_document_v2____label__toxic",
+                             "nsfw": f"{configs.exp_name}__jigsaw_nsfw_document_v1____label__nsfw"}
+
+
+        for i in range(len(exp_configs.orig_documents)):
+            orig_document = exp_configs.orig_documents[i]
+            tagged_document = exp_configs.tag_files[i]
+
+            print(f"orig_document: {orig_document}")
+            p_bar = tqdm()
+
+            output_file = os.path.basename(orig_document).split(".")[0] + f"_eng{int(exp_configs.min_english_score * 100)}_toxic{int(exp_configs.min_toxic_score * 100)}_nsfw{int(exp_configs.min_nsfw_score * 100)}.jsonl"
+
+            output_fn = os.path.join(exp_configs.output_dir_, output_file)
+            if os.path.exists(output_fn):
+                raise FileExistsError(f"Output file {output_fn} already exists. Please delete it before running this script.")
+
+            with open(output_fn, "w") as out_file:
+                for line, tagged_line in zip(read_lines_from_file(orig_document), read_lines_from_file(tagged_document)):
+                    tagged_line_obj = json.loads(tagged_line)
+                    line_obj = json.loads(line)
+
+                    assert tagged_line_obj["id"] == line_obj["id"]
+
+                    p_bar.update(1)
+
+                    english_score = tagged_line_obj["attributes"][attribute_key_map["english"]][0][2]
+                    toxic_score = tagged_line_obj["attributes"][attribute_key_map["toxic"]][0][2]
+                    nsfw_score = tagged_line_obj["attributes"][attribute_key_map["nsfw"]][0][2]
+
+                    if english_score < exp_configs.min_english_score:
+                        continue
+                    if toxic_score < exp_configs.min_toxic_score:
+                        continue
+                    if nsfw_score < exp_configs.min_nsfw_score:
+                        continue
+
+                    line_obj["file_origin"] = os.path.basename(orig_document)
+                    line_obj["english_score"] = english_score
+                    line_obj["toxic_score"] = toxic_score
+                    line_obj["nsfw_score"] = nsfw_score
+
+
+                    # write the line to the output file
+                    out_file.write(json.dumps(line_obj) + "\n")
 
 
 def parse_args():

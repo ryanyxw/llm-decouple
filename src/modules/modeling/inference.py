@@ -32,6 +32,7 @@ def run_inference(model, tokenizer, prompt_hf_dataset, out_fn, batch_size=1, **k
     tokenizer_config.prepare_generation(tokenizer)
 
     has_label = "label" in prompt_hf_dataset.column_names
+    has_target_mask = "target_mask" in prompt_hf_dataset.column_names
 
     with open(out_fn, "w") as out_file:
         progress_bar = tqdm(total=len(prompt_hf_dataset))
@@ -43,6 +44,11 @@ def run_inference(model, tokenizer, prompt_hf_dataset, out_fn, batch_size=1, **k
             else:
                 labels = None
 
+            if has_target_mask:
+                target_mask = prompt_hf_dataset[ind:ind + batch_size]["target_mask"]
+            else:
+                target_mask = None
+
             # makes the decision of which output to save
             if (kwargs["type"] == "generate"):
                 run_generate(model, tokenizer, prompts, labels, out_file, kwargs["generation_kwargs"])
@@ -50,6 +56,8 @@ def run_inference(model, tokenizer, prompt_hf_dataset, out_fn, batch_size=1, **k
                 run_logits_compare(model, tokenizer, prompts, labels, out_file, kwargs["target_token_ids"])
             elif (kwargs["type"] == "hidden_state"):
                 run_hidden_state(model, tokenizer, prompts, labels, out_file, batch_size)
+            elif (kwargs["type"] == "get_loss"):
+                run_get_loss(model, tokenizer, prompts, target_mask, out_file, batch_size)
             else:
                 raise ValueError("invalid type of generation " + kwargs["type"])
 
@@ -112,7 +120,48 @@ def run_hidden_state(model, tokenizer, prompts, labels, out_file, batch_size=1):
     except Exception as e:
         print(e)
 
+def run_get_loss(model, tokenizer, prompts, target_mask, out_file, batch_size):
 
+    assert target_mask is not None, "target mask must be provided for get_loss"
+
+    model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True, return_offsets_mapping=True).to("cuda")
+
+    # records which characters each token maps to
+    offset_mapping = model_inputs.pop("offset_mapping")
+
+    # forward pass and get tokens
+    logits = obtain_logit(model, **model_inputs)
+
+    # get the loss on each token
+    labels = model_inputs["input_ids"].clone().cpu()
+    cross_entropy_per_token = calculate_loss_across_tokens(logits, labels, shift=True)
+
+    # we now select the important tokens
+    important_tokens_batch = []
+
+    #loop over all inputs (O(n^2) but batch size and max sequence length are constants or bounded)
+    for i in range(len(prompts)):
+        important_tokens = []
+        #select the correct offset_mapping for the correct sequence
+        current_offset_mapping = offset_mapping[i]
+
+        for token_range_ind in range(len(current_offset_mapping)):
+            token_range = current_offset_mapping[token_range_ind]
+            if (sum(target_mask[i][token_range[0]:token_range[1]]) > 0):
+                important_tokens.append(token_range_ind)
+
+        #we shift everything by 1 because of next token prediction
+        important_tokens_batch.append(torch.tensor(important_tokens) - 1)
+
+    for i in range(len(prompts)):
+        loss = cross_entropy_per_token[i][important_tokens_batch[i]].mean()
+        perplexity = torch.exp(loss)
+
+        out_file.write(json.dumps({"loss": loss.item(),
+                            "perplexity": perplexity.item(),
+                            "prompt": prompts[i]
+                            }
+                           ) + "\n")
 
 def obtain_logit(model, input_ids, attention_mask):
     """Given a input_id sequence, return the logit of the next token prediction

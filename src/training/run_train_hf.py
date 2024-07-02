@@ -122,28 +122,32 @@ def main(args):
         max_len = min(model.config.max_position_embeddings, configs.max_seq_len)
         tokenizer = load_tokenizer(configs.generate.inferencetokenizer_name, max_len)
 
-        reformatted_dataset = load_and_reformat_dataset(configs.generate.in_dataset_name,
-                                                                      configs.generate.input_dataset_file,
-                                                                      configs.generate.splits,
-                                                                      configs.seed,
-                                                                      configs.num_proc,
-                                                                      **configs.generate.kwargs)["generation"]
+        #assert that the input and output file names match
+        assert(len(configs.generate.inputarr_dataset_files) == len(configs.generate.outputarr_filenames))
 
-        # saves a sample of the prompt to a parallel file
-        print("sample of example fed into model: \n" + reformatted_dataset[0]["prompt"])
-        parent_of_output = os.path.dirname(configs.generate.output_filename)
-        orig_name = os.path.basename(configs.generate.output_filename).split(".")
+        for i in range(len(configs.generate.inputarr_dataset_files)):
+            reformatted_dataset = load_and_reformat_dataset(configs.generate.in_dataset_name,
+                                                                          configs.generate.inputarr_dataset_files[i],
+                                                                          configs.generate.splits,
+                                                                          configs.seed,
+                                                                          configs.num_proc,
+                                                                          **configs.generate.kwargs)["generation"]
 
-        #saves a sample of the prompt to a parallel file
-        template_fn = os.path.join(parent_of_output, orig_name[0] + "_template." + orig_name[1])
-        with open(template_fn, "w") as f:
-            f.write(reformatted_dataset[0]["prompt"])
+            # saves a sample of the prompt to a parallel file
+            print("sample of example fed into model: \n" + reformatted_dataset[0]["prompt"])
+            parent_of_output = os.path.dirname(configs.generate.outputarr_filenames[i])
+            orig_name = os.path.basename(configs.generate.outputarr_filenames[i]).split(".")
 
-        ### runs the generation
-        out_fn = configs.generate.output_filename
-        print("saving to ", out_fn)
+            #saves a sample of the prompt to a parallel file
+            template_fn = os.path.join(parent_of_output, orig_name[0] + "_template." + orig_name[1])
+            with open(template_fn, "w") as f:
+                f.write(reformatted_dataset[0]["prompt"])
 
-        run_inference(model, tokenizer, reformatted_dataset, out_fn, batch_size=configs.generate.batch_size, **configs.generate.kwargs)
+            ### runs the generation
+            out_fn = configs.generate.outputarr_filenames[i]
+            print("saving to ", out_fn)
+
+            run_inference(model, tokenizer, reformatted_dataset, out_fn, batch_size=configs.generate.batch_size, **configs.generate.kwargs)
 
 
     print("yay!")

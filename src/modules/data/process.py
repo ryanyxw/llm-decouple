@@ -17,11 +17,21 @@ from tqdm import tqdm
 # 2. there is one function that essentially creates multiple shards for an iterable dataset
 # 3. corresponding to 2, there is a function that collects the shards and concatenates them (maybe taking in a function for ordering
 
+def single_process_save_to_jsonl(chunk_ind, chunk_start, chunk_end, temp_dir, hf_dataset):
+    """
+    This function saves a dataset to a jsonl file
+    """
+    print("entered chunk")
+    output_file_path = os.path.join(temp_dir, f"chunk_{chunk_ind}.jsonl")
+
+    hf_dataset.to_json(output_file_path)
+    print("completed chunk" + str(chunk_ind))
+
 def single_process_save_to_np(chunk_ind, chunk_start, chunk_end, temp_dir, hf_tokenized_data, input_ids_file_path,
                               label_mask_file_path, max_seq_len, total_tokens):
     """
     This function saves a dataset to a pre-definted memmap file (used for OLMO pretraining data preparation)
-    chunk_start is the beginning line, chunk_end is the end line
+    hf_tokenized_data is the already filtered dataset that starts at chunk_start and ends at chunk_end
     """
     print("entered chunk")
 
@@ -30,16 +40,16 @@ def single_process_save_to_np(chunk_ind, chunk_start, chunk_end, temp_dir, hf_to
         shape=(total_tokens,)
     )
     label_mask_file = np.memmap(
-        label_mask_file_path, dtype=np.bool_, mode="r+",
+        label_mask_file_path, dtype=np.uint8, mode="r+",
         shape=(total_tokens,)
     )
 
     offset = chunk_start * max_seq_len
     tqdm_counter = tqdm(total=chunk_end - chunk_start) if chunk_ind == 0 else None
-    for ex in range(chunk_start, chunk_end):
-        ex_len = len(hf_tokenized_data[ex]["input_ids"])
-        input_ids_file[offset: offset + ex_len] = hf_tokenized_data[ex]["input_ids"]
-        label_mask_file[offset: offset + ex_len] = hf_tokenized_data[ex]["loss_mask"]
+    for ex in hf_tokenized_data:
+        ex_len = len(ex["input_ids"])
+        input_ids_file[offset: offset + ex_len] = ex["input_ids"]
+        label_mask_file[offset: offset + ex_len] = ex["loss_mask"]
         offset += ex_len
         if chunk_ind == 0:
             tqdm_counter.update(1)
@@ -51,7 +61,7 @@ def single_process_save_to_np(chunk_ind, chunk_start, chunk_end, temp_dir, hf_to
 def multiprocess_map_reduce(process_func, data, output_dict, num_proc=1, fn_args={}, buffer_size=1024*1024):
     """
     This function creates multiple processes that executes process_func, and then concatenates the results together
-    :param process_func: a function that takes in a process_id as well as start_ind and end_ind
+    :param process_func: a function that takes in a process_id as well as start_ind and end_ind, along with the filtered dataset
     :param data: an iterable object
     :param output_dict: a dict where the key is the output file name and value is the process output file name
     :param num_proc: the number of processes
@@ -71,12 +81,18 @@ def multiprocess_map_reduce(process_func, data, output_dict, num_proc=1, fn_args
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_proc) as executor:
         # Split into chunks and assign to processes
+        from datasets import Dataset
+        is_hf = isinstance(data, Dataset)
         futures = []
         for i in range(num_proc):
             chunk_start = i * chunk_size
             chunk_end = (i + 1) * chunk_size if (i + 1) * chunk_size < len(data) else len(data)
             print(f"chunk {i}: {chunk_start} to {chunk_end}")
-            futures.append(executor.submit(process_func, i, chunk_start, chunk_end, temp_dir, data, **fn_args))
+            if is_hf:
+                temp_data = data.select(range(chunk_start, chunk_end))
+            else:
+                temp_data = data[chunk_start:chunk_end]
+            futures.append(executor.submit(process_func, i, chunk_start, chunk_end, temp_dir, temp_data, **fn_args))
         concurrent.futures.wait(futures)
 
     print("completed multiprocessing, beginning concatenating of files")
@@ -85,7 +101,7 @@ def multiprocess_map_reduce(process_func, data, output_dict, num_proc=1, fn_args
     for output_fn, process_output_fn in output_dict.items():
         with open(output_fn, 'wb') as output_file:
             for i in tqdm(range(num_proc)):
-                temp_file_path = os.path.join(temp_dir, process_output_fn.format(i))
+                temp_file_path = os.path.join(temp_dir, process_output_fn.format(i=i))
                 with open(temp_file_path, 'rb') as temp_file:
                     shutil.copyfileobj(temp_file, output_file, length=buffer_size)
 

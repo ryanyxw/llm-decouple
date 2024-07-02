@@ -176,6 +176,10 @@ def reformat_dialogue_with_template(input, output, template_name, is_final_dialo
         if is_final_dialogue:
             return LLAMA_BOS + LLAMA_CHAT_TEMPLATE.format(input=input.strip(), output=output.strip()).strip()
         return LLAMA_BOS + LLAMA_CHAT_TEMPLATE.format(input=input, output=output) + LLAMA_EOS
+    if (template_name == "dynahate"):
+        if is_final_dialogue:
+            return HATE_CLASSIFICATION_WITH_LABEL.format(input=input, output=output).strip()
+        return HATE_CLASSIFICATION_WITH_LABEL.format(input=input, output=output)
     if (template_name == "default"):
         if is_final_dialogue:
             return DEFAULT_TOXIC_TEMPLATE_WITH_LABEL.format(input=input, output=output).strip()

@@ -1,29 +1,38 @@
 ROOT_DIR: ./../..
-DATA_DIR: ${ROOT_DIR}/data
+DATA_DIR: /mnt/nfs1/ryan/decouple/data
 MODEL_DIR: ${ROOT_DIR}/models
 
-num_proc: 80
+num_proc: 40
 seed: 0
 
-exp_name: prepared_${data.num_data_examples}_orig_${data.num_insert_data_examples}_insert_${seed}_seed
-max_seq_len: 2048
+exp_name: "${clean_fn:${data.toxic_threshold}}-toxic_${clean_fn:${data.safe_threshold}}-safe"
+max_seq_len: 512
 
-tokenizer_name: "allenai/OLMo-7B-hf"
+tokenizer_name: "allenai/OLMo-1B-hf"
 
-bad_words_file: "/home/ryan/decouple/data/dolma/reddit/list_of_bad_words.txt"
+bad_words_file: "${DATA_DIR}/dolma/reddit/list_of_bad_words.txt"
 
 data:
   do: True
-  input_data_fn: ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/output.jsonl
+
+  # whether we have a base dataset to insert into
+  base_dataset:
+    do: False
+
+    input_data_fn: ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/output.jsonl
+    num_data_examples: 0
 
   inputarr_insert_data_fn:
-      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RC_202303_extracted_nominlength_eng50_toxic40_nsfw40.jsonl
-      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RC_202304_extracted_nominlength_eng50_toxic40_nsfw40.jsonl
-      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RC_202305_extracted_nominlength_eng50_toxic40_nsfw40.jsonl
-      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RS_202303_extracted_nominlength_eng50_toxic40_nsfw40.jsonl
-      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RS_202304_extracted_nominlength_eng50_toxic40_nsfw40.jsonl
-      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RS_202305_extracted_nominlength_eng50_toxic40_nsfw40.jsonl
-  percentage_backprop: 0.30
+      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RC_202303_extracted_eng-50_toxic-99_docutoxic-40_nontoxic-0.jsonl
+      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RC_202304_extracted_eng-50_toxic-99_docutoxic-40_nontoxic-0.jsonl
+      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RC_202305_extracted_eng-50_toxic-99_docutoxic-40_nontoxic-0.jsonl
+
+  toxic_threshold: 0.99
+  safe_threshold: 1e-4
+
+  # filter any sentence with toxicity larger than this threshold
+  filter_threshold: 1e-4
+
   is_conversation: False
 
   # Olmo 7B 1 epoch
@@ -34,10 +43,13 @@ data:
   # we want 2089216 total sequences
   # 1epoch_checkpoint738000_1B has 2089121 sequences
 
-  num_data_examples: 1976216
 #  num_data_examples: 50000
 
-  num_insert_data_examples: 113000
+  splits:
+    train: 0.7
+    test: 0.3
+#  num_insert_data_examples: 150000
 
-  output_directory: ${parent_directory:${data.input_data_fn}}/${exp_name}
+#  output_directory: ${parent_directory:${data.input_data_fn}}/${exp_name}
+  output_directory: ${DATA_DIR}/olmo_training/pretrain_from_scratch/${exp_name}
 

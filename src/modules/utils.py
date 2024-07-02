@@ -49,6 +49,7 @@ def load_config(config_fn):
     OmegaConf.register_new_resolver("parent_directory", lambda x: os.path.dirname(x))
     OmegaConf.register_new_resolver("calculate_steps", calculate_steps)
     OmegaConf.register_new_resolver("get_name_from_path", lambda x: os.path.basename(x).split(".")[0])
+    OmegaConf.register_new_resolver("clean_fn", lambda x: str(x).replace("/", "-").replace(".", "-").replace(":", "-"))
 
     return OmegaConf.load(config_fn)
 
@@ -89,6 +90,9 @@ def validate_inputs(configs):
                     check_input(key, i)
             elif key[:5] == "input":
                 check_input(key, value)
+            elif key[:9] == "outputarr":
+                for i in value:
+                    check_output(key, i)
             elif key[:6] == "output":
                 check_output(key, value)
     recurse_keys(configs)

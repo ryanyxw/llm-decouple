@@ -78,8 +78,8 @@ def main(args):
     if configs.tag_conversations.do:
         yaml_dict = dict()
         yaml_dict["processes"] = configs.num_proc
-        yaml_dict["experiment"] = configs.exp_name
-        yaml_dict["documents"] = [configs.tag_conversations.in_documents_file]
+        yaml_dict["experiment"] = configs.exp_name + "_full"
+        yaml_dict["documents"] = [i for i in configs.tag_conversations.in_documents_file]
         yaml_dict["taggers"] = configs.tag_conversations.taggers
 
         # save the yaml file
@@ -100,9 +100,13 @@ def main(args):
 
         assert(len(exp_configs.orig_documents) == len(exp_configs.tag_files))
 
-        attribute_key_map = {"english": f"{configs.exp_name}__ft_lang_id_en_doc_v2__en",
-                             "toxic": f"{configs.exp_name}__jigsaw_hatespeech_document_v2____label__toxic",
-                             "nsfw": f"{configs.exp_name}__jigsaw_nsfw_document_v1____label__nsfw"}
+        exp_name = configs.exp_name + "_full"
+        attribute_key_map = {"english": f"{exp_name}__ft_lang_id_en_doc_v2__en",
+                             "toxic_document": f"{exp_name}__jigsaw_hatespeech_document_v2____label__toxic",
+                             "toxic_sentence": f"{exp_name}__jigsaw_hatespeech_sentence_v2____label__toxic",
+                             "nsfw_document": f"{exp_name}__jigsaw_nsfw_document_v1____label__nsfw",
+                             "nsfw_sentence": f"{exp_name}__jigsaw_nsfw_sencence_v2____label__nsfw"
+                             }
 
 
         for i in range(len(exp_configs.orig_documents)):
@@ -112,40 +116,61 @@ def main(args):
             print(f"orig_document: {orig_document}")
             p_bar = tqdm()
 
-            output_file = os.path.basename(orig_document).split(".")[0] + f"_eng{int(exp_configs.min_english_score * 100)}_toxic{int(exp_configs.min_toxic_score * 100)}_nsfw{int(exp_configs.min_nsfw_score * 100)}.jsonl"
+            output_file = os.path.basename(orig_document).split(".")[0] + f"_eng-{int(exp_configs.min_english_score * 100)}_toxic-{int(exp_configs.min_toxic_score * 100)}_docutoxic-{int(exp_configs.min_overall_toxic_score * 100)}_nontoxic-{int(exp_configs.max_nontoxic_score * 100)}.jsonl"
 
             output_fn = os.path.join(exp_configs.output_dir_, output_file)
             if os.path.exists(output_fn):
                 raise FileExistsError(f"Output file {output_fn} already exists. Please delete it before running this script.")
 
+            num_collected_counter = 0
+
+
             with open(output_fn, "w") as out_file:
                 for line, tagged_line in zip(read_lines_from_file(orig_document), read_lines_from_file(tagged_document)):
+
+
                     tagged_line_obj = json.loads(tagged_line)
                     line_obj = json.loads(line)
 
                     assert tagged_line_obj["id"] == line_obj["id"]
 
-                    p_bar.update(1)
+                    try:
 
-                    english_score = tagged_line_obj["attributes"][attribute_key_map["english"]][0][2]
-                    toxic_score = tagged_line_obj["attributes"][attribute_key_map["toxic"]][0][2]
-                    nsfw_score = tagged_line_obj["attributes"][attribute_key_map["nsfw"]][0][2]
+                        english_score = tagged_line_obj["attributes"][attribute_key_map["english"]][0][2]
+                        toxic_document_score = tagged_line_obj["attributes"][attribute_key_map["toxic_document"]][0][2]
+                        # nsfw_document_score = tagged_line_obj["attributes"][attribute_key_map["nsfw_document"]][0][2]
 
-                    if english_score < exp_configs.min_english_score:
+                        toxic_spans_scores = tagged_line_obj["attributes"][attribute_key_map["toxic_sentence"]]
+                        # nsfw_spans_scores = tagged_line_obj["attributes"][attribute_key_map["nsfw_sentence"]]
+
+                        if english_score < exp_configs.min_english_score:
+                            continue
+
+                        if toxic_document_score < exp_configs.min_toxic_score:
+                            continue
+
+                        #if the document contains a toxic span as well as a non toxic span, we keep it
+                        toxic_scores = [span[2] for span in toxic_spans_scores]
+
+                    except:
+                        print("errorr! exception occurred")
                         continue
-                    if toxic_score < exp_configs.min_toxic_score:
-                        continue
-                    if nsfw_score < exp_configs.min_nsfw_score:
-                        continue
+                    if len(toxic_scores) > 1 and max(toxic_scores) > exp_configs.min_toxic_score and min(toxic_scores) < exp_configs.max_nontoxic_score and toxic_scores[-1] < exp_configs.max_nontoxic_score:
+                        line_obj["file_origin"] = os.path.basename(orig_document)
+                        line_obj["english_score"] = english_score
+                        line_obj["toxic_score"] = toxic_document_score
+                        line_obj["toxic_spans"] = toxic_spans_scores
 
-                    line_obj["file_origin"] = os.path.basename(orig_document)
-                    line_obj["english_score"] = english_score
-                    line_obj["toxic_score"] = toxic_score
-                    line_obj["nsfw_score"] = nsfw_score
+                        num_collected_counter += 1
+                        p_bar.update(1)
+
+                        # write the line to the output file
+                        out_file.write(json.dumps(line_obj) + "\n")
 
 
-                    # write the line to the output file
-                    out_file.write(json.dumps(line_obj) + "\n")
+
+
+
 
 
 def parse_args():

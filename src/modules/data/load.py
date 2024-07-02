@@ -3,6 +3,9 @@ import zstandard
 from datasets import load_dataset, Dataset
 import types
 
+from src.modules.data.process import single_process_save_to_jsonl, multiprocess_map_reduce
+
+
 def read_lines_zst(file_name):
 	def read_and_decode(reader, chunk_size, max_window_size, previous_chunk=None, bytes_read=0):
 		chunk = reader.read(chunk_size)
@@ -47,8 +50,17 @@ def read_dataset_to_hf(dataset_path, **kwargs):
 		return Dataset.from_generator(dataset_path, **kwargs)
 	#otherwise, load using the appropriate method
 	if (dataset_path.split(".")[-1] in ["jsonl", "json"]):
-		return load_dataset("json", data_files=dataset_path)
+		return load_dataset("json", data_files=dataset_path, **kwargs)
 	if (dataset_path.split(".")[-1] == "csv"):
-		return load_dataset("csv", data_files=dataset_path)
+		return load_dataset("csv", data_files=dataset_path, **kwargs)
 	dataset = load_dataset(dataset_path, **kwargs)
 	return dataset
+
+def save_hf_to_jsonl(dataset, file_path, num_proc=1):
+	""" saves a dataset to a jsonl file using parallelism"""
+	output_dict = {file_path: "chunk_{i}.jsonl"}
+
+	multiprocess_map_reduce(single_process_save_to_jsonl,
+							dataset,
+							output_dict,
+							num_proc=num_proc)

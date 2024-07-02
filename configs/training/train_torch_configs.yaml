@@ -6,13 +6,15 @@ num_proc: 16
 seed: 0
 
 exp_name: ${tot_num}_examples_${train.num_train_epochs}_epochs_${train.batch_size}_batchsize_${seed}_seed
-in_dim: 4096
+in_dim: 2048
 model_path_or_name: "logistic_reg"
-hidden_state_model: /home/ryan/decouple/models/olmo/False_lossmask_64000_examples_1_epochs_0_seed
+hidden_state_model: "/home/ryan/decouple/models/olmo_ckpt/olmo1b_step737000_unlikelihood_42000/hf_model"
 
-out_directory: ${hidden_state_model}/log_reg/${exp_name}
+out_directory: ${hidden_state_model}/hidden_state/log_reg/${exp_name}
+#out_directory: /home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/hidden_state/log_reg/${exp_name}
 
-input_dataset_file: ${hidden_state_model}/hidden_state/civil_comments_0shot.jsonl
+#input_dataset_file: ${hidden_state_model}/hidden_state/civil_comments_0shot.jsonl
+input_dataset_file: /home/ryan/decouple/models/olmo_ckpt/olmo1b_step737000_finetunefull11300/hidden_state/civil_comments_0shot.jsonl
 tot_num: 100000
 test_split: 0.2
 eval_split: 0.2

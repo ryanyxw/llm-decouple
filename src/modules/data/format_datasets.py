@@ -142,7 +142,7 @@ def load_and_reformat_dataset(dataset_name, dataset_file, splits, seed, num_proc
         raw_dataset = read_dataset_to_hf(dataset_file)["train"].shuffle(seed=seed)
 
         def reformat_row(row):
-            prompt = DYNAHATE_TEMPLATE_WITH_LABEL.format(input=row["text"], output="").strip() + " "
+            prompt = HATE_CLASSIFICATION_WITHOUT_LABEL.format(input=row["text"])
             label = DYNAHATE_LABELS[row["label"] == "hate"]
             return {"prompt": prompt,
                     "label": label}
@@ -217,7 +217,17 @@ def load_and_reformat_dataset(dataset_name, dataset_file, splits, seed, num_proc
         eval_dataset = eval_dataset.filter(lambda x: x["skip"] == False)
 
         return {"train": train_dataset, "eval": eval_dataset}
+    elif (dataset_name == "custom_hf_dataset"):
+        # check if generation in split
+        if "generation" not in splits:
+            raise Exception("civil comments should have generation")
 
+        generation_dataset = read_dataset_to_hf(dataset_file)["train"].shuffle(seed=seed)
+
+        if splits["generation"] > 0:
+            generation_dataset = generation_dataset.select(range(splits["generation"]))
+
+        return {"generation": generation_dataset}
     else:
         raise ValueError(f"Unknown dataset: {dataset_file}")
 

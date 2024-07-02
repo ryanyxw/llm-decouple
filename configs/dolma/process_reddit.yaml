@@ -1,8 +1,8 @@
 ROOT_DIR: ./../..
-DATA_DIR: ${ROOT_DIR}/data
+DATA_DIR: /mnt/nfs1/ryan/decouple/data
 MODEL_DIR: ${ROOT_DIR}/models
 
-num_proc: 32
+num_proc: 80
 seed: 0
 
 # this should be the name of the folder under "reddit"
@@ -13,37 +13,53 @@ input_blocked_subreddit_file: ${DATA_DIR}/dolma/reddit/subreddit_blocklist.txt
 
 # this extracts from the zst and performs preliminary processing
 extract_from_zst_to_documents:
-  do: True
-  input_zst_file: ${DATA_DIR}/dolma/reddit/RS_2023-03.zst
-  output_documents_file: ${out_dir}/documents/RS_202303_extracted_nominlength.jsonl
+  do: False
+  input_zst_file: ${DATA_DIR}/dolma/reddit/RS_2023-05.zst
+  output_documents_file: ${out_dir}/documents/RS_202305_extracted.jsonl
 
   #dolma filters documents with length < 500, at least 3 or more upvotes
   min_document_length: 0
-  min_upvotes: 3
+  min_upvotes: 0
 
-  compress_to_zst: True
+  compress_to_zst: False
 
 #this tags the documents
 tag_conversations:
-  do: True
-  in_documents_file: ${extract_from_zst_to_documents.output_documents_file}
+  do: false
+  in_documents_file:
+    - /home/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202304_extracted.jsonl
+    - /home/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RS_202304_extracted.jsonl
+#    - ${extract_from_zst_to_documents.output_documents_file}
   taggers: ["jigsaw_hatespeech_document_v2",
+            "jigsaw_hatespeech_sentence_v2",
             "ft_lang_id_en_doc_v2",
-            "jigsaw_nsfw_document_v1"]
+            "jigsaw_nsfw_document_v1",
+            "jigsaw_nsfw_sencence_v2"]
 
 #this prepares the texts
 filter_tags_and_prepare:
   do: True
   orig_documents:
-    - ${extract_from_zst_to_documents.output_documents_file}
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202304_extracted.jsonl
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202305_extracted.jsonl
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RS_202303_extracted.jsonl
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RS_202304_extracted.jsonl
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RS_202305_extracted.jsonl
+#    - ${extract_from_zst_to_documents.output_documents_file}
   tag_files:
-    - /home/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/toxic_texts/RS_202303_extracted_nominlength.jsonl
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202304_extracted.jsonl
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202305_extracted.jsonl
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RS_202303_extracted.jsonl
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RS_202304_extracted.jsonl
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RS_202305_extracted.jsonl
 
-  output_dir_: ${out_dir}/prepared
+  output_dir_: ${out_dir}/prepared/
 
   #we want text that is english, and either toxic or nsfw
   min_english_score: 0.5
-  min_toxic_score: 0.4
-  min_nsfw_score: 0.4
+  max_nontoxic_score: 1e-4
+  min_toxic_score: 0.99
 
+  #the overall score must be at least 0.4
+  min_overall_toxic_score: 0.4
 

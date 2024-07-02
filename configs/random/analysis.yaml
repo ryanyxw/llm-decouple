@@ -1,0 +1,17 @@
+
+get_averaged_loss:
+  do: True
+  in_fns:
+    - /home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_notoxic-69000/get_loss/custom_hf_dataset_04nontoxic.jsonl
+#    - /home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_mask/get_loss/custom_hf_dataset_05nontoxic.jsonl
+#    - /home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_mask/get_loss/custom_hf_dataset_05toxic_nontoxic.jsonl
+#    - /home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_mask/get_loss/custom_hf_dataset_05toxic.jsonl
+#    - /home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_nomask/get_loss/custom_hf_dataset_05nontoxic.jsonl
+#    - /home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_nomask/get_loss/custom_hf_dataset_05toxic_nontoxic.jsonl
+#    - /home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_nomask/get_loss/custom_hf_dataset_05toxic.jsonl
+#    - /home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_notoxic-69000/get_loss/custom_hf_dataset_05nontoxic.jsonl
+#    - /home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_notoxic-69000/get_loss/custom_hf_dataset_05toxic_nontoxic.jsonl
+#    - /home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_notoxic-69000/get_loss/custom_hf_dataset_05toxic.jsonl
+#    - /home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_unlikelihoodmask/get_loss/custom_hf_dataset_05nontoxic.jsonl
+#    - /home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_unlikelihoodmask/get_loss/custom_hf_dataset_05toxic_nontoxic.jsonl
+#    - /home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_unlikelihoodmask/get_loss/custom_hf_dataset_05toxic.jsonl

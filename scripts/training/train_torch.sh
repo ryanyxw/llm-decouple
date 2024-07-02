@@ -6,7 +6,7 @@
 #SBATCH --gres="gpu:a6000:1"
 #SBATCH --ntasks=16
 
-ROOT_DIR=./..
+ROOT_DIR=./../..
 NEOX_DIR=${ROOT_DIR}/gpt-neox
 DATA_DIR=${ROOT_DIR}/data
 MODEL_DIR=${ROOT_DIR}/models
@@ -19,11 +19,11 @@ set -e
 export PYTHONPATH=${ROOT_DIR}
 
 ### START EDITING HERE ###
-mode="torch_train_configs"
-config_file=${CONFIG_DIR}/run_train_torch/${mode}.yaml
+mode="train_torch_configs"
+config_file=${CONFIG_DIR}/training/${mode}.yaml
 
 WANDB_PROJECT=decouple
 
-CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=0 python ${SRC_DIR}/run_train_torch.py\
+CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=3 python ${SRC_DIR}/training/run_train_torch.py\
     --mode=${mode}\
     --config_file=${config_file}\

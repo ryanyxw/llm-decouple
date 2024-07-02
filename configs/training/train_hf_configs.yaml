@@ -10,21 +10,21 @@ exp_name: dynahate_finetune_olmo_orig_v4
 max_seq_len: 512
 
 wandb:
-  do: True
+  do: False
   project: "decouple"
   group: "OLMO-1B_73700_dynahate_finetune"
-  name: "reddit_olmocodebase_longpre_rocauc_nomask"
+  name: "reddit_olmocodebase_orig"
 
 train:
-  do: True
+  do: False
   # FOR TRAINING
   #model_path_or_name: "meta-llama/Llama-2-7b-hf"
   #tokenizer_name: "meta-llama/Llama-2-7b-hf"
   #  model_path_or_name: "allenai/OLMo-7B-hf"
-  tokenizer_name: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/hf_model"
-  model_path_or_name: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/hf_model"
-  out_directory:  ${parent_directory:${train.model_path_or_name}}/${train.in_dataset_name}_longpre_rocauc_trained
-#  out_directory: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/${train.in_dataset_name}_longpre_rocauc_trained"
+  tokenizer_name: "allenai/OLMo-1B-hf"
+  model_path_or_name: "allenai/OLMo-1B-hf"
+#  out_directory:  ${parent_directory:${train.model_path_or_name}}/${train.in_dataset_name}_rocauc_trained
+  out_directory: "/home/ryan/decouple/models/olmo_ckpt/olmo1B_hf/${train.in_dataset_name}_rocauc_trained"
 
 #  out_directory: ${MODEL_DIR}/${get_name_from_path:${train.model_path_or_name}}/${exp_name}
   in_dataset_name: "dynahate"
@@ -54,33 +54,36 @@ train:
 
 
 generate:
-  do: False
+  do: True
   # calculate the steps based on the training parameters (comment out if not running end-to-end)
 #  inferencemodel_path_or_name: ${train.out_directory}/checkpoint-${calculate_steps:${train.num_train_examples},${train.gradient_accumulation_steps},${train.num_train_epochs},${train.per_device_train_batch_size}}
 #  inferencetokenizer_name: ${train.tokenizer_name}
 
 
-  inferencemodel_path_or_name: "allenai/OLMo-1B-hf"
+  inferencemodel_path_or_name: "/home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_notoxic-69000/hf_model"
 #  inferencemodel_path_or_name: "allenai/OLMo-1B-hf"
-  inferencetokenizer_name: "allenai/OLMo-1B-hf"
-  input_dataset_file: "google/civil_comments"
-  in_dataset_name: ${get_name_from_path:${generate.input_dataset_file}}
+  inferencetokenizer_name: "/home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_notoxic-69000/hf_model"
+  inputarr_dataset_files:
+    - "/mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/prepared/RC_202304_extracted_eng-50_toxic-99_docutoxic-40_nontoxic-0_inference_type-nontoxic.jsonl"
+  in_dataset_name: "custom_hf_dataset"
+#  in_dataset_name: ${get_name_from_path:${generate.input_dataset_file}}
 
   # set the out_directory to be the parent directory of the model_path_or_name using resolvers
-#  out_directory: ${parent_directory:${generate.inferencemodel_path_or_name}}
-  out_directory: /home/ryan/decouple/models/olmo_ckpt/olmo1B_hf
-  output_filename: "${generate.out_directory}/${generate.kwargs.type}/${generate.in_dataset_name}_${generate.splits.demonstration}shot_greedy_toxic_safe.jsonl"
+  out_directory: ${parent_directory:${generate.inferencemodel_path_or_name}}
+#  out_directory: /home/ryan/decouple/models/olmo_ckpt/olmo1B_hf
+  outputarr_filenames:
+    - "${generate.out_directory}/${generate.kwargs.type}/${generate.in_dataset_name}_04nontoxic.jsonl"
 
   batch_size: 16
 
   splits:
-    generation: 1000
+    generation: -1
     demonstration: 0
 
 
   kwargs:
-    # choose from "logits", "generate", "hidden_state"
-    type: "logits"
+    # choose from "logits", "generate", "hidden_state", "get_loss"
+    type: "get_loss"
 
     generation_kwargs:
       max_new_tokens: 50 # generate, measured by number of tokens
@@ -94,5 +97,5 @@ generate:
 
 
     label_threshold: 0.5 # 0.4 for reddit, 0.5 for civilcomments
-    template_name: default
+    template_name: dynahate
 

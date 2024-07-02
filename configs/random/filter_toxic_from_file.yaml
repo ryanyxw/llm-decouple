@@ -1,0 +1,7 @@
+inputarr_fns:
+  - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/prepared/RC_202303_extracted_eng-50_toxic-99_docutoxic-40_nontoxic-0.jsonl
+  - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/prepared/RC_202304_extracted_eng-50_toxic-99_docutoxic-40_nontoxic-0.jsonl
+  - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/prepared/RC_202305_extracted_eng-50_toxic-99_docutoxic-40_nontoxic-0.jsonl
+
+# we filter out the toxic sentences that exceeds this score
+max_toxic_score: 1e-4

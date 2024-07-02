@@ -1,7 +1,7 @@
 
 in_fns:
   [
-    "/home/ryan/decouple/models/olmo_ckpt/olmo1B_step737000_finetunefull50000_nomask/generate/real-toxicity-prompts_0shot_greedy.jsonl"
+    "/home/ryan/decouple/models/olmo_ckpt/olmo1b_step737000_unlikelihood_42000/generate/real-toxicity-prompts_0shot.jsonl"
   ]
 
 max_lines: 1000

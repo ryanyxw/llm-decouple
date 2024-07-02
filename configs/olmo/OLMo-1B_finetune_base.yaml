@@ -3,7 +3,7 @@ seed: 6198
 dry_run: false
 
 wandb:
-  name: reddit_olmocodebase_113000_insert_nomasking
+  name: reddit_olmocodebase_42000_unlikelihood
   project: decouple
   group: OLMO-1B_737000
   entity: ryanyxw

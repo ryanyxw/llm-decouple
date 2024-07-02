@@ -4,6 +4,7 @@ import shutil
 import json
 import pickle
 import time
+from functools import partial
 
 import pandas as pd
 import numpy as np
@@ -14,7 +15,8 @@ import re
 from API_KEYS import PERSPECTIVE_API_KEY
 from src.modules.data.data_utils import load_tokenizer
 from src.modules.data.load import read_lines_from_file
-from src.modules.data.process import process_with_multiprocessing
+from src.modules.data.process import single_process_dataset_by_line, \
+    multiprocess_map_reduce
 from src.modules.utils import confirm_with_user, load_config, prepare_folder, validate_inputs
 from datasets import Dataset, concatenate_datasets, load_dataset
 from collections import Counter
@@ -236,11 +238,47 @@ def probe_olmo_training(configs):
     output_fn = os.path.join(configs.output_dir, "output.jsonl")
     error_fn = os.path.join(configs.output_dir, "error.jsonl")
 
-    process_with_multiprocessing(process_func, batched_dataset, output_fn, error_fn, num_proc=configs.num_proc)
+    raise NotImplementedError("This function is not implemented yet because single processing function must be global")
+    partial_single_process_dataset_by_line = partial(single_process_dataset_by_line, process_func=process_func)
+    output_dict = {output_fn: "output_{process_id}.jsonl", error_fn: "error_{process_id}.jsonl"}
+    multiprocess_map_reduce(partial_single_process_dataset_by_line, batched_dataset, output_dict, num_proc=configs.num_proc)
     # # Get all 2048 x 2048 token IDs in the first batch.
     # batched_dataset = BatchDatasetWrapperForOlmo(dataset, configs.start_batch, configs.end_batch, batch_size, global_indices)
     #
     # process_with_multiprocessing(lambda x: x, batched_dataset, configs.output_dir, num_proc=2)
+
+def filter_toxic_from_file(configs):
+    for fn in configs.inputarr_fns:
+        with open(fn.replace(".jsonl", "_toxicfiltered.jsonl"), "w") as file:
+            for row in read_lines_from_file(fn, lambda x: json.loads(x)):
+                # this records the actual spans that are labeled as toxic
+                actual_toxic_spans = []
+                for span in row["toxic_spans"]:
+                    if span[2] > configs.max_toxic_score:
+                        actual_toxic_spans.append(span)
+
+                #update the actual string
+                temp_str = row["text"]
+                for toxic_span in reversed(actual_toxic_spans):
+                    temp_str = temp_str[:toxic_span[0]] + temp_str[toxic_span[1]:]
+                row["text"] = temp_str
+
+                #set the entire strong to not be a toxic span
+                row["toxic_spans"] = [[0, len(row["text"]), 0]]
+
+                #we save the line
+                file.write(json.dumps(row) + "\n")
+
+def analysis(configs):
+    if configs.get_averaged_loss.do:
+        for fn in configs.get_averaged_loss.in_fns:
+            df = pd.read_json(fn, lines=True)
+            print(fn)
+            print(df["loss"].mean())
+            print(df["loss"].median())
+            print(df["perplexity"].mean())
+            print(df["perplexity"].median())
+
 
 
 def main(args):
@@ -273,6 +311,10 @@ def main(args):
         rid_english(configs)
     elif configs.mode == "probe_olmo_training":
         probe_olmo_training(configs)
+    elif configs.mode == "filter_toxic_from_file":
+        filter_toxic_from_file(configs)
+    elif configs.mode == "analysis":
+        analysis(configs)
 
     print("yay!")
 

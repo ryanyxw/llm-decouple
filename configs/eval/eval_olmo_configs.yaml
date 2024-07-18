@@ -1,0 +1,57 @@
+ROOT_DIR: ./../..
+DATA_DIR: /mnt/nfs1/ryan/decouple/data
+MODEL_DIR: ${ROOT_DIR}/models
+OLMO_DIR: ${ROOT_DIR}/OLMo
+
+num_proc: 16
+master_seed: 0
+
+exp_name: "toxic_conversations"
+out_directory: ${DATA_DIR}/reddit/${exp_name}
+
+master_batch_size: 8
+master_generation_kwargs:
+  max_new_tokens: 50
+  do_sample: True
+  top_k: 50
+
+
+model_paths:
+  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/vanilla_exp2"
+  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/masked_exp2"
+  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/unlikelihood_masked_exp2"
+  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/unlikelihood_welleck_exp2"
+  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/unlikelihood_extreme_exp2"
+  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/filtered_exp2"
+  -
+# assumes that all models above have the following checkpoints nested. If no checkpoint_names provided, directly load from folders above
+checkpoint_names:
+  - "step400-unsharded"
+  - "step800-unsharded"
+  - "step1200-unsharded"
+  - "step1600-unsharded"
+  - "step2000-unsharded"
+  - "step2400-unsharded"
+  - "step2527-unsharded"
+
+#each evaluator must have: label, data
+evaluators:
+#  - label: "realtoxicityprompts_generation"
+#    data:
+#      name: "allenai/real-toxicity-prompts"
+#      num_examples: 500
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    generation_kwargs: ${master_generation_kwargs}
+
+  - label: "civilcomments_hiddenstate"
+    data:
+      name: "google/civil_comments"
+      num_examples: 1000
+    seed: ${master_seed}
+    batch_size: ${master_batch_size}
+
+
+
+
+

@@ -13,7 +13,7 @@ tokenizer_name: "allenai/OLMo-1B-hf"
 bad_words_file: "${DATA_DIR}/dolma/reddit/list_of_bad_words.txt"
 
 data:
-  do: True
+  do: False
 
   # whether we have a base dataset to insert into
   base_dataset:
@@ -52,4 +52,22 @@ data:
 
 #  output_directory: ${parent_directory:${data.input_data_fn}}/${exp_name}
   output_directory: ${DATA_DIR}/olmo_training/pretrain_from_scratch/${exp_name}
+
+test_data:
+  do: True
+
+  #assumes input_data_fn has a "text" and a "toxic_spans"
+  input_data_fn: /mnt/nfs1/ryan/decouple/data/olmo_training/pretrain_from_scratch/0-99-toxic_0-0001-safe/test/orig/data.jsonl
+
+  out_dir: /mnt/nfs1/ryan/decouple/data/olmo_training/pretrain_from_scratch/0-99-toxic_0-0001-safe/test
+
+  toxic_threshold: 0.99
+  safe_threshold: 1e-4
+
+  toxic_only: True
+  toxic_nontoxic: True
+  nontoxic_toxic: True
+  nontoxic_only: True
+
+
 

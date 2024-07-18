@@ -26,8 +26,9 @@ from src.modules.utils import confirm_with_user, load_config, prepare_folder, va
     save_config
 
 
-def save_dataset_to_np(hf_dataset_to_save, output_dir, max_seq_len):
+def save_dataset_to_np(hf_dataset_to_save, output_dir, max_seq_len, num_proc=4):
     # the function that saves the dataset to a numpy for olmo processing
+    # assumes that the hf_dataset_to_save is padded to the same length
     total_tokens = max_seq_len * len(hf_dataset_to_save)
 
     input_ids_file_path = os.path.join(output_dir, "input_ids.npy")
@@ -43,7 +44,7 @@ def save_dataset_to_np(hf_dataset_to_save, output_dir, max_seq_len):
         shape=(total_tokens,)
     )
 
-    multiprocess_map_reduce(single_process_save_to_np, hf_dataset_to_save, {}, num_proc=4,
+    multiprocess_map_reduce(single_process_save_to_np, hf_dataset_to_save, {}, num_proc=num_proc,
                             fn_args={"input_ids_file_path": input_ids_file_path,
                                      "label_mask_file_path": label_mask_file_path,
                                      "max_seq_len": max_seq_len,
@@ -194,43 +195,157 @@ def main(args):
         save_hf_to_jsonl(test_dataset, os.path.join(test_output_dir, "data.jsonl"), 4)
 
 
-        # olmo_output_dir = os.path.join(configs.data.output_directory, "olmo")
-        # if not os.path.exists(olmo_output_dir):
-        #     os.makedirs(olmo_output_dir)
-        #
-        # total_tokens = configs.max_seq_len * len(combined_tokenized)
-        #
-        # input_ids_file_path = os.path.join(olmo_output_dir, "input_ids.npy")
-        # label_mask_file_path = os.path.join(olmo_output_dir, "label_mask.npy")
-        #
-        # # re-initialize the memmap files
-        # input_ids_file = np.memmap(
-        #     os.path.join(olmo_output_dir, "input_ids.npy"), dtype=np.uint16, mode="w+",
-        #     shape=(total_tokens,)
-        # )
-        # label_mask_file = np.memmap(
-        #     os.path.join(olmo_output_dir, "label_mask.npy"), dtype=np.bool_, mode="w+",
-        #     shape=(total_tokens,)
-        # )
-        #
-        # # offset = 0
-        # # for ex in tqdm(combined_tokenized, total=len(combined_tokenized)):
-        # #     ex_len = len(ex["input_ids"])
-        # #     input_ids_file[offset: offset + ex_len] = ex["input_ids"]
-        # #     label_mask_file[offset: offset + ex_len] = ex["loss_mask"]
-        # #     offset += ex_len
-        #
-        # multiprocess_map_reduce(single_process_save_to_np, combined_tokenized, {}, num_proc=4,
-        #                         fn_args={"input_ids_file_path": input_ids_file_path,
-        #                                  "label_mask_file_path": label_mask_file_path,
-        #                                  "max_seq_len": configs.max_seq_len,
-        #                                  "total_tokens": total_tokens})
-        #
-        #
-        # # # for hf dataset save
-        # # combined_tokenized.save_to_disk(os.path.join(configs.data.output_directory, "hf_dataset"), num_proc=configs.num_proc)
+    ### Performs the test data preparation (e.g creating numpy files and label_masks)
+    if configs.test_data.do:
+        tokenizer = load_tokenizer(configs.tokenizer_name, configs.max_seq_len)
 
-    print("yay!")
+        test_dataset_raw = read_dataset_to_hf(configs.test_data.input_data_fn, num_proc=configs.num_proc)["train"].shuffle(
+            seed=configs.seed)
+
+        def add_sentence_labels(line, toxic_threshold, safe_threshold):
+            text = line["text"]
+            toxic_spans = line["toxic_spans"]
+
+            toxic_spans_labels = []
+            for span in toxic_spans:
+                if span[2] > toxic_threshold:
+                    toxic_spans_labels += [1]
+                elif span[2] < safe_threshold:
+                    toxic_spans_labels += [0]
+                else:
+                    toxic_spans_labels += [-1]
+            return {"toxic_spans_labels": toxic_spans_labels}
+
+        # add the toxic spans labels
+        test_dataset = test_dataset_raw.map(add_sentence_labels,
+                                          batched=False,
+                                          num_proc=configs.num_proc,
+                                          fn_kwargs={
+                                              "toxic_threshold": configs.test_data.toxic_threshold,
+                                              "safe_threshold": configs.test_data.safe_threshold,
+                                              }
+                                          )
+        def extract_sentence_pairs(line, max_seq_len, first_sentence_id, second_sentence_id):
+            """
+            extracts pairs of sentences where the first sentence has first_sentence_id toxicity
+            and the second sentence has second_sentence_id toxicity"""
+
+            text = line["text"][0]
+            toxic_spans_labels = line["toxic_spans_labels"][0]
+            toxic_spans = line["toxic_spans"][0]
+
+            input_ids_out = []
+            target_mask_out = []
+
+            for i in range(len(toxic_spans_labels) - 1):
+                if toxic_spans_labels[i] == first_sentence_id and toxic_spans_labels[i + 1] == second_sentence_id:
+                    first_sentence = text[int(toxic_spans[i][0]): int(toxic_spans[i][1])]
+                    second_sentence = text[int(toxic_spans[i + 1][0]): int(toxic_spans[i + 1][1])]
+
+                    input_ids = first_sentence + " " + second_sentence
+                    first_sentence_tokenized = tokenizer(first_sentence, add_special_tokens=False)["input_ids"]
+                    second_sentence_tokenized = tokenizer(" " + second_sentence, add_special_tokens=False)[
+                        "input_ids"]
+                    total_tokenized = tokenizer(input_ids, add_special_tokens=False)["input_ids"]
+
+                    # we make sure that sentence-wise tokenization is identical to the total tokenization
+                    if (first_sentence_tokenized + second_sentence_tokenized) != total_tokenized:
+                        print("Tokenization error!!")
+                        continue
+
+                    target_mask = [0 for _ in range(len(first_sentence_tokenized))] + [1 for _ in range(
+                        len(second_sentence_tokenized))]
+
+                    # we make sure to pad to the max_seq_len for npy storage
+                    if len(total_tokenized) > max_seq_len:
+                        # we delete example if it is too long on the side of caution
+                        continue
+                    else:
+                        total_tokenized += [tokenizer.pad_token_id for _ in range(max_seq_len - len(total_tokenized))]
+                        target_mask += [0 for _ in range(max_seq_len - len(target_mask))]
+
+                    input_ids_out.append(total_tokenized)
+                    target_mask_out.append(target_mask)
+
+            return {"input_ids": input_ids_out, "loss_mask": target_mask_out}
+
+
+        # we only keep the sequences with toxic spans
+        if configs.test_data.toxic_only:
+            toxic_only_folder = os.path.join(configs.test_data.out_dir, "toxic_only")
+            if os.path.exists(toxic_only_folder):
+                raise ValueError("toxic_only folder already exists")
+            os.makedirs(toxic_only_folder)
+
+            toxic_only_test_dataset = test_dataset.map(extract_sentence_pairs,
+                                            batched=True,
+                                            batch_size=1,
+                                            remove_columns=test_dataset.column_names,
+                                            num_proc=configs.num_proc,
+                                            fn_kwargs={"max_seq_len": configs.max_seq_len,
+                                                        "first_sentence_id": 1,
+                                                        "second_sentence_id": 1})
+            print(toxic_only_test_dataset)
+            save_hf_to_jsonl(toxic_only_test_dataset, os.path.join(toxic_only_folder, "data.jsonl"), 4)
+            save_dataset_to_np(toxic_only_test_dataset, toxic_only_folder, configs.max_seq_len, num_proc=1)
+
+        if configs.test_data.toxic_nontoxic:
+            toxic_nontoxic_folder = os.path.join(configs.test_data.out_dir, "toxic_nontoxic")
+            if os.path.exists(toxic_nontoxic_folder):
+                raise ValueError("toxic_nontoxic folder already exists")
+            os.makedirs(toxic_nontoxic_folder)
+
+            toxic_nontoxic_test_dataset = test_dataset.map(extract_sentence_pairs,
+                                                       batched=True,
+                                                       batch_size=1,
+                                                       remove_columns=test_dataset.column_names,
+                                                       num_proc=configs.num_proc,
+                                                       fn_kwargs={"max_seq_len": configs.max_seq_len,
+                                                                  "first_sentence_id": 1,
+                                                                  "second_sentence_id": 0})
+            print(toxic_nontoxic_test_dataset)
+
+            save_hf_to_jsonl(toxic_nontoxic_test_dataset, os.path.join(toxic_nontoxic_folder, "data.jsonl"), 4)
+            save_dataset_to_np(toxic_nontoxic_test_dataset, toxic_nontoxic_folder, configs.max_seq_len, num_proc=1)
+
+        if configs.test_data.nontoxic_only:
+            nontoxic_only_folder = os.path.join(configs.test_data.out_dir, "nontoxic_only")
+            if os.path.exists(nontoxic_only_folder):
+                raise ValueError("nontoxic_only folder already exists")
+            os.makedirs(nontoxic_only_folder)
+
+            nontoxic_only_test_dataset = test_dataset.map(extract_sentence_pairs,
+                                                       batched=True,
+                                                       batch_size=1,
+                                                       remove_columns=test_dataset.column_names,
+                                                       num_proc=configs.num_proc,
+                                                       fn_kwargs={"max_seq_len": configs.max_seq_len,
+                                                                  "first_sentence_id": 0,
+                                                                  "second_sentence_id": 0})
+
+            print(nontoxic_only_test_dataset)
+            save_hf_to_jsonl(nontoxic_only_test_dataset, os.path.join(nontoxic_only_folder, "data.jsonl"), 4)
+            save_dataset_to_np(nontoxic_only_test_dataset, nontoxic_only_folder, configs.max_seq_len, num_proc=1)
+
+        if configs.test_data.nontoxic_toxic:
+            nontoxic_toxic_folder = os.path.join(configs.test_data.out_dir, "nontoxic_toxic")
+            if os.path.exists(nontoxic_toxic_folder):
+                raise ValueError("nontoxic_toxic folder already exists")
+            os.makedirs(nontoxic_toxic_folder)
+
+            nontoxic_toxic_test_dataset = test_dataset.map(extract_sentence_pairs,
+                                                       batched=True,
+                                                       batch_size=1,
+                                                       remove_columns=test_dataset.column_names,
+                                                       num_proc=configs.num_proc,
+                                                       fn_kwargs={"max_seq_len": configs.max_seq_len,
+                                                                  "first_sentence_id": 0,
+                                                                  "second_sentence_id": 1})
+
+            print(nontoxic_toxic_test_dataset)
+            save_hf_to_jsonl(nontoxic_toxic_test_dataset, os.path.join(nontoxic_toxic_folder, "data.jsonl"), 4)
+            save_dataset_to_np(nontoxic_toxic_test_dataset, nontoxic_toxic_folder, configs.max_seq_len, num_proc=1)
+
 
 def parse_args():
     parser = argparse.ArgumentParser()

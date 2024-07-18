@@ -21,6 +21,49 @@ class TokenizerConfig:
         tokenizer.padding_side = "left"
         tokenizer.truncation_side = "left"
 
+def run_inference_new(type, model, tokenizer, prompt_hf_dataset, out_fn, batch_size=1, **kwargs):
+    """Run inference on the given model and tokenizer using the given dataset
+        Assumes that the dataset contains an entry called "prompt"
+        """
+    # set the tokenizer side to left during generation
+    tokenizer_config = TokenizerConfig()
+    tokenizer_config.save_prev_config(tokenizer)
+    tokenizer_config.prepare_generation(tokenizer)
+
+    has_label = "label" in prompt_hf_dataset.column_names
+    has_target_mask = "target_mask" in prompt_hf_dataset.column_names
+
+    with open(out_fn, "w") as out_file:
+        progress_bar = tqdm(total=len(prompt_hf_dataset))
+        ind = 0
+        while (ind < len(prompt_hf_dataset)):
+            prompts = prompt_hf_dataset[ind:ind + batch_size]["prompt"]
+
+            labels = None
+            target_mask = None
+            if has_label:
+                labels = prompt_hf_dataset[ind:ind + batch_size]["label"]
+            if has_target_mask:
+                target_mask = prompt_hf_dataset[ind:ind + batch_size]["target_mask"]
+
+            # makes the decision of which output to save
+            if (type == "generate"):
+                run_generate(model, tokenizer, prompts, labels, out_file, kwargs["generation_kwargs"])
+            elif (type == "logits"):
+                run_logits_compare(model, tokenizer, prompts, labels, out_file, kwargs["target_token_ids"])
+            elif (type == "hidden_state"):
+                run_hidden_state(model, tokenizer, prompts, labels, out_file, batch_size)
+            elif (type == "get_loss"):
+                run_get_loss(model, tokenizer, prompts, target_mask, out_file, batch_size)
+            else:
+                raise ValueError("invalid type of generation " + kwargs["type"])
+
+            progress_bar.update(batch_size)
+            ind += batch_size
+
+    # reset the padding side
+    tokenizer_config.reset_config(tokenizer)
+
 
 def run_inference(model, tokenizer, prompt_hf_dataset, out_fn, batch_size=1, **kwargs):
     """Run inference on the given model and tokenizer using the given dataset

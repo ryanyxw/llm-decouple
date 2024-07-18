@@ -1,5 +1,5 @@
 ROOT_DIR: ./../..
-DATA_DIR: ${ROOT_DIR}/data
+DATA_DIR: /mnt/nfs1/ryan/decouple/data
 MODEL_DIR: ${ROOT_DIR}/models
 
 num_proc: 16

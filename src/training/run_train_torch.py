@@ -23,7 +23,16 @@ from src.modules.modeling.modeling_utils import setup_model, free_gpus, setup_mo
 from src.modules.modeling.models.LogisticRegression import BinaryClassifier
 from src.modules.utils import load_config,  validate_inputs
 
-def train_classifier(model, train_dataset, test_dataset, num_train_epochs, batch_size, output_dir):
+def default_accuracy_metric(logits, y):
+    preds = torch.argmax(logits, dim=1)
+    return torch.sum(preds == y).item() / len(y)
+
+def train_classifier(model, train_dataset, test_dataset, num_train_epochs, batch_size, output_dir, metric_func=default_accuracy_metric):
+    """
+    Trains a classifier model_module on the train_dataset and evaluates on the test_dataset
+    Assumes that train_dataset and test_dataset use CrossEntropyLoss
+    """
+
     loss_func = nn.CrossEntropyLoss()
     # Cross-entropy loss is just softmax regression loss
     optimizer = optim.AdamW(model.parameters(), weight_decay=0.1)
@@ -33,8 +42,12 @@ def train_classifier(model, train_dataset, test_dataset, num_train_epochs, batch
     best_dev_acc = -1
     best_epoch = -1
 
+    # prepare output file
+    out_fn = open(os.path.join(output_dir, "train_log.txt"), "w")
+
     for t in range(num_train_epochs):
-        train_num_correct = 0
+        aggregate_metrics_train = []
+        weight_for_each_batch_train = []
 
         # Training loop
         model.train()
@@ -53,41 +66,158 @@ def train_classifier(model, train_dataset, test_dataset, num_train_epochs, batch
 
             optimizer.step()
 
-            # Compute running count of number of training examples correct
-            preds = torch.argmax(logits, dim=1)
-            # Choose argmax for each row (i.e., collapse dimension 1, hence dim=1)
-            train_num_correct += torch.sum(preds == y_batch).item()
+            aggregate_metrics_train.append(metric_func(logits, y_batch))
+            weight_for_each_batch_train.append(len(y_batch))
 
         # Evaluate train and dev accuracy at the end of each epoch
-        train_acc = train_num_correct / len(train_dataset)
+        normalized_weights_train = torch.tensor(weight_for_each_batch_train) / sum(weight_for_each_batch_train)
+        train_acc = torch.tensor(aggregate_metrics_train).dot(normalized_weights_train).item()
+
         model.eval()
         with torch.no_grad():
-            num_correct = 0
+            aggregate_metrics_eval = []
+            weight_for_each_batch_eval = []
             for X_dev, y_dev in DataLoader(test_dataset, batch_size=batch_size):
                 dev_logits = model(X_dev.to("cuda")).to("cpu")
-                dev_preds = torch.argmax(dev_logits, dim=1)
-                num_correct += torch.sum(dev_preds == y_dev).item()
+                aggregate_metrics_eval.append(metric_func(dev_logits, y_dev))
+                weight_for_each_batch_eval.append(len(y_dev))
 
-            dev_acc = num_correct / len(test_dataset)
+            normalized_weights_eval = torch.tensor(weight_for_each_batch_eval) / sum(weight_for_each_batch_eval)
+            dev_acc = torch.tensor(aggregate_metrics_eval).dot(normalized_weights_eval).item()
         print(f' Epoch {t: <2}: train_acc={train_acc:.5f}, dev_acc={dev_acc:.5f}')
+        out_fn.write(f' Epoch {t: <2}: train_acc={train_acc:.5f}, dev_acc={dev_acc:.5f}\n')
         if dev_acc > best_dev_acc:
             best_dev_acc = dev_acc
             torch.save(model.state_dict(), f"{output_dir}/tmp_best_model.pth")
             best_epoch = t
     print(f"Best dev accuracy: {best_dev_acc} at epoch {best_epoch}")
+    out_fn.write(f"Best dev accuracy: {best_dev_acc} at epoch {best_epoch}")
     return best_dev_acc
 
 
-def test(model, test_dataset, batch_size):
+def train_binaryclassifier_multi(train_dataset, eval_dataset, test_dataset, num_train_epochs, batch_size, output_dir_global,
+                     metric_func=default_accuracy_metric):
+    """
+    Trains multiple classifier model_module on the train_dataset and evaluates on the test_dataset
+    Assumes that train_dataset and test_dataset use CrossEntropyLoss
+    The number of trained classifiers depend on how many label inputs are given. Assumes each entry in label is a probability
+    """
+
+    # checks to make sure train_dataset label is a list
+    assert hasattr(train_dataset[0][1], "__len__")
+
+    num_classifiers = len(train_dataset[0][1])
+    hidden_size = train_dataset[0][0].shape[0]
+
+    for classifier_num in range(num_classifiers):
+        model = BinaryClassifier(input_dim=hidden_size).to("cuda")
+
+        output_dir = os.path.join(output_dir_global, f"classifier_{classifier_num}")
+        os.makedirs(output_dir, exist_ok=True)
+
+        loss_func = nn.CrossEntropyLoss()
+        # Cross-entropy loss is just softmax regression loss
+        optimizer = optim.AdamW(model.parameters(), weight_decay=0.1)
+        # Stochastic gradient descent optimizer
+
+        # Simple version of early stopping: save the best model_module checkpoint based on dev accuracy
+        best_dev_metric = -1
+        best_epoch = -1
+
+        # prepare output file
+        out_fn = open(os.path.join(output_dir, "train_log.txt"), "w")
+
+        for t in range(num_train_epochs):
+            aggregate_metrics_train = []
+            weight_for_each_batch_train = []
+
+            # Training loop
+            model.train()
+            # Set model_module to "training mode", e.g. turns dropout on if you have dropout layers
+            for batch in DataLoader(train_dataset, batch_size=batch_size, shuffle=True):
+                x_batch, y_batch = batch
+
+                optimizer.zero_grad()
+
+                logits = model(x_batch.to("cuda")).to("cpu")
+
+                current_label = y_batch[:, classifier_num]
+                current_label = torch.stack([1-current_label, current_label], dim=1)
+
+                loss = loss_func(logits, current_label)
+
+                loss.backward()
+
+                optimizer.step()
+
+                aggregate_metrics_train.append(metric_func(logits, current_label))
+                weight_for_each_batch_train.append(len(y_batch))
+
+            # Evaluate train and dev accuracy at the end of each epoch
+            normalized_weights_train = torch.tensor(weight_for_each_batch_train) / sum(weight_for_each_batch_train)
+            train_metric = torch.tensor(aggregate_metrics_train).dot(normalized_weights_train).item()
+
+            model.eval()
+            with torch.no_grad():
+                aggregate_metrics_eval = []
+                weight_for_each_batch_eval = []
+                for X_dev, y_dev in DataLoader(eval_dataset, batch_size=batch_size):
+                    dev_logits = model(X_dev.to("cuda")).to("cpu")
+                    dev_label = y_dev[:, classifier_num]
+                    dev_label = torch.stack([1 - dev_label, dev_label], dim=1)
+                    aggregate_metrics_eval.append(metric_func(dev_logits, dev_label))
+                    weight_for_each_batch_eval.append(len(y_dev))
+
+                normalized_weights_eval = torch.tensor(weight_for_each_batch_eval) / sum(weight_for_each_batch_eval)
+                dev_metric = torch.tensor(aggregate_metrics_eval).dot(normalized_weights_eval).item()
+            print(f' Epoch {t: <2}: train_metric={train_metric:.5f}, dev_metric={dev_metric:.5f}')
+            out_fn.write(f' Epoch {t: <2}: train_metric={train_metric:.5f}, dev_metric={dev_metric:.5f}\n')
+            if dev_metric > best_dev_metric:
+                best_dev_metric = dev_metric
+                torch.save(model.state_dict(), f"{output_dir}/tmp_best_model.pth")
+                best_epoch = t
+        print(f"Best dev metric: {best_dev_metric} at epoch {best_epoch}")
+        out_fn.write(f"Best dev metric: {best_dev_metric} at epoch {best_epoch}")
+
+        # load the best model
+        best_model = BinaryClassifier(hidden_size)
+        best_model.load_state_dict(torch.load(os.path.join(output_dir, "tmp_best_model.pth")))
+        best_model.to("cuda")
+
+        # test the best model
+        best_model.eval()
+        with torch.no_grad():
+            aggregate_metrics_test = []
+            weight_for_each_batch_test = []
+            for X_test, y_test in DataLoader(test_dataset,
+                                             batch_size=batch_size):
+                test_logits = best_model(X_test.to("cuda")).to("cpu")
+                test_label = y_test[:, classifier_num]
+                test_label = torch.stack([1 - test_label, test_label], dim=1)
+                aggregate_metrics_test.append(metric_func(test_logits, test_label))
+                weight_for_each_batch_test.append(len(y_test))
+
+
+            normalized_weights_test = torch.tensor(weight_for_each_batch_test) / sum(weight_for_each_batch_test)
+            test_metric = torch.tensor(aggregate_metrics_test).dot(normalized_weights_test).item()
+            print(f'Test metric: {test_metric:.5f}')
+
+        with open(os.path.join(output_dir, "stats.txt"), "w") as f:
+            f.write(f"Best dev metric: {best_dev_metric}, test metric: {test_metric}")
+
+
+def test(model, test_dataset, batch_size, metric_func=default_accuracy_metric):
     model.eval()
     with torch.no_grad():
-        num_correct = 0
+        aggregate_metrics_test = []
+        weight_for_each_batch_test = []
         for X_test, y_test in DataLoader(test_dataset, batch_size=batch_size):
             test_logits = model(X_test.to("cuda")).to("cpu")
-            test_preds = torch.argmax(test_logits, dim=1)
-            num_correct += torch.sum(test_preds == y_test).item()
+            aggregate_metrics_test.append(metric_func(test_logits, y_test))
+            weight_for_each_batch_test.append(len(y_test))
 
-        test_acc = num_correct / len(test_dataset)  # (QUESTION 4a: line 26)
+        normalized_weights_test = torch.tensor(weight_for_each_batch_test) / sum(weight_for_each_batch_test)
+        test_acc = torch.tensor(aggregate_metrics_test).dot(normalized_weights_test).item()
         print(f'Test accuracy: {test_acc:.5f}')
     return test_acc
 

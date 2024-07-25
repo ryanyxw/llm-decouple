@@ -33,13 +33,13 @@ def evaluate_model_before_hf_conversion(model_path, evaluators, OLMO_DIR):
         command = f"python {OLMO_DIR}/scripts/convert_olmo_to_hf_new.py --input_dir {model_path} --output_dir {hf_model_path} --tokenizer_json_path {OLMO_DIR}/tokenizers/allenai_gpt-neox-olmo-dolma-v1_5.json"
         execute_shell_command(command)
 
-    # hf_model = setup_model(hf_model_path)
-    #
-    # max_len = hf_model.config.max_position_embeddings
-    # print(f"max_len: {max_len}")
-    # tokenizer = load_tokenizer(hf_model_path, max_len)
-    hf_model = None
-    tokenizer = None
+    hf_model = setup_model(hf_model_path)
+
+    max_len = hf_model.config.max_position_embeddings
+    print(f"max_len: {max_len}")
+    tokenizer = load_tokenizer(hf_model_path, max_len)
+    # hf_model = None
+    # tokenizer = None
 
     # run the evaluation
     evaluate_model_with_multiple_evaluators(hf_model, tokenizer, evaluators, hf_model_path)

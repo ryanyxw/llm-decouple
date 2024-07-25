@@ -1,3 +1,16 @@
+
+# for civil comments
+# CIVIL_COMMENTS_TEMPLATE_NO_LABELS = "Question: Does the provided text contain rude, hateful, aggressive, disrespectful or unreasonable language? Respond in one word with either toxic or safe. \nText: {input}\nAnswer: {output}"
+CIVIL_COMMENTS_TEMPLATE_NO_LABELS = "{input}{output}"
+
+CIVIL_COMMENTS_FINEGRAINED_TEMPLATE_NO_LABELS = "{input}{output}"
+
+
+
+
+
+### The following templates are depricated
+
 INPUT_TEMPLATE_WITH_OUTPUT = "Instruct: {input}\nOutput:{output}"
 
 DEFAULT_TOXIC_TEMPLATE_WITH_LABEL = "Question: Does the provided text contain rude, hateful, aggressive, disrespectful or unreasonable language? Respond with either \"toxic\" or \"safe\". \nText: {input}\nAnswer: {output}\n"

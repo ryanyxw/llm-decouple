@@ -20,20 +20,20 @@ model_paths:
 #  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/vanilla_exp2"
 #  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/masked_exp2"
 #  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/unlikelihood_masked_exp2"
-#  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/unlikelihood_welleck_exp2"
+  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/unlikelihood_welleck_exp2"
 #  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/unlikelihood_extreme_exp2"
-  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/filtered_exp2"
+#  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/filtered_exp2"
 
 # assumes that all models above have the following checkpoints nested. If no checkpoint_names provided, directly load from folders above
 checkpoint_names:
-  - "step0-unsharded"
+#  - "step0-unsharded"
   - "step400-unsharded"
   - "step800-unsharded"
-#  - "step1200-unsharded"
-#  - "step1600-unsharded"
-#  - "step2000-unsharded"
-#  - "step2400-unsharded"
-#  - "step2527-unsharded"
+  - "step1200-unsharded"
+  - "step1600-unsharded"
+  - "step2000-unsharded"
+  - "step2400-unsharded"
+  - "step2527-unsharded"
 
 #each evaluator must have: label, data
 evaluators:
@@ -56,13 +56,27 @@ evaluators:
 #      batch_size: 128
 #    seed: ${master_seed}
 #    batch_size: ${master_batch_size}
-  - label: "civilcomments_finegrained_hiddenstate"
+#  - label: "civilcomments_finegrained_hiddenstate"
+#    data:
+#      name: "google/civil_comments"
+#      toxicity_threshold: 0.5
+#      num_train: 50000
+#      num_eval: 10000
+#      num_test: 10000
+#    binary_classifier:s
+#      epochs: 50
+#      batch_size: 128
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+  - label: "civilcomments_hiddenstate_insult"
     data:
       name: "google/civil_comments"
       toxicity_threshold: 0.5
-      num_train: 50000
-      num_eval: 10000
-      num_test: 10000
+      insult_lowerbound: 0.4
+      insult_upperbound: 0.8
+      num_train: 15000
+      num_eval: 2000
+      num_test: 2000
     binary_classifier:
       epochs: 50
       batch_size: 128

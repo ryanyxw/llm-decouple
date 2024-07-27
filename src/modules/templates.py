@@ -5,7 +5,7 @@ CIVIL_COMMENTS_TEMPLATE_NO_LABELS = "{input}{output}"
 
 CIVIL_COMMENTS_FINEGRAINED_TEMPLATE_NO_LABELS = "{input}{output}"
 
-
+CIVIL_COMMENTS_FINEGRAINED_LABELS = ['severe_toxicity', 'obscene', 'threat', 'insult', 'identity_attack', 'sexual_explicit']
 
 
 

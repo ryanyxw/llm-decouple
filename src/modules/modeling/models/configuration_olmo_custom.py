@@ -37,6 +37,10 @@ class OlmoCustomConfig(PretrainedConfig):
 
 
     Args:
+        add_class_bias ('bool', *optional*, defaults to `False`):
+            Whether to add a class bias to the final hidden state
+        num_classes (`int`, *optional*, defaults to 2):
+            Only effective if `add_class_bias=True`. The number of classes to give a bias to.
         vocab_size (`int`, *optional*, defaults to 50304):
             Vocabulary size of the OLMo model. Defines the number of different tokens that can be represented by the
             `inputs_ids` passed when calling [`OlmoModel`]
@@ -109,6 +113,8 @@ class OlmoCustomConfig(PretrainedConfig):
 
     def __init__(
         self,
+        add_class_bias=False,
+        num_classes=2,
         vocab_size=50304,
         hidden_size=4096,
         intermediate_size=11008,
@@ -130,6 +136,8 @@ class OlmoCustomConfig(PretrainedConfig):
         clip_qkv=None,
         **kwargs,
     ):
+        self.add_class_bias = add_class_bias
+        self.num_classes = num_classes
         self.vocab_size = vocab_size
         self.max_position_embeddings = max_position_embeddings
         self.hidden_size = hidden_size

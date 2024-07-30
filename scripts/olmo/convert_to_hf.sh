@@ -1,39 +1,13 @@
 ROOT_DIR=./../..
 OLMO_DIR=${ROOT_DIR}/OLMo
 
-checkpoint=/home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_mask/latest-unsharded
+export PYTHONPATH="${PYTHONPATH}:${ROOT_DIR}"
 
-output_dir=/home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_mask/hf_model
+checkpoint=/home/ryan/decouple/models/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/depricate_activationbias_extreme_exp3/step2527-unsharded
 
-mkdir -p ${output_dir}
-
-#python ${OLMO_DIR}/scripts/unshard.py ${sharded_checkpoint} ${unsharded_checkpoint} --model-only
-python ${OLMO_DIR}/scripts/convert_olmo_to_hf_new.py --input_dir ${checkpoint} --output_dir ${output_dir} --tokenizer_json_path ${OLMO_DIR}/tokenizers/allenai_gpt-neox-olmo-dolma-v1_5.json
-
-checkpoint=/home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_nomask/latest-unsharded
-
-output_dir=/home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_nomask/hf_model
+output_dir=/home/ryan/decouple/models/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/depricate_activationbias_extreme_exp3/step2527-unsharded/hf_model
 
 mkdir -p ${output_dir}
 
 #python ${OLMO_DIR}/scripts/unshard.py ${sharded_checkpoint} ${unsharded_checkpoint} --model-only
-python ${OLMO_DIR}/scripts/convert_olmo_to_hf_new.py --input_dir ${checkpoint} --output_dir ${output_dir} --tokenizer_json_path ${OLMO_DIR}/tokenizers/allenai_gpt-neox-olmo-dolma-v1_5.json
-
-checkpoint=/home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_notoxic-69000/latest-unsharded
-
-output_dir=/home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_notoxic-69000/hf_model
-
-mkdir -p ${output_dir}
-
-#python ${OLMO_DIR}/scripts/unshard.py ${sharded_checkpoint} ${unsharded_checkpoint} --model-only
-python ${OLMO_DIR}/scripts/convert_olmo_to_hf_new.py --input_dir ${checkpoint} --output_dir ${output_dir} --tokenizer_json_path ${OLMO_DIR}/tokenizers/allenai_gpt-neox-olmo-dolma-v1_5.json
-
-checkpoint=/home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_unlikelihoodmask/latest-unsharded
-
-output_dir=/home/ryan/decouple/models/olmo_ckpt/prefromscratch/OLMo-1B_scratch_seq-150000_unlikelihoodmask/hf_model
-
-mkdir -p ${output_dir}
-
-#python ${OLMO_DIR}/scripts/unshard.py ${sharded_checkpoint} ${unsharded_checkpoint} --model-only
-python ${OLMO_DIR}/scripts/convert_olmo_to_hf_new.py --input_dir ${checkpoint} --output_dir ${output_dir} --tokenizer_json_path ${OLMO_DIR}/tokenizers/allenai_gpt-neox-olmo-dolma-v1_5.json
-
+CUDA_VISIBLE_DEVICES=7 python ${OLMO_DIR}/scripts/convert_custom_olmo_to_hf_new.py --input_dir ${checkpoint} --output_dir ${output_dir} --tokenizer_json_path ${OLMO_DIR}/tokenizers/allenai_gpt-neox-olmo-dolma-v1_5.json

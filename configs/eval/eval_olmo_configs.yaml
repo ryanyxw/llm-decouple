@@ -1,4 +1,4 @@
-ROOT_DIR: ./../..
+ROOT_DIR: ./..
 DATA_DIR: /mnt/nfs1/ryan/decouple/data
 MODEL_DIR: ${ROOT_DIR}/models
 OLMO_DIR: ${ROOT_DIR}/OLMo
@@ -8,6 +8,9 @@ master_seed: 0
 
 exp_name: "toxic_conversations"
 out_directory: ${DATA_DIR}/reddit/${exp_name}
+
+#choose from "olmo_standard" vs "olmo_custom"
+model_type: "olmo_custom"
 
 master_batch_size: 8
 master_generation_kwargs:
@@ -20,9 +23,11 @@ model_paths:
 #  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/vanilla_exp2"
 #  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/masked_exp2"
 #  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/unlikelihood_masked_exp2"
-  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/unlikelihood_welleck_exp2"
+#  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/unlikelihood_welleck_exp2"
 #  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/unlikelihood_extreme_exp2"
 #  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/filtered_exp2"
+  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/activationbias_extreme_exp3"
+  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/activationbias_exp3"
 
 # assumes that all models above have the following checkpoints nested. If no checkpoint_names provided, directly load from folders above
 checkpoint_names:
@@ -37,13 +42,27 @@ checkpoint_names:
 
 #each evaluator must have: label, data
 evaluators:
-#  - label: "realtoxicityprompts_generation"
+#  - label: "realtoxicityprompts_generation_safebias"
 #    data:
 #      name: "allenai/real-toxicity-prompts"
 #      num_examples: 500
 #    seed: ${master_seed}
 #    batch_size: ${master_batch_size}
 #    generation_kwargs: ${master_generation_kwargs}
+#  - label: "realtoxicityprompts_generation_undesiredbias"
+#    data:
+#      name: "allenai/real-toxicity-prompts"
+#      num_examples: 500
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    generation_kwargs: ${master_generation_kwargs}
+  - label: "realtoxicityprompts_generation_nobias"
+    data:
+      name: "allenai/real-toxicity-prompts"
+      num_examples: 500
+    seed: ${master_seed}
+    batch_size: ${master_batch_size}
+    generation_kwargs: ${master_generation_kwargs}
 #  - label: "civilcomments_hiddenstate_noprompt"
 #    data:
 #      name: "google/civil_comments"
@@ -68,20 +87,20 @@ evaluators:
 #      batch_size: 128
 #    seed: ${master_seed}
 #    batch_size: ${master_batch_size}
-  - label: "civilcomments_hiddenstate_insult"
-    data:
-      name: "google/civil_comments"
-      toxicity_threshold: 0.5
-      insult_lowerbound: 0.4
-      insult_upperbound: 0.8
-      num_train: 15000
-      num_eval: 2000
-      num_test: 2000
-    binary_classifier:
-      epochs: 50
-      batch_size: 128
-    seed: ${master_seed}
-    batch_size: ${master_batch_size}
+#  - label: "civilcomments_hiddenstate_insult"
+#    data:
+#      name: "google/civil_comments"
+#      toxicity_threshold: 0.5
+#      insult_lowerbound: 0.4
+#      insult_upperbound: 0.8
+#      num_train: 15000
+#      num_eval: 2000
+#      num_test: 2000
+#    binary_classifier:
+#      epochs: 50
+#      batch_size: 128
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
 
 
 

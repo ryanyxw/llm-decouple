@@ -15,11 +15,12 @@ from omegaconf import OmegaConf
 from src.modules.modeling.evaluate import evaluate_model_with_multiple_evaluators
 from src.modules.modeling.inference import run_inference, obtain_logit
 from src.modules.modeling.modeling_utils import setup_model, free_gpus
+from src.modules.modeling.models.modeling_olmo_custom import CustomOlmoForCausalLM
 from src.modules.utils import confirm_with_user, load_config, prepare_folder, validate_inputs, prepare_wandb, \
     save_config, execute_shell_command
 
 
-def evaluate_model_before_hf_conversion(model_path, evaluators, OLMO_DIR):
+def evaluate_model_before_hf_conversion(model_path, evaluators, OLMO_DIR, olmo_type):
     print(f"model path of {model_path} entered! ")
 
     # begin conversion of the checkpoint to hf
@@ -27,13 +28,23 @@ def evaluate_model_before_hf_conversion(model_path, evaluators, OLMO_DIR):
 
     hf_model_path = os.path.join(model_path, "hf")
 
+    if olmo_type == "olmo_standard":
+        # convert the model if it hasn't been converted yet
+        if not os.path.exists(hf_model_path):
 
-    # convert the model if it hasn't been converted yet
-    if not os.path.exists(hf_model_path):
-        command = f"python {OLMO_DIR}/scripts/convert_olmo_to_hf_new.py --input_dir {model_path} --output_dir {hf_model_path} --tokenizer_json_path {OLMO_DIR}/tokenizers/allenai_gpt-neox-olmo-dolma-v1_5.json"
-        execute_shell_command(command)
+            command = f"python {OLMO_DIR}/scripts/convert_olmo_to_hf_new.py --input_dir {model_path} --output_dir {hf_model_path} --tokenizer_json_path {OLMO_DIR}/tokenizers/allenai_gpt-neox-olmo-dolma-v1_5.json"
+            execute_shell_command(command)
 
-    hf_model = setup_model(hf_model_path)
+        hf_model = setup_model(hf_model_path)
+    elif olmo_type == "olmo_custom":
+        # convert the model if it hasn't been converted yet
+        if not os.path.exists(hf_model_path):
+            command = f"python {OLMO_DIR}/scripts/convert_custom_olmo_to_hf_new.py --input_dir {model_path} --output_dir {hf_model_path} --tokenizer_json_path {OLMO_DIR}/tokenizers/allenai_gpt-neox-olmo-dolma-v1_5.json"
+            execute_shell_command(command)
+
+        hf_model = CustomOlmoForCausalLM.from_pretrained(hf_model_path).to("cuda")
+    else:
+        raise ValueError(f"olmo_type {olmo_type} not recognized")
 
     max_len = hf_model.config.max_position_embeddings
     print(f"max_len: {max_len}")
@@ -70,10 +81,10 @@ def main(args):
             for checkpoint in configs.checkpoint_names:
                 print(f"evaluating checkpoint {checkpoint}")
                 model_path = os.path.join(model_run_path, checkpoint)
-                evaluate_model_before_hf_conversion(model_path, configs.evaluators, configs.OLMO_DIR)
+                evaluate_model_before_hf_conversion(model_path, configs.evaluators, configs.OLMO_DIR, configs.model_type)
         else:
             model_path = model_run_path
-            evaluate_model_before_hf_conversion(model_path, configs.evaluators, configs.OLMO_DIR)
+            evaluate_model_before_hf_conversion(model_path, configs.evaluators, configs.OLMO_DIR, configs.model_type)
 
     print("yay!")
 

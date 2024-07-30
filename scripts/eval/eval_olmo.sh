@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --time=3-0:00
 #SBATCH --job-name=sbatch
-#SBATCH --nodelist=glamor-ruby
+#SBATCH --nodelist=lime-mint
 #SBATCH --output=slurm_out/out_%j.txt
 #SBATCH --gres="gpu:a6000:1"
 #SBATCH --ntasks=16
 
-ROOT_DIR=./../..
+ROOT_DIR=./..
 NEOX_DIR=${ROOT_DIR}/gpt-neox
 DATA_DIR=${ROOT_DIR}/data
 MODEL_DIR=${ROOT_DIR}/models
@@ -22,7 +22,8 @@ export TOKENIZERS_PARALLELISM=false
 
 ### START EDITING HERE ###
 mode="eval_olmo_configs"
-config_file=${CONFIG_DIR}/eval/${mode}.yaml
+#config_file=${CACHE_JOB_DIR}/${mode}.yaml
+config_file="${CONFIG_DIR}/eval/eval_olmo_configs.yaml"
 
 WANDB_PROJECT=decouple
 

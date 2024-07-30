@@ -47,14 +47,14 @@ def real_toxicity_prompt_generation_evaluator(hf_model, tokenizer, evaluator, ou
     save_evaluator_config_and_sample(evaluator, out_dir, dataset[0]["prompt"])
 
     # runs the generation and saves the output
-    out_fn = os.path.join(out_dir, "generation_output_test3.jsonl")
+    out_fn = os.path.join(out_dir, "generation_output_test.jsonl")
     print("saving to ", out_fn)
 
     run_inference_new("generate", hf_model, tokenizer, dataset, out_fn, batch_size=evaluator.batch_size , generation_kwargs=evaluator.generation_kwargs)
 
-    # creates a processes that calls google perspective API and saves the output
-    progress_file = os.path.join(out_dir, "perspective_api_progress_includingprompt.json")
-    use_perspective_api(out_fn, PERSPECTIVE_API_KEY, progress_file)
+    # # creates a processes that calls google perspective API and saves the output
+    # progress_file = os.path.join(out_dir, "perspective_api_progress_includingprompt.json")
+    # use_perspective_api(out_fn, PERSPECTIVE_API_KEY, progress_file)
 
 
 def hidden_state_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_dir):
@@ -260,7 +260,7 @@ def evaluate_model_with_single_evaluators(hf_model, tokenizer, evaluator, out_di
     # reset the seed for each evaluator
     seed_all(evaluator.seed)
 
-    if evaluator.label == "realtoxicityprompts_generation":
+    if "realtoxicityprompts_generation" in evaluator.label:
         real_toxicity_prompt_generation_evaluator(hf_model, tokenizer, evaluator, out_dir)
     elif evaluator.label == "civilcomments_hiddenstate" or evaluator.label == "civilcomments_hiddenstate_noprompt":
         hidden_state_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_dir)

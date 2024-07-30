@@ -45,7 +45,8 @@ from transformers.utils import (
     logging,
     replace_return_docstrings,
 )
-from configuration_olmo_custom import OlmoCustomConfig
+
+from src.modules.modeling.models.configuration_olmo_custom import OlmoCustomConfig
 
 
 if is_flash_attn_2_available():
@@ -54,7 +55,7 @@ if is_flash_attn_2_available():
 
 logger = logging.get_logger(__name__)
 
-_CONFIG_FOR_DOC = "OlmoCustomConfig"
+_CONFIG_FOR_DOC = "OlmoConfig"
 
 
 class OlmoLayerNorm(nn.Module):
@@ -753,10 +754,16 @@ class OlmoModel(OlmoPreTrainedModel):
 
     def __init__(self, config: OlmoCustomConfig):
         super().__init__(config)
+        self.add_embedding_bias = config.add_embedding_bias
+
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
+
+        if (config.add_embedding_bias):
+            self.embedding_bias = nn.Embedding(config.num_classes, config.hidden_size)
+
         self.layers = nn.ModuleList(
             [OlmoDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
         )
@@ -831,6 +838,10 @@ class OlmoModel(OlmoPreTrainedModel):
         causal_mask = self._update_causal_mask(
             attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
         )
+
+        # adds the embedding bias
+        if self.add_embedding_bias:
+            inputs_embeds = inputs_embeds + self.embedding_bias(input_ids)
 
         # embed positions
         hidden_states = inputs_embeds
@@ -1145,7 +1156,7 @@ class OlmoForCausalLM(OlmoPreTrainedModel):
 
 # Copied from transformers.models.llama.modeling_llama.LlamaForCausalLM with LLAMA->OLMO,Llama->Olmo
 class CustomOlmoForCausalLM(OlmoPreTrainedModel):
-    _tied_weights_keys = ["lm_head.weight"
+    _tied_weights_keys = ["lm_head.weight"]
 
     def __init__(self, config):
         super().__init__(config)
@@ -1184,6 +1195,7 @@ class CustomOlmoForCausalLM(OlmoPreTrainedModel):
         self,
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,
+        class_labels: Optional[torch.LongTensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
@@ -1230,6 +1242,7 @@ class CustomOlmoForCausalLM(OlmoPreTrainedModel):
         outputs = self.model(
             input_ids=input_ids,
             attention_mask=attention_mask,
+            class_labels=class_labels,
             position_ids=position_ids,
             past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,
@@ -1244,11 +1257,14 @@ class CustomOlmoForCausalLM(OlmoPreTrainedModel):
 
         # Apply a bias to shift the hidden state towards a particular state
         if self.config.add_class_bias:
-            assert class_labels is not None
+            # assert class_labels is not None
             # class_labels shape: (batch_size, seq_len)
             # class_bias shape: (NUM_CLASSES, d_model
-            bias_for_each_token = self.transformer.class_bias(class_labels)
-            x = x + bias_for_each_token
+            assert class_labels is None
+            # we always generate from the nontoxic class
+            class_labels = torch.ones_like(input_ids)
+            bias_for_each_token = self.class_bias(class_labels)
+            hidden_states = hidden_states + bias_for_each_token
 
         logits = self.lm_head(hidden_states)
         logits = logits.float()

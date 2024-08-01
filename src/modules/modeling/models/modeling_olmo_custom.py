@@ -755,6 +755,7 @@ class OlmoModel(OlmoPreTrainedModel):
     def __init__(self, config: OlmoCustomConfig):
         super().__init__(config)
         self.add_embedding_bias = config.add_embedding_bias
+        self.add_embedding_transformation = config.add_embedding_transformation
 
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
@@ -763,6 +764,10 @@ class OlmoModel(OlmoPreTrainedModel):
 
         if (config.add_embedding_bias):
             self.embedding_bias = nn.Embedding(config.num_classes, config.hidden_size)
+
+        if (config.add_embedding_transformation):
+            self.embedding_transformation_0 = nn.Linear(config.hidden_size, config.hidden_size)
+            self.embedding_transformation_1 = nn.Linear(config.hidden_size, config.hidden_size)
 
         self.layers = nn.ModuleList(
             [OlmoDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
@@ -786,6 +791,7 @@ class OlmoModel(OlmoPreTrainedModel):
         self,
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,
+        class_labels: Optional[torch.LongTensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Union[Cache, List[torch.FloatTensor]]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
@@ -835,13 +841,23 @@ class OlmoModel(OlmoPreTrainedModel):
         if position_ids is None:
             position_ids = cache_position.unsqueeze(0)
 
+        # adds the embedding bias
+        if self.add_embedding_bias:
+            assert class_labels is None
+            class_labels = torch.ones_like(input_ids)
+            inputs_embeds = inputs_embeds + self.embedding_bias(class_labels)
+
+        if self.add_embedding_transformation:
+            assert class_labels is None
+            class_labels = torch.ones_like(input_ids)
+            new_embedding_0 = self.embedding_transformation_0(inputs_embeds)
+            new_embedding_1 = self.embedding_transformation_1(inputs_embeds)
+
+            inputs_embeds = torch.where(class_labels.unsqueeze(-1) == 0, new_embedding_0, new_embedding_1)
+
         causal_mask = self._update_causal_mask(
             attention_mask, inputs_embeds, cache_position, past_key_values, output_attentions
         )
-
-        # adds the embedding bias
-        if self.add_embedding_bias:
-            inputs_embeds = inputs_embeds + self.embedding_bias(input_ids)
 
         # embed positions
         hidden_states = inputs_embeds
@@ -1265,6 +1281,9 @@ class CustomOlmoForCausalLM(OlmoPreTrainedModel):
             class_labels = torch.ones_like(input_ids)
             bias_for_each_token = self.class_bias(class_labels)
             hidden_states = hidden_states + bias_for_each_token
+
+            # update the returned hidden_states with the new final hidden state
+            outputs.hidden_states = outputs.hidden_states[:-1] + (hidden_states,)
 
         logits = self.lm_head(hidden_states)
         logits = logits.float()

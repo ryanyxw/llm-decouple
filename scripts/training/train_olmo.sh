@@ -21,13 +21,13 @@ export LD_LIBRARY_PATH=~/miniconda3/lib:$LD_LIBRARY_PATH
 config_file="${CONFIG_DIR}/olmo/OLMo-1B_pretrain_scratch.yaml"
 
 
-PORT=29501
+PORT=29500
 load_path=""
 data_paths="/mnt/nfs1/ryan/decouple/data/olmo_training/pretrain_from_scratch/0-99-toxic_0-0001-safe/train/orig/input_ids.npy"
 data_label_mask_paths="/mnt/nfs1/ryan/decouple/data/olmo_training/pretrain_from_scratch/0-99-toxic_0-0001-safe/train/orig/label_mask.npy"
-save_folder="/home/ryan/decouple/models/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/embeddingbias_extreme_exp3"
+save_folder="/home/ryan/decouple/models/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/embedding_transformation_extreme_exp3"
 
-wandb_name="embeddingbias_extreme_exp3"
+wandb_name="embedding_transformation_extreme_exp3"
 wandb_group="OLMO-1B_scratch"
 
 # for determining which loss to use for each label mask
@@ -35,7 +35,8 @@ label_mask_to_loss='{"no_loss": [0], "ce_loss": [1, 2, 3], "unlikelihood": [4], 
 
 # for adding class bias or embedding bias to the last hidden state
 add_class_bias=False
-add_embedding_bias=True
+add_embedding_bias=False
+add_embedding_transformation=True
 num_classes=2
 label_mask_to_class_bias='[0, 0, 1, 1]' # this should have length number of unique label_mask_ids, mapping to numbers in range num_classes
 
@@ -66,6 +67,7 @@ torchrun --nproc_per_node=${num_gpus} --master_port=${PORT} ${OLMO_DIR}/scripts/
   --label_mask_to_loss="${label_mask_to_loss}"\
   --model.add_class_bias=${add_class_bias}\
   --model.add_embedding_bias=${add_embedding_bias}\
+  --model.add_embedding_transformation=${add_embedding_transformation}\
   --model.num_classes=${num_classes}\
   --label_mask_to_class_bias="${label_mask_to_class_bias}"\
 

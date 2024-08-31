@@ -844,12 +844,29 @@ class OlmoModel(OlmoPreTrainedModel):
         # adds the embedding bias
         if self.add_embedding_bias:
             assert class_labels is None
-            class_labels = torch.ones_like(input_ids)
-            inputs_embeds = inputs_embeds + self.embedding_bias(class_labels)
+            class_labels = torch.zeros_like(input_ids)
+            # get the bias for desired and undesired
+            desired_bias = self.embedding_bias.weight[0]
+            undesired_bias = self.embedding_bias.weight[1]
+
+            # for raw:
+            # final_bias = desired_bias
+
+            # for double:
+            # final_bias = 2 * desired_bias
+
+            # for doublediff:
+            # bias_diff = desired_bias - undesired_bias
+            # final_bias = desired_bias + bias_diff
+
+            # for triple
+            final_bias = 3 * desired_bias
+
+            inputs_embeds = inputs_embeds + final_bias
 
         if self.add_embedding_transformation:
             assert class_labels is None
-            class_labels = torch.ones_like(input_ids)
+            class_labels = torch.zeros_like(input_ids)
             new_embedding_0 = self.embedding_transformation_0(inputs_embeds)
             new_embedding_1 = self.embedding_transformation_1(inputs_embeds)
 
@@ -1278,12 +1295,31 @@ class CustomOlmoForCausalLM(OlmoPreTrainedModel):
             # class_bias shape: (NUM_CLASSES, d_model
             assert class_labels is None
             # we always generate from the nontoxic class
-            class_labels = torch.ones_like(input_ids)
-            bias_for_each_token = self.class_bias(class_labels)
-            hidden_states = hidden_states + bias_for_each_token
+            # class_labels = torch.zeros_like(input_ids)
+            # bias_for_each_token = self.class_bias(class_labels)
+
+            # get the bias for desired and undesired
+            desired_bias = self.class_bias.weight[0]
+            undesired_bias = self.class_bias.weight[1]
+
+            # for raw:
+            # final_bias = desired_bias
+
+            # for double:
+            # final_bias = 2 * desired_bias
+
+            # for doublediff:
+            # bias_diff = desired_bias - undesired_bias
+            # final_bias = desired_bias + bias_diff
+
+            # for triple
+            final_bias = 3 * desired_bias
+
+            hidden_states = hidden_states + final_bias
 
             # update the returned hidden_states with the new final hidden state
-            outputs.hidden_states = outputs.hidden_states[:-1] + (hidden_states,)
+            if outputs.hidden_states is not None:
+                outputs.hidden_states = outputs.hidden_states[:-1] + (hidden_states,)
 
         logits = self.lm_head(hidden_states)
         logits = logits.float()

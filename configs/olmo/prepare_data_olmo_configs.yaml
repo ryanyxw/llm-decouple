@@ -13,14 +13,15 @@ tokenizer_name: "allenai/OLMo-1B-hf"
 bad_words_file: "${DATA_DIR}/dolma/reddit/list_of_bad_words.txt"
 
 data:
-  do: False
+  do: True
 
   # whether we have a base dataset to insert into
   base_dataset:
-    do: False
-
-    input_data_fn: ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/output.jsonl
-    num_data_examples: 0
+    do: True
+    inputarr_base_data_fn:
+        - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RC_202303_extractednontoxic-documents_eng-50_docutoxic-40_nontoxic-0.jsonl
+        - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RC_202304_extractednontoxic-documents_eng-50_docutoxic-40_nontoxic-0.jsonl
+        - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RC_202305_extractednontoxic-documents_eng-50_docutoxic-40_nontoxic-0.jsonl
 
   inputarr_insert_data_fn:
       - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/RC_202303_extracted_eng-50_toxic-99_docutoxic-40_nontoxic-0.jsonl
@@ -51,10 +52,10 @@ data:
 #  num_insert_data_examples: 150000
 
 #  output_directory: ${parent_directory:${data.input_data_fn}}/${exp_name}
-  output_directory: ${DATA_DIR}/olmo_training/pretrain_from_scratch/${exp_name}
+  out_directory: ${DATA_DIR}/olmo_training/pretrain_from_scratch/${exp_name}
 
 test_data:
-  do: True
+  do: False
 
   #assumes input_data_fn has a "text" and a "toxic_spans"
   input_data_fn: /mnt/nfs1/ryan/decouple/data/olmo_training/pretrain_from_scratch/0-99-toxic_0-0001-safe/test/orig/data.jsonl

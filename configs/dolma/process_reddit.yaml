@@ -25,7 +25,7 @@ extract_from_zst_to_documents:
 
 #this tags the documents
 tag_conversations:
-  do: false
+  do: False
   in_documents_file:
     - /home/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202304_extracted.jsonl
     - /home/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RS_202304_extracted.jsonl
@@ -38,7 +38,7 @@ tag_conversations:
 
 #this prepares the texts
 filter_tags_and_prepare:
-  do: True
+  do: False
   orig_documents:
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202304_extracted.jsonl
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202305_extracted.jsonl
@@ -56,6 +56,32 @@ filter_tags_and_prepare:
   output_dir_: ${out_dir}/prepared/
 
   #we want text that is english, and either toxic or nsfw
+  min_english_score: 0.5
+  max_nontoxic_score: 1e-4
+  min_toxic_score: 0.99
+
+  #the overall score must be at least 0.4
+  min_overall_toxic_score: 0.4
+
+# this is a temporary step - just to extract the nontoxic data so that the filtered model has enough data to train on
+prepare_nontoxic_only:
+  do: True
+  orig_documents:
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202303_extracted.jsonl
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202304_extracted.jsonl
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202305_extracted.jsonl
+  #    - ${extract_from_zst_to_documents.output_documents_file}
+  tag_files:
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202303_extracted.jsonl
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202304_extracted.jsonl
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202305_extracted.jsonl
+
+  output_dir_: ${out_dir}/prepared/
+
+  num_documents: 900000
+
+  # use the same configs as filter_tags_and_prepare to select the texts that are from *approximately the same distribution
+  # but were not selected
   min_english_score: 0.5
   max_nontoxic_score: 1e-4
   min_toxic_score: 0.99

@@ -9,7 +9,7 @@ master_seed: 0
 exp_name: "toxic_conversations"
 out_directory: ${DATA_DIR}/reddit/${exp_name}
 
-#choose from "olmo_standard" vs "olmo_custom"
+#choose from "olmo_standard" vs "olmo_custom".
 model_type: "olmo_custom"
 
 master_batch_size: 8
@@ -26,55 +26,55 @@ model_paths:
 #  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/unlikelihood_welleck_exp2"
 #  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/unlikelihood_extreme_exp2"
 #  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/filtered_exp2"
+#  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/filtered_full_exp2"
   - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/activationbias_extreme_exp3"
-  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/activationbias_exp3"
+#  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/activationbias_exp3"
+  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/embeddingbias_extreme_exp3"
+#  - "${MODEL_DIR}/olmo_ckpt/prefromscratch/0-99-toxic_0-0001-safe/embedding_transformation_extreme_exp3"
 
 # assumes that all models above have the following checkpoints nested. If no checkpoint_names provided, directly load from folders above
 checkpoint_names:
 #  - "step0-unsharded"
-  - "step400-unsharded"
-  - "step800-unsharded"
-  - "step1200-unsharded"
-  - "step1600-unsharded"
-  - "step2000-unsharded"
-  - "step2400-unsharded"
+#  - "step400-unsharded"
+#  - "step800-unsharded"
+#  - "step1200-unsharded"
+#  - "step1600-unsharded"
+#  - "step2000-unsharded"
+#  - "step2400-unsharded"
   - "step2527-unsharded"
 
 #each evaluator must have: label, data
 evaluators:
-#  - label: "realtoxicityprompts_generation_safebias"
-#    data:
-#      name: "allenai/real-toxicity-prompts"
-#      num_examples: 500
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    generation_kwargs: ${master_generation_kwargs}
-#  - label: "realtoxicityprompts_generation_undesiredbias"
-#    data:
-#      name: "allenai/real-toxicity-prompts"
-#      num_examples: 500
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    generation_kwargs: ${master_generation_kwargs}
-  - label: "realtoxicityprompts_generation_nobias"
+  # this performs realtoxicityprompts generation
+  # for custom models, choose from raw, add double, or add doublediff
+  - label: "realtoxicityprompts_generation"
     data:
       name: "allenai/real-toxicity-prompts"
       num_examples: 500
     seed: ${master_seed}
     batch_size: ${master_batch_size}
     generation_kwargs: ${master_generation_kwargs}
-#  - label: "civilcomments_hiddenstate_noprompt"
-#    data:
-#      name: "google/civil_comments"
-#      toxicity_threshold: 0.5
-#      num_train: 50000
-#      num_eval: 10000
-#      num_test: 10000
-#    binary_classifier:
-#      epochs: 50
-#      batch_size: 128
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
+
+  # this performs civilcomment classification of toxic vs nontoxic
+  # for custom models, choose from raw, add double, or add doublediff
+  - label: "civilcomments_hiddenstate_noprompt_triple"
+    data:
+      name: "google/civil_comments"
+      toxicity_threshold: 0.5
+      num_train: 50000
+      num_eval: 10000
+      num_test: 10000
+    binary_classifier:
+      epochs: 50
+      batch_size: 128
+    # this means we use accuracy to evaluate the model
+    use_acc: True
+    # this means we use use_rocauc:
+    use_rocauc: True
+    seed: ${master_seed}
+    batch_size: ${master_batch_size}
+
+  # this performs finegrained classification of specific categories in civilcomments
 #  - label: "civilcomments_finegrained_hiddenstate"
 #    data:
 #      name: "google/civil_comments"
@@ -87,21 +87,36 @@ evaluators:
 #      batch_size: 128
 #    seed: ${master_seed}
 #    batch_size: ${master_batch_size}
-#  - label: "civilcomments_hiddenstate_insult"
-#    data:
-#      name: "google/civil_comments"
-#      toxicity_threshold: 0.5
-#      insult_lowerbound: 0.4
-#      insult_upperbound: 0.8
-#      num_train: 15000
-#      num_eval: 2000
-#      num_test: 2000
-#    binary_classifier:
-#      epochs: 50
-#      batch_size: 128
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
 
+  # this performs civilcomments classification between insult or no insult for toxic utterances
+  # for custom models, choose from raw, add double, or add doublediff
+  - label: "civilcomments_hiddenstate_insult_triple"
+    data:
+      name: "google/civil_comments"
+      toxicity_threshold: 0.5
+      insult_lowerbound: 0.4
+      insult_upperbound: 0.8
+      num_train: 15000
+      num_eval: 2000
+      num_test: 2000
+    binary_classifier:
+      epochs: 50
+      batch_size: 128
+    # this means we use accuracy to evaluate the model
+    use_acc: True
+    # this means we use use_rocauc:
+    use_rocauc: True
+    seed: ${master_seed}
+    batch_size: ${master_batch_size}
+
+  # this evaluates the model's perplexity on in-distribution data (toxic vs nontoxic)
+  # for custom models, choose from raw, add double, or add doublediff
+  - label: "in_distribution_perplexity_triple"
+    data:
+      name: "/mnt/nfs1/ryan/decouple/data/olmo_training/pretrain_from_scratch/0-99-toxic_0-0001-safe/test"
+      num_examples: 2000
+    seed: ${master_seed}
+    batch_size: ${master_batch_size}
 
 
 

@@ -215,7 +215,7 @@ def obtain_logit(model, input_ids, attention_mask):
     #model takes in batched inputs
     if (len(input_ids.shape) < 2):
         input_ids = input_ids.unsqueeze(0)
-        attention_masks = attention_mask.unsqueeze(0)
+        attention_mask = attention_mask.unsqueeze(0)
 
     with torch.no_grad():
         model.eval()

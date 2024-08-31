@@ -166,11 +166,92 @@ def main(args):
 
                         # write the line to the output file
                         out_file.write(json.dumps(line_obj) + "\n")
+        # we extract based on tagged values
+
+    if configs.prepare_nontoxic_only.do:
+        # note that nontoxic documents still contain toxic spans that need to be filtered out
+        exp_configs = configs.prepare_nontoxic_only
+
+        assert (len(exp_configs.orig_documents) == len(exp_configs.tag_files))
+
+        exp_name = configs.exp_name + "_full"
+        attribute_key_map = {"english": f"{exp_name}__ft_lang_id_en_doc_v2__en",
+                             "toxic_document": f"{exp_name}__jigsaw_hatespeech_document_v2____label__toxic",
+                             "toxic_sentence": f"{exp_name}__jigsaw_hatespeech_sentence_v2____label__toxic",
+                             "nsfw_document": f"{exp_name}__jigsaw_nsfw_document_v1____label__nsfw",
+                             "nsfw_sentence": f"{exp_name}__jigsaw_nsfw_sencence_v2____label__nsfw"
+                             }
+
+        for i in range(len(exp_configs.orig_documents)):
+            orig_document = exp_configs.orig_documents[i]
+            tagged_document = exp_configs.tag_files[i]
+
+            print(f"orig_document: {orig_document}")
+            p_bar = tqdm()
+
+            output_file = os.path.basename(orig_document).split(".")[
+                              0] + f"nontoxic-documents_eng-{int(exp_configs.min_english_score * 100)}_docutoxic-{int(exp_configs.min_overall_toxic_score * 100)}_nontoxic-{int(exp_configs.max_nontoxic_score * 100)}.jsonl"
+
+            output_fn = os.path.join(exp_configs.output_dir_, output_file)
+            if os.path.exists(output_fn):
+                raise FileExistsError(
+                    f"Output file {output_fn} already exists. Please delete it before running this script.")
+
+            num_collected_counter = 0
 
 
+            with open(output_fn, "w") as out_file:
+                for line, tagged_line in zip(read_lines_from_file(orig_document),
+                                             read_lines_from_file(tagged_document)):
 
+                    # if we reach a certain number of collected documents, we stop
+                    if num_collected_counter >= exp_configs.num_documents:
+                        break
 
+                    tagged_line_obj = json.loads(tagged_line)
+                    line_obj = json.loads(line)
 
+                    assert tagged_line_obj["id"] == line_obj["id"]
+
+                    try:
+
+                        english_score = tagged_line_obj["attributes"][attribute_key_map["english"]][0][2]
+                        toxic_document_score = tagged_line_obj["attributes"][attribute_key_map["toxic_document"]][0][2]
+                        # nsfw_document_score = tagged_line_obj["attributes"][attribute_key_map["nsfw_document"]][0][2]
+
+                        toxic_spans_scores = tagged_line_obj["attributes"][attribute_key_map["toxic_sentence"]]
+                        # nsfw_spans_scores = tagged_line_obj["attributes"][attribute_key_map["nsfw_sentence"]]
+
+                        if english_score < exp_configs.min_english_score:
+                            continue
+
+                        if toxic_document_score < exp_configs.min_toxic_score:
+                            continue
+
+                        # if the document contains a toxic span as well as a non toxic span, we keep it
+                        toxic_scores = [span[2] for span in toxic_spans_scores]
+
+                    except:
+                        print("errorr! exception occurred")
+                        continue
+
+                    # if the document satisfies the previous filtering condition, we discard it
+                    if len(toxic_scores) > 1 and max(toxic_scores) > exp_configs.min_toxic_score and min(
+                            toxic_scores) < exp_configs.max_nontoxic_score and toxic_scores[
+                        -1] < exp_configs.max_nontoxic_score:
+                        continue
+                    # we choose the document only if it contains more than 1 sentence (to keep in distribution) and has a non-toxic span
+                    elif len(toxic_scores) > 1 and min(toxic_scores) < exp_configs.max_nontoxic_score:
+                        line_obj["file_origin"] = os.path.basename(orig_document)
+                        line_obj["english_score"] = english_score
+                        line_obj["toxic_score"] = toxic_document_score
+                        line_obj["toxic_spans"] = toxic_spans_scores
+
+                        num_collected_counter += 1
+                        p_bar.update(1)
+
+                        # write the line to the output file
+                        out_file.write(json.dumps(line_obj) + "\n")
 
 
 def parse_args():

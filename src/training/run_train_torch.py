@@ -46,8 +46,8 @@ def train_classifier(model, train_dataset, test_dataset, num_train_epochs, batch
     out_fn = open(os.path.join(output_dir, "train_log.txt"), "w")
 
     for t in range(num_train_epochs):
-        aggregate_metrics_train = []
-        weight_for_each_batch_train = []
+        total_logits = []
+        total_y = []
 
         # Training loop
         model.train()
@@ -66,24 +66,27 @@ def train_classifier(model, train_dataset, test_dataset, num_train_epochs, batch
 
             optimizer.step()
 
-            aggregate_metrics_train.append(metric_func(logits, y_batch))
-            weight_for_each_batch_train.append(len(y_batch))
+            total_logits.append(logits)
+            total_y.append(y_batch)
 
         # Evaluate train and dev accuracy at the end of each epoch
-        normalized_weights_train = torch.tensor(weight_for_each_batch_train) / sum(weight_for_each_batch_train)
-        train_acc = torch.tensor(aggregate_metrics_train).dot(normalized_weights_train).item()
+        total_logits = torch.cat(total_logits)
+        total_y = torch.cat(total_y)
+        train_acc = metric_func(total_logits, total_y)
 
         model.eval()
         with torch.no_grad():
-            aggregate_metrics_eval = []
-            weight_for_each_batch_eval = []
+            total_logits = []
+            total_y = []
+
             for X_dev, y_dev in DataLoader(test_dataset, batch_size=batch_size):
                 dev_logits = model(X_dev.to("cuda")).to("cpu")
-                aggregate_metrics_eval.append(metric_func(dev_logits, y_dev))
-                weight_for_each_batch_eval.append(len(y_dev))
+                total_logits.append(dev_logits)
+                total_y.append(y_dev)
 
-            normalized_weights_eval = torch.tensor(weight_for_each_batch_eval) / sum(weight_for_each_batch_eval)
-            dev_acc = torch.tensor(aggregate_metrics_eval).dot(normalized_weights_eval).item()
+            total_logits = torch.cat(total_logits)
+            total_y = torch.cat(total_y)
+            dev_acc = metric_func(total_logits, total_y)
         print(f' Epoch {t: <2}: train_acc={train_acc:.5f}, dev_acc={dev_acc:.5f}')
         out_fn.write(f' Epoch {t: <2}: train_acc={train_acc:.5f}, dev_acc={dev_acc:.5f}\n')
         if dev_acc > best_dev_acc:

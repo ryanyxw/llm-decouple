@@ -1,0 +1,82 @@
+ROOT_DIR: ./../..
+DATA_DIR: /mnt/nfs1/ryan/decouple/data
+MODEL_DIR: ${ROOT_DIR}/models
+
+num_proc: 40
+seed: 0
+
+exp_name: "exp_6"
+#max_seq_len: 512
+max_seq_len: 2048
+
+tokenizer_name: "allenai/OLMo-1B-hf"
+
+bad_words_file: "${DATA_DIR}/dolma/reddit/list_of_bad_words.txt"
+
+data:
+  do: True
+
+  # whether we have a base dataset to insert into
+  base_dataset:
+    do: True
+    inputarr_base_data_fn:
+        - ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/output.jsonl
+
+  # NOTE: for ai2, we give the root file that contains cc_en_head, cc_en_middle, cc_en_tail
+  input_folder: ${DATA_DIR}/dolma/toxic_dolma/exp_5/high_min_toxic/prepared
+#  inputarr_insert_data_fn:
+#      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202303_extracted.jsonl
+#      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202304_extracted.jsonl
+#      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202305_extracted.jsonl
+#      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RS_202303_extracted.jsonl
+#      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RS_202304_extracted.jsonl
+#      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RS_202305_extracted.jsonl
+
+  toxic_threshold: 0.99
+  safe_threshold: 1e-4
+
+  # filter any sentence with toxicity larger than this threshold
+  filter_threshold: 1e-4
+
+  # at least 20% of spans are toxic. this number should not go lower than 0.1. Python inclusitivity
+  toxic_percentage: 0.1
+  # at most 80% of spans are toxic
+  toxic_percentage_upper: 1.0
+
+  # the number of files we read from each of cc_en_head, cc_en_middle, cc_en_tail
+  files_to_use:
+    - 611
+    - 0
+    - 0
+
+  is_conversation: False
+
+
+  splits:
+    train: 0.9
+    test: 0.1
+
+  out_directory: ${DATA_DIR}/olmo_training/cont_pretraining/${exp_name}
+
+test_data:
+  do: False
+
+  #assumes input_data_fn has a "text" and a "toxic_spans"
+  input_data_reddit_fn: /mnt/nfs1/ryan/decouple/data/olmo_training/cont_pretraining/exp_4/test/orig/reddit_data.jsonl
+  input_data_base_fn: /mnt/nfs1/ryan/decouple/data/olmo_training/cont_pretraining/exp_4_2/test/orig/filtered_base_data.jsonl
+
+  out_dir: /mnt/nfs1/ryan/decouple/data/olmo_training/cont_pretraining/exp_4_2/test
+
+  toxic_threshold: 0.99
+  safe_threshold: 1e-4
+
+  toxic_only: False
+  toxic_nontoxic: False
+  nontoxic_toxic: False
+  nontoxic_only: False
+
+  # whether we want to turn "input_data_base_fn" into numpy format
+  base: True
+
+
+

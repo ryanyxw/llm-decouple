@@ -63,7 +63,6 @@ def main(args):
     # target exists and destination does not exist, creating output directories
     validate_inputs(configs)
 
-
     print("executing command...")
 
     ### Performs the data preparation (e.g creating numpy files and label_masks
@@ -121,9 +120,9 @@ def main(args):
             range(int(configs.data.splits.train * len(insert_dataset)), len(insert_dataset)))
 
         # create folders for train-test sets
-        train_output_dir = os.path.join(configs.data.output_directory, "train", "orig")
-        train_filtered_output_dir = os.path.join(configs.data.output_directory, "train", "filtered")
-        test_output_dir = os.path.join(configs.data.output_directory, "test", "orig")
+        train_output_dir = os.path.join(configs.data.out_directory, "train", "orig")
+        train_filtered_output_dir = os.path.join(configs.data.out_directory, "train", "filtered_full")
+        test_output_dir = os.path.join(configs.data.out_directory, "test", "orig")
         os.makedirs(train_output_dir, exist_ok=True)
         os.makedirs(test_output_dir, exist_ok=True)
         os.makedirs(train_filtered_output_dir, exist_ok=True)
@@ -151,11 +150,52 @@ def main(args):
                                           )
 
 
-        #if we are using a base dataset, we add it to the training dataset (both the filtered and unfiltered)
-        if configs.data.base_dataset.do:
-            base_dataset = read_dataset_to_hf(configs.data.input_data_fn, num_proc=configs.num_proc)["train"].shuffle(
-                seed=configs.seed).select(range(configs.data.num_data_examples))
+        # format both train datasets to pretraining format
+        train_dataset_formatted = format_to_pretraining(train_dataset, tokenizer, configs.max_seq_len)
+        train_filtered_dataset_formatted = format_to_pretraining(train_filtered_dataset, tokenizer, configs.max_seq_len)
 
+        #if we are using a base dataset, we add it to the training dataset (both the filtered and unfiltered)
+        # the current version of the function only adds the base dataset detoxified to the filtered dataset
+
+        #this is to record test data from the original dataset
+        base_dataset_test = None
+        base_dataset_filtered_test = None
+
+        if configs.data.base_dataset.do:
+            insert_dataset_list = []
+            for file in configs.data.base_dataset.inputarr_base_data_fn:
+                insert_dataset_list.append(read_dataset_to_hf(file, num_proc=configs.num_proc)["train"])
+
+            # load the list of bad words
+            with open(configs.bad_words_file, "r") as file:
+                bad_words = file.read().split("\n")
+                bad_words = [word.strip() for word in bad_words]
+
+            print("enter")
+
+            # concatenates the datasets
+            base_dataset = concatenate_datasets(insert_dataset_list).shuffle(seed=configs.seed)
+
+            # OLD: this section is for when we are adding reddit data as base_dataset for filtered data
+            # # we first filter for toxic spans
+            # base_dataset = base_dataset.map(filter_toxic_spans, batched=False, num_proc=configs.num_proc)
+            #
+            # # we then tokenize the base dataset
+            # base_dataset = base_dataset.map(tokenize_with_hate_loss_span_masking,
+            #                                 batched=True,
+            #                                 batch_size=1,
+            #                                 remove_columns=base_dataset.column_names,
+            #                                 num_proc=configs.num_proc,
+            #                                 fn_kwargs={
+            #                                     "toxic_threshold": configs.data.toxic_threshold,
+            #                                     "safe_threshold": configs.data.safe_threshold,
+            #                                     "tokenizer": tokenizer}
+            #                                 )
+            # train_filtered_dataset = concatenate_datasets([base_dataset, train_filtered_dataset_formatted]).shuffle(configs.seed)
+            #
+            # train_filtered_dataset_formatted = format_to_pretraining(train_filtered_dataset, tokenizer, configs.max_seq_len)
+
+            # NEW: this section is for when we are adding original olmo data as base_dataset to nonfiltered data
             base_dataset = base_dataset.rename_column("out", "input_ids")
 
             def add_label_masks(example):
@@ -164,44 +204,55 @@ def main(args):
 
             base_dataset = base_dataset.map(add_label_masks, batched=False, num_proc=configs.num_proc)
 
+            columns = ["input_ids", "loss_mask", "attention_mask"]
+
             base_dataset = base_dataset.remove_columns([col for col in base_dataset.column_names if col not in columns])
 
             # cast dataset to int32 sequence
             new_features = base_dataset.features.copy()
             new_features["input_ids"] = Sequence(Value("int32"))
             base_dataset = base_dataset.cast(new_features, num_proc=configs.num_proc)
-            # dataset = dataset.cast_column("input_ids", Sequence(Value("int32")), num_proc=configs.num_proc)
 
-            train_dataset = concatenate_datasets([base_dataset, train_dataset]).shuffle(configs.seed)
-            train_filtered_dataset = concatenate_datasets([base_dataset, train_filtered_dataset]).shuffle(configs.seed)
+            base_dataset_test = base_dataset.select(range(len(base_dataset) - len(train_dataset_formatted), len(base_dataset)))
+            base_dataset_train = base_dataset.select(range(len(base_dataset) - len(train_dataset_formatted)))
 
-        # format both train datasets to pretraining format
-        train_dataset_formatted = format_to_pretraining(train_dataset, tokenizer, configs.max_seq_len)
-        train_filtered_dataset_formatted = format_to_pretraining(train_filtered_dataset, tokenizer, configs.max_seq_len)
+            train_dataset_formatted = concatenate_datasets([base_dataset_train, train_dataset_formatted]).shuffle(configs.seed)
+
+            # we create the base dataset version for filtered data, along with the test data (note that the test data is different than filtered data
+            base_dataset_filtered_test = base_dataset.select(range(len(base_dataset) - len(train_filtered_dataset_formatted), len(base_dataset)))
+            base_dataset_filtered_train = base_dataset.select(range(len(base_dataset) - len(train_filtered_dataset_formatted)))
+
+            train_filtered_dataset_formatted = concatenate_datasets([base_dataset_filtered_train, train_filtered_dataset_formatted]).shuffle(configs.seed)
+
+        print(f"length of train dataset: {len(train_dataset_formatted)}")
+        print(f"length of train filtered dataset: {len(train_filtered_dataset_formatted)}")
+
+        # OLD CODE: if the filtered dataset is added with a base dataset, we limit it to not be longer than unfiltered dataset
+        # if len(train_filtered_dataset_formatted) > len(train_dataset_formatted):
+        #     train_filtered_dataset_formatted = train_filtered_dataset_formatted.select(range(len(train_dataset_formatted)))
 
         # remove extra columns
         columns = ["input_ids", "loss_mask"]
-        train_dataset_formatted = train_dataset_formatted.remove_columns(
-            [col for col in train_dataset_formatted.column_names if col not in columns])
+        # train_dataset_formatted = train_dataset_formatted.remove_columns(
+        #     [col for col in train_dataset_formatted.column_names if col not in columns])
         train_filtered_dataset_formatted = train_filtered_dataset_formatted.remove_columns(
             [col for col in train_filtered_dataset_formatted.column_names if col not in columns])
 
         # We save all the data files
-        save_hf_to_jsonl(train_dataset_formatted, os.path.join(train_output_dir, "data.jsonl"), 4)
-        save_dataset_to_np(train_dataset_formatted, train_output_dir, configs.max_seq_len)
+        # save_hf_to_jsonl(train_dataset_formatted, os.path.join(train_output_dir, "data.jsonl"), 4)
+        # save_dataset_to_np(train_dataset_formatted, train_output_dir, configs.max_seq_len)
         save_hf_to_jsonl(train_filtered_dataset_formatted, os.path.join(train_filtered_output_dir, "filtered_data.jsonl"), 4)
         save_dataset_to_np(train_filtered_dataset_formatted, train_filtered_output_dir, configs.max_seq_len)
 
-        save_hf_to_jsonl(test_dataset, os.path.join(test_output_dir, "data.jsonl"), 4)
+        # save_hf_to_jsonl(test_dataset, os.path.join(test_output_dir, "reddit_data.jsonl"), 4)
+        # save_hf_to_jsonl(base_dataset_test, os.path.join(test_output_dir, "base_data.jsonl"), 4)
+        save_hf_to_jsonl(base_dataset_filtered_test, os.path.join(test_output_dir, "filtered_base_data.jsonl"), 4)
 
 
     ### Performs the test data preparation (e.g creating numpy files and label_masks)
     if configs.test_data.do:
         tokenizer = load_tokenizer(configs.tokenizer_name, configs.max_seq_len)
-
-        test_dataset_raw = read_dataset_to_hf(configs.test_data.input_data_fn, num_proc=configs.num_proc)["train"].shuffle(
-            seed=configs.seed)
-
+        
         def add_sentence_labels(line, toxic_threshold, safe_threshold):
             text = line["text"]
             toxic_spans = line["toxic_spans"]
@@ -216,15 +267,23 @@ def main(args):
                     toxic_spans_labels += [-1]
             return {"toxic_spans_labels": toxic_spans_labels}
 
-        # add the toxic spans labels
-        test_dataset = test_dataset_raw.map(add_sentence_labels,
-                                          batched=False,
-                                          num_proc=configs.num_proc,
-                                          fn_kwargs={
-                                              "toxic_threshold": configs.test_data.toxic_threshold,
-                                              "safe_threshold": configs.test_data.safe_threshold,
-                                              }
-                                          )
+        test_dataset = None
+
+        # if we do anything with reddit, we load the dataset
+        if (configs.test_data.toxic_only or configs.test_data.toxic_nontoxic or configs.test_data.nontoxic_only or configs.test_data.nontoxic_toxic):
+            test_dataset_raw = read_dataset_to_hf(configs.test_data.input_data_reddit_fn, num_proc=configs.num_proc)["train"].shuffle(
+                seed=configs.seed)
+
+            # add the toxic spans labels
+            test_dataset = test_dataset_raw.map(add_sentence_labels,
+                                              batched=False,
+                                              num_proc=configs.num_proc,
+                                              fn_kwargs={
+                                                  "toxic_threshold": configs.test_data.toxic_threshold,
+                                                  "safe_threshold": configs.test_data.safe_threshold,
+                                                  }
+                                              )
+            
         def extract_sentence_pairs(line, max_seq_len, first_sentence_id, second_sentence_id):
             """
             extracts pairs of sentences where the first sentence has first_sentence_id toxicity
@@ -345,6 +404,46 @@ def main(args):
             print(nontoxic_toxic_test_dataset)
             save_hf_to_jsonl(nontoxic_toxic_test_dataset, os.path.join(nontoxic_toxic_folder, "data.jsonl"), 4)
             save_dataset_to_np(nontoxic_toxic_test_dataset, nontoxic_toxic_folder, configs.max_seq_len, num_proc=1)
+
+
+        def reformat_base_for_numpy_storage(line, max_seq_len):
+            """
+            given a line in the format of the dolma dataset (input_ids and loss_mask), we reformat it to enable it to be stored in numpy
+            (i.e we pad the input_ids and loss_mask to max_seq_len)
+            we assume that loss_mask will be all 1s for good sequences
+            """
+
+            input_ids = line["input_ids"][0]
+            loss_mask = line["loss_mask"][0]
+
+            if len(input_ids) > max_seq_len:
+                input_ids = input_ids[:max_seq_len]
+                loss_mask = loss_mask[:max_seq_len]
+            else:
+                input_ids += [tokenizer.pad_token_id for _ in range(max_seq_len - len(input_ids))]
+                loss_mask += [0 for _ in range(max_seq_len - len(loss_mask))]
+            return {"input_ids": [input_ids], "loss_mask": [loss_mask]}
+
+        if configs.test_data.base:
+            # this just converts the base dataset (extracted to be the test set) into numpy files to get the loss
+            base_folder = os.path.join(configs.test_data.out_dir, "base")
+            if os.path.exists(base_folder):
+                raise ValueError("base folder already exists")
+            os.makedirs(base_folder)
+
+            # we reformat the base folder
+            base_dataset = read_dataset_to_hf(configs.test_data.input_data_base_fn, num_proc=configs.num_proc)["train"]
+
+            base_dataset = base_dataset.map(reformat_base_for_numpy_storage,
+                                            batched=True,
+                                            batch_size=1,
+                                            remove_columns=base_dataset.column_names,
+                                            num_proc=configs.num_proc,
+                                            fn_kwargs={"max_seq_len": configs.max_seq_len})
+
+            print(base_dataset)
+            save_hf_to_jsonl(base_dataset, os.path.join(base_folder, "data.jsonl"), 4)
+            save_dataset_to_np(base_dataset, base_folder, configs.max_seq_len, num_proc=1)
 
 
 def parse_args():

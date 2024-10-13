@@ -1,0 +1,46 @@
+ROOT_DIR: ./../..
+DATA_DIR: /mnt/nfs1/ryan/decouple/data
+MODEL_DIR: ${ROOT_DIR}/models
+
+num_proc: 80
+seed: 0
+
+# this should be the name of the folder under "reddit"
+exp_name: exp_5/high_min_toxic
+out_dir: ${DATA_DIR}/dolma/toxic_dolma/${exp_name}
+
+input_blocked_subreddit_file: ${DATA_DIR}/dolma/reddit/subreddit_blocklist.txt
+
+full_sweep:
+  do: True
+
+  aws_link: "s3://ai2-llm/pretraining-data/sources/olmo-mix/complement_v16_hs_fix/documents/cc_en_tail/cc_en_tail-{filenum}.json.gz"
+  # the number of files starting from 0
+  tot_files: 1492
+
+  output_dir_: ${out_dir}/prepared/cc_en_tail/
+
+  max_nontoxic_score: 1e-4
+  min_toxic_score: 0.99
+
+  min_toxic_ratio: 0.1
+
+#this prepares the texts
+filter_tags_and_prepare:
+  do: False
+
+  orig_documents:
+    - /mnt/nfs1/ryan/decouple/data/dolma/toxic_dolma/documents/cc_en_head-0610.json.gz
+
+  output_dir_: ${out_dir}/prepared/
+
+  #we want text that is english, and either toxic or nsfw
+  min_english_score: 0.5
+  max_nontoxic_score: 1e-4
+  # choose between 0.99 and 0.4
+  min_toxic_score: 0.99
+
+  #the overall score must be at least 0.4 -> the percentage of toxic spans must be at least
+  min_toxic_ratio: 0.1
+
+

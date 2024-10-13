@@ -26,7 +26,11 @@ def evaluate_model_before_hf_conversion(model_path, evaluators, OLMO_DIR, olmo_t
     # begin conversion of the checkpoint to hf
     print("converting model to hf...")
 
-    hf_model_path = os.path.join(model_path, "hf")
+    # if the current folder is an olmo model , we convert it to hf
+    if os.path.exists(os.path.join(model_path, "config.yaml")):
+        hf_model_path = os.path.join(model_path, "hf")
+    else:
+        hf_model_path = model_path
 
     if olmo_type == "olmo_standard":
         # convert the model if it hasn't been converted yet

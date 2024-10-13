@@ -851,7 +851,10 @@ class OlmoModel(OlmoPreTrainedModel):
             desired_bias = self.layer_bias[0].weight[0]
             undesired_bias = self.layer_bias[0].weight[1]
 
-            final_bias = desired_bias
+            bias_diff = desired_bias - undesired_bias
+            final_bias = desired_bias + bias_diff
+            # final_bias = 2 * desired_bias
+            # final_bias = desired_bias
 
             inputs_embeds = inputs_embeds + final_bias
 
@@ -931,7 +934,10 @@ class OlmoModel(OlmoPreTrainedModel):
                 desired_bias = self.layer_bias[layer_ind + 1].weight[0]
                 undesired_bias = self.layer_bias[layer_ind + 1].weight[1]
 
-                final_bias = desired_bias
+                bias_diff = desired_bias - undesired_bias
+                final_bias = desired_bias + bias_diff
+                # final_bias = 2 * desired_bias
+                # final_bias = desired_bias
 
                 hidden_states = hidden_states + final_bias
 
@@ -948,7 +954,10 @@ class OlmoModel(OlmoPreTrainedModel):
             desired_bias = self.layer_bias[self.config.num_hidden_layers + 1].weight[0]
             undesired_bias = self.layer_bias[self.config.num_hidden_layers + 1].weight[1]
 
-            final_bias = desired_bias
+            bias_diff = desired_bias - undesired_bias
+            final_bias = desired_bias + bias_diff
+            # final_bias = 2 * desired_bias
+            # final_bias = desired_bias
 
             hidden_states = hidden_states + final_bias
 

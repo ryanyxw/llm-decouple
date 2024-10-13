@@ -5,7 +5,7 @@ MODEL_DIR: ${ROOT_DIR}/models
 num_proc: 40
 seed: 0
 
-exp_name: "exp_6"
+exp_name: "exp_8"
 #max_seq_len: 512
 max_seq_len: 2048
 
@@ -46,7 +46,7 @@ data:
   # the number of files we read from each of cc_en_head, cc_en_middle, cc_en_tail
   files_to_use:
     - 611
-    - 0
+    - 776
     - 0
 
   is_conversation: False

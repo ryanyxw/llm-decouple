@@ -1,14 +1,15 @@
 import argparse
 import json
 import os
+import gc
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 from datasets import concatenate_datasets, Sequence, Value
 from tqdm import tqdm
 from transformers import DefaultDataCollator, TrainingArguments
-from datasets import set_caching_enabled
-set_caching_enabled(False)
+# from datasets import set_caching_enabled
+# set_caching_enabled(False)
 
 from src.modules.data.data_utils import load_tokenizer
 from src.modules.data.format_datasets import load_and_reformat_dataset
@@ -68,6 +69,30 @@ def read_dataset_and_clean(args):
         return False
 
     return dataset.filter(filter_for_toxicity_temp, fn_kwargs={"toxic_threshold": toxic_threshold, "toxic_percentage": toxic_percentage})
+#
+#  # this is for creating a train dataset file with no toxic spans
+# def filter_toxic_spans(row, **kwargs):
+#     # this records the actual spans that are labeled as toxic
+#     actual_toxic_spans = []
+#     total_toxic_chars = 0
+#     new_spans = []
+#     for span in row["toxic_spans"]:
+#         if span[2] > kwargs["filter_threshold"]:
+#             actual_toxic_spans.append(span)
+#             total_toxic_chars += span[1] - span[0] + 1
+#         else:
+#             new_spans += [[span[0] - total_toxic_chars, span[1] - total_toxic_chars, span[2]]]
+#
+#     # update the actual string
+#     temp_str = row["text"]
+#     for toxic_span in reversed(actual_toxic_spans):
+#         temp_str = temp_str[:int(toxic_span[0])] + temp_str[int(toxic_span[1]) + 1:]
+#     row["text"] = temp_str
+#
+#     # set the entire strong to not be a toxic span
+#     row["toxic_spans"] = new_spans
+#
+#     return row
 
 def single_process_filter_map(dataset, kwargs):
     # this is for creating a train dataset file with no toxic spans
@@ -182,10 +207,18 @@ def main(args):
 
         # we first create the train-test split (dataset is already shuffled)
         train_dataset = insert_dataset.select(range(int(configs.data.splits.train * len(insert_dataset))))
-        # train_filtered_dataset = train_dataset.map(filter_toxic_spans, batched=False, num_proc=16)
-        train_filtered_dataset = multiprocess_hf_map(single_process_filter_map, train_dataset, num_proc=6, fn_kwargs={"filter_threshold": configs.data.filter_threshold})
-        test_dataset = insert_dataset.select(
-            range(int(configs.data.splits.train * len(insert_dataset)), len(insert_dataset)))
+        # import pdb
+        # pdb.set_trace()
+        # train_filtered_dataset = train_dataset.map(filter_toxic_spans, batched=False, num_proc=16, fn_kwargs={"filter_threshold": configs.data.filter_threshold}, cache_file_name="./test_cache")
+        # import pdb
+        # pdb.set_trace()
+        # train_filtered_dataset = multiprocess_hf_map(single_process_filter_map, train_dataset, num_proc=6, fn_kwargs={"filter_threshold": configs.data.filter_threshold})
+        # test_dataset = insert_dataset.select(
+        #     range(int(configs.data.splits.train * len(insert_dataset)), len(insert_dataset)))
+
+        # we don't need the insert_dataset anymore
+        del insert_dataset
+        gc.collect()
 
         # create folders for train-test sets
         train_output_dir = os.path.join(configs.data.out_directory, "train", "orig")
@@ -205,47 +238,28 @@ def main(args):
                                                     "column_names": train_dataset.column_names
                                                     })
 
-        # train_dataset = train_dataset.map(tokenize_with_hate_loss_span_masking,
-        #                                   batched=True,
-        #                                   batch_size=1,
-        #                                   remove_columns=train_dataset.column_names,
-        #                                   num_proc=16,
-        #                                   # num_proc=configs.num_proc,
-        #                                   fn_kwargs={
-        #                                       "toxic_threshold": configs.data.toxic_threshold,
-        #                                       "safe_threshold": configs.data.safe_threshold,
-        #                                       "tokenizer": tokenizer}
-        #                                   )
 
-        train_filtered_dataset = multiprocess_hf_map(single_process_tokenize_with_hate_loss_span_masking,
-                                            train_filtered_dataset,
-                                            num_proc=10,
-                                            fn_kwargs={"toxic_threshold": configs.data.toxic_threshold,
-                                                    "safe_threshold": configs.data.safe_threshold,
-                                                    "tokenizer": tokenizer,
-                                                    "column_names": train_filtered_dataset.column_names
-                                                    })
-        # train_filtered_dataset = train_filtered_dataset.map(tokenize_with_hate_loss_span_masking,
-        #                                   batched=True,
-        #                                   batch_size=1,
-        #                                   remove_columns=train_filtered_dataset.column_names,
-        #                                   num_proc=1,
-        #                                   fn_kwargs={
-        #                                       "toxic_threshold": configs.data.toxic_threshold,
-        #                                       "safe_threshold": configs.data.safe_threshold,
-        #                                       "tokenizer": tokenizer}
-        #                                   )
-
+        # train_filtered_dataset = multiprocess_hf_map(single_process_tokenize_with_hate_loss_span_masking,
+        #                                     train_filtered_dataset,
+        #                                     num_proc=10,
+        #                                     fn_kwargs={"toxic_threshold": configs.data.toxic_threshold,
+        #                                             "safe_threshold": configs.data.safe_threshold,
+        #                                             "tokenizer": tokenizer,
+        #                                             "column_names": train_filtered_dataset.column_names
+        #                                             })
 
         # format both train datasets to pretraining format
-        # train_dataset_formatted = format_to_pretraining(train_dataset, tokenizer, configs.max_seq_len)
         train_dataset_formatted = multiprocess_hf_map(single_process_format_to_pretraining, train_dataset,
                                                       num_proc=10,
                                                       fn_kwargs={"tokenizer": tokenizer, "max_seq_len": configs.max_seq_len})
-        train_filtered_dataset_formatted = multiprocess_hf_map(single_process_format_to_pretraining, train_filtered_dataset,
-                                                        num_proc=10,
-                                                        fn_kwargs={"tokenizer": tokenizer, "max_seq_len": configs.max_seq_len})
-        # train_filtered_dataset_formatted = format_to_pretraining(train_filtered_dataset, tokenizer, configs.max_seq_len)
+        # train_filtered_dataset_formatted = multiprocess_hf_map(single_process_format_to_pretraining, train_filtered_dataset,
+        #                                                 num_proc=10,
+        #                                                 fn_kwargs={"tokenizer": tokenizer, "max_seq_len": configs.max_seq_len})
+
+        # we don't need train_dataset and train_filtered_dataset anymore
+        del train_dataset
+        # del train_filtered_dataset
+        gc.collect()
 
         # we loop through the datasets and count the number of toxic, safe, and neutral spans
         def get_summary(dataset):
@@ -260,11 +274,11 @@ def main(args):
             return {"num_toxic": num_toxic, "num_nontoxic": num_nontoxic, "num_between": num_between}
 
         summary_train = get_summary(train_dataset_formatted)
-        summary_filtered = get_summary(train_filtered_dataset_formatted)
+        # summary_filtered = get_summary(train_filtered_dataset_formatted)
         with open(os.path.join(train_output_dir, "summary.json"), "w") as file:
             json.dump(summary_train, file)
-        with open(os.path.join(train_filtered_output_dir, "summary.json"), "w") as file:
-            json.dump(summary_filtered, file)
+        # with open(os.path.join(train_filtered_output_dir, "summary.json"), "w") as file:
+        #     json.dump(summary_filtered, file)
 
         #if we are using a base dataset, we add it to the training dataset (both the filtered and unfiltered)
         # the current version of the function only adds the base dataset detoxified to the filtered dataset
@@ -304,21 +318,25 @@ def main(args):
             # cast dataset to int32 sequence
             new_features = base_dataset.features.copy()
             new_features["input_ids"] = Sequence(Value("int32"))
-            base_dataset = base_dataset.cast(new_features, num_proc=configs.num_proc, keep_in_memory=True)
+            base_dataset = base_dataset.cast(new_features, num_proc=configs.num_proc)
 
             # base_dataset_test = base_dataset.select(range(len(base_dataset) - len(train_dataset_formatted), len(base_dataset)))
             base_dataset_train = base_dataset.select(range(len(base_dataset) - len(train_dataset_formatted)))
 
             train_dataset_formatted = concatenate_datasets([base_dataset_train, train_dataset_formatted]).shuffle(configs.seed)
 
-            # we create the base dataset version for filtered data, along with the test data (note that the test data is different than filtered data
-            base_dataset_filtered_test = base_dataset.select(range(len(base_dataset) - len(train_filtered_dataset_formatted), len(base_dataset)))
-            base_dataset_filtered_train = base_dataset.select(range(len(base_dataset) - len(train_filtered_dataset_formatted)))
+            # # we create the base dataset version for filtered data, along with the test data (note that the test data is different than filtered data
+            # base_dataset_filtered_test = base_dataset.select(range(len(base_dataset) - len(train_filtered_dataset_formatted), len(base_dataset)))
+            # base_dataset_filtered_train = base_dataset.select(range(len(base_dataset) - len(train_filtered_dataset_formatted)))
 
-            train_filtered_dataset_formatted = concatenate_datasets([base_dataset_filtered_train, train_filtered_dataset_formatted]).shuffle(configs.seed)
+            # we don't need the base dataset anymore
+            del base_dataset
+            gc.collect()
+
+            # train_filtered_dataset_formatted = concatenate_datasets([base_dataset_filtered_train, train_filtered_dataset_formatted]).shuffle(configs.seed)
 
         print(f"length of train dataset: {len(train_dataset_formatted)}")
-        print(f"length of train filtered dataset: {len(train_filtered_dataset_formatted)}")
+        # print(f"length of train filtered dataset: {len(train_filtered_dataset_formatted)}")
 
         # OLD CODE: if the filtered dataset is added with a base dataset, we limit it to not be longer than unfiltered dataset
         # if len(train_filtered_dataset_formatted) > len(train_dataset_formatted):
@@ -328,18 +346,18 @@ def main(args):
         columns = ["input_ids", "loss_mask"]
         train_dataset_formatted = train_dataset_formatted.remove_columns(
             [col for col in train_dataset_formatted.column_names if col not in columns])
-        train_filtered_dataset_formatted = train_filtered_dataset_formatted.remove_columns(
-            [col for col in train_filtered_dataset_formatted.column_names if col not in columns])
+        # train_filtered_dataset_formatted = train_filtered_dataset_formatted.remove_columns(
+        #     [col for col in train_filtered_dataset_formatted.column_names if col not in columns])
 
         # We save all the data files
-        save_hf_to_jsonl(train_dataset_formatted, os.path.join(train_output_dir, "data.jsonl"), 4)
         save_dataset_to_np(train_dataset_formatted, train_output_dir, configs.max_seq_len)
-        save_hf_to_jsonl(train_filtered_dataset_formatted, os.path.join(train_filtered_output_dir, "filtered_data.jsonl"), 4)
-        save_dataset_to_np(train_filtered_dataset_formatted, train_filtered_output_dir, configs.max_seq_len)
+        save_hf_to_jsonl(train_dataset_formatted, os.path.join(train_output_dir, "data.jsonl"), 2)
+        # save_dataset_to_np(train_filtered_dataset_formatted, train_filtered_output_dir, configs.max_seq_len)
+        # save_hf_to_jsonl(train_filtered_dataset_formatted, os.path.join(train_filtered_output_dir, "filtered_data.jsonl"), 2)
 
-        save_hf_to_jsonl(test_dataset, os.path.join(test_output_dir, "reddit_data.jsonl"), 4)
+        # save_hf_to_jsonl(test_dataset, os.path.join(test_output_dir, "reddit_data.jsonl"), 4)
         # old code: save_hf_to_jsonl(base_dataset_test, os.path.join(test_output_dir, "base_data.jsonl"), 4)
-        save_hf_to_jsonl(base_dataset_filtered_test, os.path.join(test_output_dir, "filtered_base_data.jsonl"), 4)
+        # save_hf_to_jsonl(base_dataset_filtered_test, os.path.join(test_output_dir, "filtered_base_data.jsonl"), 4)
 
     ### Performs the test data preparation (e.g creating numpy files and label_masks)
     if configs.test_data.do:

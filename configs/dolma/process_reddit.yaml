@@ -38,22 +38,23 @@ tag_conversations:
 
 #this prepares the texts
 filter_tags_and_prepare:
-  do: False
+  do: True
   orig_documents:
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202303_extracted.jsonl
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202304_extracted.jsonl
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202305_extracted.jsonl
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RS_202303_extracted.jsonl
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RS_202304_extracted.jsonl
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RS_202305_extracted.jsonl
-#    - ${extract_from_zst_to_documents.output_documents_file}
   tag_files:
+    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202303_extracted.jsonl
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202304_extracted.jsonl
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202305_extracted.jsonl
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RS_202303_extracted.jsonl
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RS_202304_extracted.jsonl
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RS_202305_extracted.jsonl
 
-  output_dir_: ${out_dir}/prepared/
+  output_dir_: ${out_dir}/prepared/exp_4
 
   #we want text that is english, and either toxic or nsfw
   min_english_score: 0.5
@@ -65,7 +66,7 @@ filter_tags_and_prepare:
 
 # this is a temporary step - just to extract the nontoxic data so that the filtered model has enough data to train on
 prepare_nontoxic_only:
-  do: True
+  do: False
   orig_documents:
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202303_extracted.jsonl
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202304_extracted.jsonl
@@ -76,7 +77,7 @@ prepare_nontoxic_only:
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202304_extracted.jsonl
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202305_extracted.jsonl
 
-  output_dir_: ${out_dir}/prepared/
+  output_dir_: ${out_dir}/prepared
 
   num_documents: 900000
 

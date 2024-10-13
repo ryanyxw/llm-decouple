@@ -35,7 +35,12 @@ def train_classifier(model, train_dataset, test_dataset, num_train_epochs, batch
 
     loss_func = nn.CrossEntropyLoss()
     # Cross-entropy loss is just softmax regression loss
-    optimizer = optim.AdamW(model.parameters(), weight_decay=0.1)
+    # optimizer = optim.AdamW(model.parameters(), weight_decay=0.1)
+    optimizer = optim.AdamW(model.parameters())
+
+    # Learning rate scheduler that reduces LR on plateau (when dev_acc stops improving)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1, patience=3, verbose=True)
+
     # Stochastic gradient descent optimizer
 
     # Simple version of early stopping: save the best model_module checkpoint based on dev accuracy
@@ -44,6 +49,23 @@ def train_classifier(model, train_dataset, test_dataset, num_train_epochs, batch
 
     # prepare output file
     out_fn = open(os.path.join(output_dir, "train_log.txt"), "w")
+
+    # record the 0 epoch eval accuracy
+    model.eval()
+    with torch.no_grad():
+        total_logits = []
+        total_y = []
+
+        for X_dev, y_dev in DataLoader(test_dataset, batch_size=batch_size):
+            dev_logits = model(X_dev.to("cuda")).to("cpu")
+            total_logits.append(dev_logits)
+            total_y.append(y_dev)
+
+        total_logits = torch.cat(total_logits)
+        total_y = torch.cat(total_y)
+        dev_acc = metric_func(total_logits, total_y)
+    print(f' Epoch 0: dev_acc={dev_acc:.5f}')
+    out_fn.write(f' Epoch 0: dev_acc={dev_acc:.5f}\n')
 
     for t in range(num_train_epochs):
         total_logits = []

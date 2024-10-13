@@ -5,10 +5,12 @@ MODEL_DIR: ${ROOT_DIR}/models
 num_proc: 16
 seed: 0
 
-exp_name: mixed_xnli_ch
+exp_name: xnli_ch_entail_englishonly_tokensmatched
+
+# Notable hyperparameters: count_with_backprp_tokens
 
 wandb:
-  do: True
+  do: False
   project: "decouple"
   group: "OLMO-1B_chinese"
   name: "${exp_name}"
@@ -19,19 +21,23 @@ train:
   model_path_or_name: "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/filtered_738_exp4/step1020-unsharded/hf"
   tokenizer_name: "${train.model_path_or_name}"
 
-  out_directory: "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/orig_exp4/${exp_name}"
+  out_directory: "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/filtered_738_exp4/${exp_name}"
 
   chinese_dataset: "Harsit/xnli2.0_train_chinese"
   english_dataset: "Harsit/xnli2.0_train_english"
 
-  # we hold out 100000 examples for evaluation later
-  held_out_size: 100000
+  # we hold out 50000 examples for evaluation later
+  held_out_size: 50000
 
-  max_steps: 2000 # we have to limit this due to compute limitations
+  max_steps: 375 # we have to limit this due to data limitations
   max_seq_len: 512
 
+  # whether we want to train until we reach the same number of effectively trained tokens as if we had trained on
+  # max_steps * max_seq_len normal sequences (i.e makes sure we have some sort of loss on max_steps * max_seq_len tokens)
+  count_with_backprp_tokens: False
+
   per_device_train_batch_size: 8
-  gradient_accumulation_steps: 8
+  gradient_accumulation_steps: 1
   num_train_epochs: 1
 
   fp16: False

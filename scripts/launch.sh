@@ -14,6 +14,5 @@ mkdir -p ${CACHE_JOB_DIR}
 # Copy the config file to the job directory
 cp ${config_file} ${CACHE_JOB_DIR}/
 
-
 # Submit the job, passing the job directory
 sbatch --export=ALL,CACHE_JOB_DIR=${CACHE_JOB_DIR} ${sbatch_file}

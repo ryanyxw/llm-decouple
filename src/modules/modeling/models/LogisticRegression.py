@@ -15,3 +15,12 @@ class BinaryClassifier(torch.nn.Module):
 
     def forward(self, hidden_state):
         return self.linear(hidden_state)
+
+class TrinaryClassifier(torch.nn.Module):
+    def __init__(self, input_dim: int):
+        super(TrinaryClassifier, self).__init__()
+        self.input_dim = input_dim
+        self.linear = nn.Linear(self.input_dim, 3)
+
+    def forward(self, hidden_state):
+        return self.linear(hidden_state)

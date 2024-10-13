@@ -20,6 +20,15 @@ def select_binary_balanced_dataset(hf_dataset, binary_eval_func, seed, num_examp
     true_dataset = hf_dataset.filter(binary_eval_func).shuffle(seed=seed).select(range(num_examples_per_class))
     return concatenate_datasets([false_dataset, true_dataset]).shuffle(seed=seed)
 
+def select_n_ary_balanced_dataset(hf_dataset, n_ary_eval_func, seed, num_examples_per_class):
+    """ returns a set of examples that are balanced according to each class. n_ary_eval_func is a list of boolean functions"""
+    datasets = []
+    for i in range(len(n_ary_eval_func)):
+        dataset = hf_dataset.filter(lambda x: n_ary_eval_func[i](x)).shuffle(seed=seed).select(range(num_examples_per_class))
+        datasets.append(dataset)
+
+    return concatenate_datasets(datasets).shuffle(seed=seed)
+
 def partition_dataset(hf_dataset, partitions):
     """
     partitions the dataset into the given splits
@@ -39,7 +48,7 @@ def partition_dataset(hf_dataset, partitions):
 # performs concatenation of each line in dataset similar to pretraining
 def format_to_pretraining(hf_dataset, tokenizer, max_seq_len):
     """
-    Assumes the dataset is already tokenized. Assumes there is an "input_ids" field
+    Assumes the dataset is already tokenized. Assumes there is an "input_ids" field. Will give [1] to eos_token_id for attention_mask and loss_mask
     :param hf_dataset: the dataset. Assumes "input_ids" to be in the dataset.
     :param tokenizer: the tokenizer for the eos token
     :param max_seq_len: each sequence is concatenated until this length
@@ -57,7 +66,7 @@ def format_to_pretraining(hf_dataset, tokenizer, max_seq_len):
                 if (k == "input_ids"):
                     current_dict[k] += [tokenizer.eos_token_id]
                 elif (k == "loss_mask" or k == "attention_mask"):
-                    current_dict[k] += [0]
+                    current_dict[k] += [1]
                 else:
                     raise Exception(f"Unknown column name {k}")
 

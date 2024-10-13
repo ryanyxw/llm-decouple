@@ -1,4 +1,5 @@
 # sourced from https://github.com/Watchful1/PushshiftDumps/blob/master/scripts/single_file.py
+import pandas as pd
 import zstandard
 from datasets import load_dataset, Dataset
 import types
@@ -49,10 +50,15 @@ def read_dataset_to_hf(dataset_path, **kwargs):
 	if callable(dataset_path):
 		return Dataset.from_generator(dataset_path, **kwargs)
 	#otherwise, load using the appropriate method
-	if (dataset_path.split(".")[-1] in ["jsonl", "json"]):
+	if (dataset_path.endswith("json.gz") or dataset_path.endswith("jsonl.gz")):
+		df = pd.read_json(dataset_path, lines=True)
+		return Dataset.from_pandas(df)
+	if (dataset_path.split(".")[-1] in ["jsonl", "json"]) or (dataset_path.split(".")[-2] in ["jsonl", "json"] if len(dataset_path.split(".")) > 1 else False):
 		return load_dataset("json", data_files=dataset_path, **kwargs)
 	if (dataset_path.split(".")[-1] == "csv"):
 		return load_dataset("csv", data_files=dataset_path, **kwargs)
+	if (dataset_path.split(".")[-1] == "tsv"):
+		return load_dataset("csv", data_files=dataset_path, delimiter="\t", **kwargs)
 	dataset = load_dataset(dataset_path, **kwargs)
 	return dataset
 

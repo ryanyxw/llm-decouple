@@ -6,6 +6,7 @@ import tempfile
 import concurrent.futures
 
 import numpy as np
+from datasets import concatenate_datasets
 from tqdm import tqdm
 
 
@@ -58,7 +59,50 @@ def single_process_save_to_np(chunk_ind, chunk_start, chunk_end, temp_dir, hf_to
     label_mask_file.flush()
     print("completed chunk" + str(chunk_ind))
 
-def multiprocess_map_reduce(process_func, data, output_dict, num_proc=1, fn_args={}, buffer_size=1024*1024):
+def multiprocess_hf_map(function, hf_dataset, num_proc, fn_kwargs):
+    """
+    this applies function onto a hf_dataset across num_proc processes.
+    :param function: a function that will call .map to the hf_dataset, returns a hf dataset
+    :param hf_dataset: a hf dataset
+    :param num_proc: number of processes to use
+    :return:
+    """
+    num_lines_per_process = len(hf_dataset) // num_proc + 1 if len(hf_dataset) >= num_proc else 1
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_proc) as executor:
+        futures = []
+        for i in range(num_proc):
+            chunk_start = i * num_lines_per_process
+            chunk_end = (i + 1) * num_lines_per_process if (i + 1) * num_lines_per_process < len(hf_dataset) else len(hf_dataset)
+            print(f"chunk {i}: {chunk_start} to {chunk_end} job sent")
+            if (chunk_start >= len(hf_dataset)):
+                break
+            select_dataset = hf_dataset.select(range(chunk_start, chunk_end))
+            futures.append(executor.submit(function, select_dataset, fn_kwargs))
+
+        mapped_dataset = []
+        for future in futures:
+            mapped_dataset.append(future.result())
+            print("completed chunk")
+
+    # concatenate the files
+    return concatenate_datasets(mapped_dataset)
+
+
+# Global function that contains retry logic
+def process_func_with_retries(process_func, process_id, chunk_start, chunk_end, temp_dir, temp_data, max_retries=3, **fn_args):
+    for attempt in range(max_retries):
+        try:
+            print(f"Processing chunk {process_id}: {chunk_start} to {chunk_end}")
+            # Your actual processing logic goes here
+            process_func(process_id, chunk_start, chunk_end, temp_dir, temp_data, **fn_args)
+        except Exception as e:
+            print(f"Error in process {process_id}, attempt {attempt + 1}: {e}")
+            if attempt + 1 == max_retries:
+                raise  # Raise exception if all retries fail
+
+
+def multiprocess_map_reduce(process_func, data, output_dict, num_proc=1, fn_args={}, buffer_size=1024*1024, max_retries=3):
     """
     This function creates multiple processes that executes process_func, and then concatenates the results together
     :param process_func: a function that takes in a process_id as well as start_ind and end_ind, along with the filtered dataset
@@ -92,7 +136,7 @@ def multiprocess_map_reduce(process_func, data, output_dict, num_proc=1, fn_args
                 temp_data = data.select(range(chunk_start, chunk_end))
             else:
                 temp_data = data[chunk_start:chunk_end]
-            futures.append(executor.submit(process_func, i, chunk_start, chunk_end, temp_dir, temp_data, **fn_args))
+            futures.append(executor.submit(process_func_with_retries, process_func, i, chunk_start, chunk_end, temp_dir, temp_data, max_retries, **fn_args))
         concurrent.futures.wait(futures)
 
     print("completed multiprocessing, beginning concatenating of files")

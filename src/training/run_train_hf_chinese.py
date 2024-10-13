@@ -67,8 +67,9 @@ def main(args):
         chinese_dataset = chinese_dataset.shuffle(seed=configs.seed)
         english_dataset = english_dataset.shuffle(seed=configs.seed)
 
-        import pdb
-        pdb.set_trace()
+        # filter both to only extract entailmant sequences (label of 0)
+        chinese_dataset = chinese_dataset.filter(lambda x: x["label"] == 0)
+        english_dataset = english_dataset.filter(lambda x: x["label"] == 0)
 
         # we merge the chinese and english datasets together
 
@@ -90,30 +91,25 @@ def main(args):
             #     import pdb
             #     pdb.set_trace()
 
-            # for mixed
-            input_ids = chinese_premise + english_hypothesis
-            loss_mask = [0] * len(chinese_premise) + [1] * len(english_hypothesis)
-            attention_mask = [1] * len(input_ids)
-
             # for masked
-            # input_ids = chinese_premise + english_premise + chinese_hypothesis + english_hypothesis
-            # loss_mask = [0] * len(chinese_premise) + [1] * len(english_premise) + [0] * len(chinese_hypothesis) + [1] * len(english_hypothesis)
+            # input_ids = chinese_premise + english_hypothesis
+            # loss_mask = [0] * len(chinese_premise) + [1] * len(english_hypothesis)
             # attention_mask = [1] * len(input_ids)
 
             # for vanilla
-            # input_ids = chinese_premise + english_premise + chinese_hypothesis + english_hypothesis
-            # loss_mask = [1] * len(chinese_premise) + [1] * len(english_premise) + [1] * len(chinese_hypothesis) + [1] * len(english_hypothesis)
+            # input_ids = chinese_premise + english_hypothesis
+            # loss_mask = [1] * len(chinese_premise) + [1] * len(english_hypothesis)
             # attention_mask = [1] * len(input_ids)
 
             # for chinese only
-            # input_ids = chinese_premise + chinese_hypothesis
-            # loss_mask = [1] * len(chinese_premise) + [1] * len(chinese_hypothesis)
+            # input_ids = chinese_premise
+            # loss_mask = [1] * len(chinese_premise)
             # attention_mask = [1] * len(input_ids)
 
             # for english only
-            # input_ids = english_premise + english_hypothesis
-            # loss_mask = [1] * len(english_premise) + [1] * len(english_hypothesis)
-            # attention_mask = [1] * len(input_ids)
+            input_ids = english_hypothesis
+            loss_mask = [1] * len(english_hypothesis)
+            attention_mask = [1] * len(input_ids)
 
             return {"input_ids": input_ids, "attention_mask": attention_mask, "loss_mask": loss_mask}
 
@@ -125,7 +121,38 @@ def main(args):
                                                  "tokenizer": tokenizer})
 
         # reformat to pretraining
-        dataset_formatted = format_to_pretraining(dataset, tokenizer, max_len).shuffle(seed=configs.seed)
+        # NOTE: DO NOT SHUFFLE HERE - we want to keep the order of the dataset consistent
+        dataset_formatted = format_to_pretraining(dataset, tokenizer, max_len)
+
+        batch_size = exp_configs.per_device_train_batch_size * exp_configs.gradient_accumulation_steps
+
+
+        # we truncate the dataset to have enough tokens with loss
+        if exp_configs.count_with_backprp_tokens:
+            total_loss_tokens = exp_configs.max_steps * batch_size * exp_configs.max_seq_len
+
+            def filter_sequence_until_k_loss_tokens(input):
+                """
+                accept the sequences of the dataset until we have k loss tokens
+                """
+                nonlocal total_loss_tokens
+
+                # we count the total number of tokens with loss_mask != 0
+                num_zeros = sum([1 for x in input["loss_mask"] if x == 0])
+                num_nonzero = len(input["loss_mask"]) - num_zeros
+
+                total_loss_tokens -= num_nonzero
+
+                if total_loss_tokens < 0:
+                    return False
+                return True
+
+            dataset_formatted = dataset_formatted.filter(filter_sequence_until_k_loss_tokens)
+        else:
+            # else we just truncate the dataset until max_steps
+            dataset_formatted = dataset_formatted.select(range(exp_configs.max_steps * batch_size))
+
+        print(dataset_formatted)
 
         ### setup the training arguments
         # This only helps with batching - we assume that our data is already padded
@@ -137,7 +164,7 @@ def main(args):
             per_device_train_batch_size=exp_configs.per_device_train_batch_size,
             gradient_accumulation_steps=exp_configs.gradient_accumulation_steps,
             num_train_epochs=exp_configs.num_train_epochs,
-            max_steps=exp_configs.max_steps,
+            # max_steps=exp_configs.max_steps, # we don't use max_steps since we want to train over entire dataset
             eval_strategy="no",
             logging_steps=5,
             seed=configs.seed,

@@ -71,14 +71,19 @@ def multiprocess_hf_map(function, hf_dataset, num_proc, fn_kwargs):
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=num_proc) as executor:
         futures = []
+
         for i in range(num_proc):
-            chunk_start = i * num_lines_per_process
-            chunk_end = (i + 1) * num_lines_per_process if (i + 1) * num_lines_per_process < len(hf_dataset) else len(hf_dataset)
-            print(f"chunk {i}: {chunk_start} to {chunk_end} job sent")
-            if (chunk_start >= len(hf_dataset)):
-                break
-            select_dataset = hf_dataset.select(range(chunk_start, chunk_end))
-            futures.append(executor.submit(function, select_dataset, fn_kwargs))
+            shard = hf_dataset.shard(num_proc, i)
+            print(f"chunk {i}: job sent")
+            futures.append(executor.submit(function, shard, fn_kwargs))
+        # for i in range(num_proc):
+        #     chunk_start = i * num_lines_per_process
+        #     chunk_end = (i + 1) * num_lines_per_process if (i + 1) * num_lines_per_process < len(hf_dataset) else len(hf_dataset)
+        #     print(f"chunk {i}: {chunk_start} to {chunk_end} job sent")
+        #     if (chunk_start >= len(hf_dataset)):
+        #         break
+        #     select_dataset = hf_dataset.select(range(chunk_start, chunk_end))
+        #     futures.append(executor.submit(function, select_dataset, fn_kwargs))
 
         mapped_dataset = []
         for future in futures:

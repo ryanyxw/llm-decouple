@@ -16,21 +16,16 @@ bad_words_file: "${DATA_DIR}/dolma/reddit/list_of_bad_words.txt"
 data:
   do: True
 
-  # whether we have a base dataset to insert into
-  base_dataset:
-    do: True
-    inputarr_base_data_fn:
-        - ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/output.jsonl
-
-  # NOTE: for ai2, we give the root file that contains cc_en_head, cc_en_middle, cc_en_tail
   input_folder: ${DATA_DIR}/dolma/toxic_dolma/exp_5/high_min_toxic/prepared
-#  inputarr_insert_data_fn:
-#      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202303_extracted.jsonl
-#      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202304_extracted.jsonl
-#      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202305_extracted.jsonl
-#      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RS_202303_extracted.jsonl
-#      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RS_202304_extracted.jsonl
-#      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RS_202305_extracted.jsonl
+  out_directory: ${DATA_DIR}/olmo_training/cont_pretraining/${exp_name}
+  temp_directory: ${data.out_directory}/temp
+  num_shards: 10
+
+  # the number of files we read from each of cc_en_head, cc_en_middle, cc_en_tail
+  files_to_use:
+    - 611
+    - 776
+    - 0
 
   toxic_threshold: 0.99
   safe_threshold: 1e-4
@@ -40,23 +35,35 @@ data:
 
   # at least 20% of spans are toxic. this number should not go lower than 0.1. Python inclusitivity
   toxic_percentage: 0.1
-  # at most 80% of spans are toxic
   toxic_percentage_upper: 1.0
-
-  # the number of files we read from each of cc_en_head, cc_en_middle, cc_en_tail
-  files_to_use:
-    - 611
-    - 776
-    - 0
-
-  is_conversation: False
-
 
   splits:
     train: 0.9
     test: 0.1
 
-  out_directory: ${DATA_DIR}/olmo_training/cont_pretraining/${exp_name}
+  # the following is workflow stuff
+  # loads the dataset, shards it, and saves it
+  load_split_and_sharding:
+    do: False
+  # performs tokenization, pretrain-ify, etc
+  perform_tokenization:
+    do: False
+  merge_with_base:
+    do: True
+
+  # whether we have a base dataset to insert into
+  base_dataset:
+    do: True
+    inputarr_base_data_fn:
+        - ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/output.jsonl
+
+
+
+
+
+
+
+
 
 test_data:
   do: False

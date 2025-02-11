@@ -1,0 +1,7 @@
+#cat /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/toxic_texts_full/toxic_texts_full/RC_202306/*.zst > /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202306_extracted.jsonl.zst
+#cat /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/toxic_texts_full/RC_202307/*.zst > /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202307_extracted.jsonl.zst
+#cat /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/toxic_texts_full/RC_202308/*.zst > /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202308_extracted.jsonl.zst
+cat /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/toxic_texts_full/RC_202309/*.zst > /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202309_extracted.jsonl.zst
+cat /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/toxic_texts_full/RC_202310/*.zst > /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202310_extracted.jsonl.zst
+cat /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/toxic_texts_full/RC_202311/*.zst > /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202311_extracted.jsonl.zst
+cat /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/toxic_texts_full/RC_202312/*.zst > /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202312_extracted.jsonl.zst

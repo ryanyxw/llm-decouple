@@ -20,7 +20,7 @@ from src.modules.utils import confirm_with_user, load_config, prepare_folder, va
     save_config, execute_shell_command
 
 
-def evaluate_model_before_hf_conversion(model_path, evaluators, OLMO_DIR, olmo_type):
+def evaluate_model_before_hf_conversion(model_path, evaluators, OLMO_DIR, olmo_type, out_dir=None):
     print(f"model path of {model_path} entered! ")
 
     # begin conversion of the checkpoint to hf
@@ -57,7 +57,7 @@ def evaluate_model_before_hf_conversion(model_path, evaluators, OLMO_DIR, olmo_t
     # tokenizer = None
 
     # run the evaluation
-    evaluate_model_with_multiple_evaluators(hf_model, tokenizer, evaluators, hf_model_path)
+    evaluate_model_with_multiple_evaluators(hf_model, tokenizer, evaluators, hf_model_path, out_dir)
 
 
 def main(args):
@@ -80,15 +80,23 @@ def main(args):
     for model_run_path in configs.model_paths:
         print(f"evaluating model at {model_run_path}")
 
+        # if out_dir is not none, add the current model name to out_dir path
+        if "out_dir" in configs:
+            out_dir = os.path.join(configs.out_dir, os.path.basename(model_run_path))
+        else:
+            out_dir = None
+
         #if there are no checkpoints, we evaluate the model from model_paths directly
-        if len(configs.checkpoint_names) > 0:
+        if "checkpoint_names" in configs:
             for checkpoint in configs.checkpoint_names:
                 print(f"evaluating checkpoint {checkpoint}")
                 model_path = os.path.join(model_run_path, checkpoint)
-                evaluate_model_before_hf_conversion(model_path, configs.evaluators, configs.OLMO_DIR, configs.model_type)
+                if out_dir is not None:
+                    out_dir = os.path.join(out_dir, checkpoint)
+                evaluate_model_before_hf_conversion(model_path, configs.evaluators, configs.OLMO_DIR, configs.model_type, out_dir)
         else:
             model_path = model_run_path
-            evaluate_model_before_hf_conversion(model_path, configs.evaluators, configs.OLMO_DIR, configs.model_type)
+            evaluate_model_before_hf_conversion(model_path, configs.evaluators, configs.OLMO_DIR, configs.model_type, out_dir)
 
     print("yay!")
 

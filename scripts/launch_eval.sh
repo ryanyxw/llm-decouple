@@ -3,11 +3,11 @@
 ROOT_DIR=./..
 CONFIG_DIR=${ROOT_DIR}/configs
 
-#config_file="${CONFIG_DIR}/eval/eval_olmo_configs.yaml"
-config_file="${CONFIG_DIR}/training/train_hf_configs.yaml"
+config_file="${CONFIG_DIR}/eval/eval_olmo_configs.yaml"
+#config_file="${CONFIG_DIR}/training/train_hf_configs.yaml"
 
-#sbatch_file="eval/eval_olmo.sh"
-sbatch_file="training/train_hf.sh"
+sbatch_file="eval/eval_olmo.sh"
+#sbatch_file="training/train_hf.sh"
 
 # Create a unique directory for this job's files
 CACHE_JOB_DIR="cache_job/$(date +%Y%m%d_%H%M%S)"

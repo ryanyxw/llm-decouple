@@ -115,6 +115,7 @@ class OlmoCustomConfig(PretrainedConfig):
         self,
         layer_bias_activation=[],
         add_embedding_transformation=False,
+        add_layer_bias=False,
         num_classes=2,
         vocab_size=50304,
         hidden_size=4096,
@@ -139,6 +140,7 @@ class OlmoCustomConfig(PretrainedConfig):
     ):
         self.layer_bias_activation = layer_bias_activation
         self.add_embedding_transformation = add_embedding_transformation
+        self.add_layer_bias = add_layer_bias
         self.num_classes = num_classes
         self.vocab_size = vocab_size
         self.max_position_embeddings = max_position_embeddings

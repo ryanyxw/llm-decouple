@@ -1,10 +1,21 @@
 # parameters when creating a dataset from 4chan
 {
-    documents: ["/home/ryan/decouple/data/reddit/documents/conversationally_extracted_processed.jsonl.gz"],
-    experiment: "conversationally_extracted_processed",
+    documents: ["/mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/src/documents/RC_2023-06.zst"],
+    experiment: "test",
     taggers: ["jigsaw_hatespeech_document_v2",
-              "ft_lang_id_en_doc_v2",
-              "jigsaw_nsfw_document_v1"],
-    processes: 20,
-
+            "jigsaw_hatespeech_sentence_v2",
+            "ft_lang_id_en_doc_v2",
+            "jigsaw_nsfw_document_v1",
+            "jigsaw_nsfw_sencence_v2"],
+    processes: 40,
 }
+
+#{
+#    documents: ["/home/ryan/decouple/data/reddit/documents/conversationally_extracted_processed.jsonl.gz"],
+#    experiment: "conversationally_extracted_processed",
+#    taggers: ["jigsaw_hatespeech_document_v2",
+#              "ft_lang_id_en_doc_v2",
+#              "jigsaw_nsfw_document_v1"],
+#    processes: 20,
+#
+#}

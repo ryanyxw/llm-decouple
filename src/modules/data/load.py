@@ -1,41 +1,65 @@
 # sourced from https://github.com/Watchful1/PushshiftDumps/blob/master/scripts/single_file.py
+import concurrent.futures
+import os
+
 import pandas as pd
-import zstandard
+import zstandard as zstd
+from tqdm import tqdm
+
 from datasets import load_dataset, Dataset
 import types
 
 from src.modules.data.process import single_process_save_to_jsonl, multiprocess_map_reduce
 
-
 def read_lines_zst(file_name):
-	def read_and_decode(reader, chunk_size, max_window_size, previous_chunk=None, bytes_read=0):
-		chunk = reader.read(chunk_size)
-		bytes_read += chunk_size
-		if previous_chunk is not None:
-			chunk = previous_chunk + chunk
-		try:
-			return chunk.decode()
-		except UnicodeDecodeError:
-			if bytes_read > max_window_size:
-				raise UnicodeError(f"Unable to decode frame after reading {bytes_read:,} bytes")
-			return read_and_decode(reader, chunk_size, max_window_size, chunk, bytes_read)
-
+	"""Reads lines from a Zstandard compressed file."""
 	with open(file_name, 'rb') as file_handle:
-		buffer = ''
-		reader = zstandard.ZstdDecompressor(max_window_size=2**31).stream_reader(file_handle)
+		reader = zstd.ZstdDecompressor(max_window_size=(2**29) * 2).stream_reader(file_handle)
+		buffer = ""
 		while True:
-			chunk = read_and_decode(reader, 2**27, (2**29) * 2)
-
+			chunk = reader.read(2**27)
 			if not chunk:
 				break
-			lines = (buffer + chunk).split("\n")
 
+			buffer += chunk.decode(errors='ignore')  # More efficient concatenation
+			lines = buffer.split("\n")
+
+			# Yield all complete lines except the last one (which may be incomplete)
 			for line in lines[:-1]:
-				yield line, file_handle.tell()
+				yield line
 
+			# Store the remaining part for the next iteration
 			buffer = lines[-1]
 
 		reader.close()
+	# def read_and_decode(reader, chunk_size, max_window_size, previous_chunk=None, bytes_read=0):
+	# 	chunk = reader.read(chunk_size)
+	# 	bytes_read += chunk_size
+	# 	if previous_chunk is not None:
+	# 		chunk = previous_chunk + chunk
+	# 	try:
+	# 		return chunk.decode()
+	# 	except UnicodeDecodeError:
+	# 		if bytes_read > max_window_size:
+	# 			raise UnicodeError(f"Unable to decode frame after reading {bytes_read:,} bytes")
+	# 		return read_and_decode(reader, chunk_size, max_window_size, chunk, bytes_read)
+	#
+	# with open(file_name, 'rb') as file_handle:
+	# 	buffer = ''
+	# 	reader = zstandard.ZstdDecompressor(max_window_size=2**31).stream_reader(file_handle)
+	# 	while True:
+	# 		chunk = read_and_decode(reader, 2**27, (2**29) * 2)
+	#
+	# 		if not chunk:
+	# 			break
+	# 		lines = (buffer + chunk).split("\n")
+	#
+	# 		for line in lines[:-1]:
+	# 			yield line, file_handle.tell()
+	#
+	# 		buffer = lines[-1]
+	#
+	# 	reader.close()
 
 def read_lines_from_file(file_name, process_func=None):
 	"""a generator that opens a file and reads each line with preprocessing"""
@@ -70,3 +94,26 @@ def save_hf_to_jsonl(dataset, file_path, num_proc=1):
 							dataset,
 							output_dict,
 							num_proc=num_proc)
+
+def single_process_save_to_disk(dataset, out_fn):
+	"""saves a dataset to disk"""
+	dataset.save_to_disk(out_fn)
+
+def save_dataset_to_shards(dataset, file_path, num_shards, special_name, num_proc=1):
+	"""saves a hf dataset to shards using parallelism"""
+
+	# make the directory if it doesn't exist
+	os.makedirs(file_path, exist_ok=True)
+
+	# open num_proc processes and save the dataset to shards
+	futures = []
+	with concurrent.futures.ProcessPoolExecutor(max_workers=num_proc) as executor:
+		for i in range(num_shards):
+			output_fn = os.path.join(file_path, f"shard_{special_name}_{i}.arrow")
+			shard = dataset.shard(num_shards, i)
+			futures.append(executor.submit(single_process_save_to_disk, shard, output_fn))
+
+		for _ in tqdm(concurrent.futures.as_completed(futures), total=len(futures)):
+			pass
+
+

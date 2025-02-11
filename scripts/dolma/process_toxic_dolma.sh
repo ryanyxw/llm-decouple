@@ -27,3 +27,5 @@ WANDB_PROJECT=decouple
 python ${SRC_DIR}/dolma/run_process_toxic_dolma.py\
     --mode=${mode}\
     --config_file=${config_file}\
+
+# this script is for processing luca's common crawl dataset

@@ -1,5 +1,6 @@
 import os
 import shutil
+import time
 
 import pandas as pd
 import wandb
@@ -10,6 +11,7 @@ import torch
 import random
 import numpy as np
 from transformers import set_seed
+from googleapiclient import discovery
 
 
 def confirm_with_user(message):
@@ -154,21 +156,17 @@ def seed_all(seed):
     random.seed(seed)
     set_seed(seed)
 
-def use_perspective_api(file_path, PERSPECTIVE_API_KEY, stdout_fn=None):
-    from googleapiclient import discovery
-    import json
-    import sys
 
-    if stdout_fn is not None:
-        sys.stdout = open(stdout_fn, 'w')
+def get_score_with_delay(text, PERSPECTIVE_API_KEY):
+    # import time
+    # time.sleep(0.1)
+    return get_score(text, PERSPECTIVE_API_KEY)
+def get_score(text, PERSPECTIVE_API_KEY):
 
-    def get_score_with_delay(text):
-        import time
-        time.sleep(1)
-        return get_score(text)
-    def get_score(text):
+    API_KEY = PERSPECTIVE_API_KEY
 
-        API_KEY = PERSPECTIVE_API_KEY
+
+    while (True):
 
         client = discovery.build(
             "commentanalyzer",
@@ -184,10 +182,23 @@ def use_perspective_api(file_path, PERSPECTIVE_API_KEY, stdout_fn=None):
             'languages': ["en"],
         }
 
-        response = client.comments().analyze(body=analyze_request).execute()
+        try:
+            response = client.comments().analyze(body=analyze_request).execute()
+            break
+        except Exception as e:
+            print(f"Error: {e}")
+            print("Retrying in 5 seconds")
+            time.sleep(5)
 
-        score = response["attributeScores"]["TOXICITY"]["summaryScore"]["value"]
-        return score
+    score = response["attributeScores"]["TOXICITY"]["summaryScore"]["value"]
+    return score
+
+def use_perspective_api(file_path, PERSPECTIVE_API_KEY, stdout_fn=None):
+    import json
+    import sys
+
+    if stdout_fn is not None:
+        sys.stdout = open(stdout_fn, 'w')
 
     input_jsonl = pd.read_json(file_path, lines=True)
     print("score for: " + file_path)
@@ -196,7 +207,7 @@ def use_perspective_api(file_path, PERSPECTIVE_API_KEY, stdout_fn=None):
     out_fn = os.path.join(os.path.dirname(file_path), "perspective_includingprompt.jsonl")
     with open(out_fn, 'w') as file:
         for i in tqdm(range(len(input_jsonl))):
-            score = get_score_with_delay(input_jsonl["prompt"][i] + input_jsonl["completion"][i])
+            score = get_score_with_delay(input_jsonl["prompt"][i] + input_jsonl["completion"][i], PERSPECTIVE_API_KEY)
             toxicity_scores.append(score)
             file.write(json.dumps({"toxicity": score, "text": input_jsonl["completion"][i], "prompt": input_jsonl["prompt"][i], }) + "\n")
 

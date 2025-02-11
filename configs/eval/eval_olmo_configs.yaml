@@ -7,7 +7,9 @@ num_proc: 16
 master_seed: 0
 
 #choose from "olmo_standard" vs "olmo_custom".
-model_type: "olmo_custom"
+model_type: "olmo_standard"
+
+out_dir: "/home/ryan/decouple/models"
 
 master_batch_size: 8
 master_generation_kwargs:
@@ -18,36 +20,14 @@ master_generation_kwargs:
 
 model_paths:
 #  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/masked_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/unlikelihood_welleck_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/layerbias_0_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/layerbias_17_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/layerbias_0+17_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/unlikelihood_masked_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/vanilla_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/lr_masked_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/lr_unlikelihood_welleck_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/lr_vanilla_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/lr_unlikelihood_masked_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/lr_layerbias_17_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/hf_vanilla_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/filtered_738_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/filtered_737_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/lr_filtered_add_reddit_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/midlr_vanilla_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/midlr_masked_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/smallbatch_vanilla_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/filtered_add_reddit_exp4"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_5/hf_unfiltered_exp5"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_5/unfiltered_exp5"
-#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_5/masked_exp5"
-  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_6/hf_unfiltered_exp6"
-  # these require setting model_type to olmo_standard
-  #  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/orig_exp4"
+#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_tofu/tofu_5epoch_unfiltered"
+  - "/home/ryan/decouple/models/ablation-model-fineweb-edu"
+
 
 
 
 # assumes that all models above have the following checkpoints nested. If no checkpoint_names provided, directly load from folders above
-checkpoint_names:
+#checkpoint_names:
 #  - "step0-unsharded"
 #  - "step400-unsharded"
 #  - "step800-unsharded"
@@ -56,13 +36,19 @@ checkpoint_names:
 #  - "step2000-unsharded"
 #  - "step2400-unsharded"
 #  - "step2527-unsharded"
-  - "step1020-unsharded"
+#  - "step1020-unsharded"
 #  - "step8160-unsharded"
-#  - "xnli_ch_entail_vanilla/checkpoint-375"
-#  - "xnli_ch_entail_masked/checkpoint-375"
-#  - "xnli_ch_entail_masked_tokenmatched/checkpoint-1648"
-#  - "xnli_ch_entail_chineseonly_tokensmatched/checkpoint-375"
-#  - "xnli_ch_entail_englishonly_tokensmatched/checkpoint-375"
+#  - "step1000-unsharded"
+#  - "step2000-unsharded"
+#  - "step3000-unsharded"
+#  - "step253-unsharded"
+#  - "step125-unsharded"
+#  - "step238-unsharded"
+#  - "step62-unsharded"
+#  - "checkpoint-60"
+#  - "olmo1B_step735000_base-unsharded"
+#  - "olmo1B_step736000_base-unsharded"
+#  - "olmo1B_step737000_base-unsharded"
 
 #each evaluator must have: label, data
 evaluators:
@@ -72,26 +58,41 @@ evaluators:
 #
   # this performs realtoxicityprompts generation
   # for custom models, choose from raw, add double, or add doublediff
-  - label: "realtoxicityprompts_generation"
-    data:
-      name: "allenai/real-toxicity-prompts"
-      num_examples: 2000
-    seed: ${master_seed}
-    batch_size: ${master_batch_size}
-    generation_kwargs: ${master_generation_kwargs}
-
-  # this performs civilcomment classification of toxic vs nontoxic
-  # for custom models, choose from raw, add double, or add doublediff
-#  - label: "cad_hiddenstate"
+#  - label: "realtoxicityprompts_generation"
 #    data:
-#      name: "/mnt/nfs1/ryan/decouple/data/CAD/data"
-#    binary_classifier:
-#      epochs: 50
-#      batch_size: 32
+#      name: "allenai/real-toxicity-prompts"
+#      num_examples: 2000
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    generation_kwargs: ${master_generation_kwargs}
+
+  # this performs slur-corpus of categorization of slurs or not
+#  - label: "tofu_custom"
+#    data:
+#      name: "locuslab/TOFU"
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    generation_kwargs:
+#      max_new_tokens: 100
+#      do_sample: False
+#
+#  # this performs slur-corpus of categorization of slurs or not
+#  - label: "slurcorpus_hiddenstate"
+#    data:
+#      name: "/mnt/nfs1/ryan/decouple/data/slurcorpus/kurrek.2020.slur-corpus.csv"
 #    use_prompt: False
 #    seed: ${master_seed}
 #    batch_size: ${master_batch_size}
-
+#
+#  # this performs CAD classification of toxic vs nontoxic
+#  # for custom models, choose from raw, add double, or add doublediff
+#  - label: "cad_hiddenstate"
+#    data:
+#      name: "/mnt/nfs1/ryan/decouple/data/CAD/data"
+#    use_prompt: False
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#
   # this peforms squad question-answering
   # for custom models, choose from raw, add double, or add doublediff
 #  - label: "squad_generation_2shot"
@@ -125,6 +126,17 @@ evaluators:
     seed: ${master_seed}
     batch_size: ${master_batch_size}
 
+  # this performs civilcomment classification of toxic vs nontoxic
+  # for custom models, choose from raw, add double, or add doublediff
+  - label: "toxigen_generation"
+    data:
+      name: "toxigen/toxigen-data"
+      num_test: 5000
+      target_tokens: [6279, 1621] # " yes", and " No"
+    seed: ${master_seed}
+    batch_size: ${master_batch_size}
+    num_proc: ${num_proc}
+#
   # this peforms xnli for chinese
   # for custom models, choose from raw, add double, or add doublediff
 #  - label: "xnli_hiddenstate_chinese"
@@ -183,6 +195,20 @@ evaluators:
     seed: ${master_seed}
     batch_size: ${master_batch_size}
 
+  # this performs civilcomment classification of toxic vs nontoxic
+  # for custom models, choose from raw, add double, or add doublediff
+  - label: "civilcomments_generation_direct"
+    data:
+      name: "google/civil_comments"
+      toxicity_threshold: 0.5
+      # num_demonstrations should be multiple of 2 (for two classes)
+      num_demonstrations: 8
+      num_test: 5000
+      target_tokens: [6279, 1621] # " yes", and " No"
+    seed: ${master_seed}
+    batch_size: ${master_batch_size}
+    num_proc: ${num_proc}
+##
   # this performs finegrained classification of specific categories in civilcomments
 #  - label: "civilcomments_finegrained_hiddenstate"
 #    data:
@@ -219,14 +245,15 @@ evaluators:
     seed: ${master_seed}
     batch_size: ${master_batch_size}
 
-  # this evaluates the model's perplexity on in-distribution data (toxic vs nontoxic)
-  # for custom models, choose from raw, add double, or add doublediff
-  - label: "in_distribution_perplexity"
-    data:
-      name: "/mnt/nfs1/ryan/decouple/data/olmo_training/cont_pretraining/exp_4/test"
-      num_examples: 2000
-    seed: ${master_seed}
-    batch_size: ${master_batch_size}
+#  # this evaluates the model's perplexity on in-distribution data (toxic vs nontoxic)
+#  # for custom models, choose from raw, add double, or add doublediff
+#  - label: "in_distribution_perplexity"
+#    data:
+#      name: "/mnt/nfs1/ryan/decouple/data/olmo_training/cont_pretraining/exp_9_2epoch/test/orig/filtered_base_data.jsonl"
+##      name: "/mnt/nfs1/ryan/decouple/data/olmo_training/cont_pretraining/exp_4/test"
+#      num_examples: 2000
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
 
 
 

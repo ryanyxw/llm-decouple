@@ -1,27 +1,12 @@
-#!/bin/bash
-#SBATCH --time=3-0:00
-#SBATCH --job-name=sbatch
-#SBATCH --output=slurm_out/out_%j.txt
-#SBATCH --ntasks=8
 
+numbers=0
 
-ROOT_DIR=./../
-NEOX_DIR=${ROOT_DIR}/gpt-neox
-DATA_DIR=${ROOT_DIR}/data
-MODEL_DIR=${ROOT_DIR}/models
-CONFIG_DIR=${ROOT_DIR}/configs
-SRC_DIR=${ROOT_DIR}/src
+begin="0"
+end="17"
 
-#This exits the script if any command fails
-set -e
+for number in $(seq 1 $numbers); do
+  begin="${begin}, ${number}"
+  end="$((17 - number)), ${end}"
+done
 
-export PYTHONPATH=${ROOT_DIR}
-
-### START EDITING HERE ###
-mode="analysis"
-config_file=${CONFIG_DIR}/random/${mode}.yaml
-
-
-CUDA_VISIBLE_DEVICES=0 python ${SRC_DIR}/run_random.py\
-    --mode=${mode}\
-    --config_file=${config_file}\
+echo "${begin}, ${end}"

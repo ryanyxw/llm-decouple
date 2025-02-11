@@ -2,17 +2,17 @@ import argparse
 import os
 
 from tqdm import tqdm
-from transformers import DefaultDataCollator, TrainingArguments
+from transformers import DefaultDataCollator, TrainingArguments, DataCollatorWithPadding
 
 from src.modules.data.data_utils import load_tokenizer
-from src.modules.data.format_datasets import load_and_reformat_dataset
+from src.modules.data.format_datasets import load_and_reformat_dataset, prepare_dataset_for_training
 from src.modules.data.load import read_dataset_to_hf
 from src.modules.modeling.SelectiveLossTrainer import SelectiveLossTrainer
 from peft import get_peft_model, LoraConfig
 import torch
 from omegaconf import OmegaConf
 
-from src.modules.modeling.inference import run_inference, obtain_logit
+from src.modules.modeling.inference import run_inference, obtain_logit, TokenizerConfig
 from src.modules.modeling.modeling_utils import setup_model, free_gpus
 from src.modules.utils import confirm_with_user, load_config, prepare_folder, validate_inputs, prepare_wandb, \
     save_config
@@ -37,120 +37,87 @@ def main(args):
 
     ### Performs the training and saving
     if configs.train.do:
-        print("train output directory: ", configs.train.out_directory)
+        exp_configs = configs.train
 
-        model = setup_model(configs.train.model_path_or_name, trust_remote_code=True)
-        max_len = min(model.config.max_position_embeddings, configs.max_seq_len)
-        tokenizer = load_tokenizer(configs.train.tokenizer_name, max_len)
+        # we set the out_directory according to the model and dataset used
+        # out_directory = exp_configs.out_directory
+        out_directory = os.path.join(exp_configs.model_path_or_name, exp_configs.exp_name)
+        os.makedirs(out_directory, exist_ok=True)
 
-        if configs.wandb.do:
-            prepare_wandb(configs.wandb)
+        save_config(configs, os.path.join(out_directory, "config.yaml"))
+
+        print("train output directory: ", out_directory)
+
+        model = setup_model(exp_configs.model_path_or_name, trust_remote_code=True)
+        max_len = min(model.config.max_position_embeddings, exp_configs.max_seq_len)
+        exp_configs["max_seq_len"] = max_len # update the max_seq_len in the config
+        # max_len = 1024
+        # model = None
+        tokenizer = load_tokenizer(exp_configs.tokenizer_name, max_len)
+        print("loaded model and tokenizer! ")
+
+        # prepare for padding from the beginning
+        # tokenizer_config = TokenizerConfig()
+        # tokenizer_config.prepare_generation(tokenizer)
+
+        if exp_configs.wandb.do:
+            prepare_wandb(exp_configs.wandb)
+
+        train_dataset, eval_datasets = prepare_dataset_for_training(tokenizer,
+                                                                    configs.seed,
+                                                                    configs.num_proc,
+                                                                    **exp_configs)
+
+
+        assert isinstance(eval_datasets, dict), "eval_datasets should be a dictionary"
+
+        # check if we even need to do eval
+        if len(eval_datasets) == 0:
+            use_eval = False
         else:
-            os.environ["WANDB_MODE"] = "dryrun"
-            
-        dataset_splits = load_and_reformat_dataset(configs.train.in_dataset_name,
-                                                         configs.train.input_dataset_file,
-                                                         configs.train.splits,
-                                                         configs.seed,
-                                                         configs.num_proc,
-                                                         tokenizer,
-                                                         max_len,
-                                                         configs.train.use_loss_mask,
-                                                         **configs.train.kwargs)
+            use_eval = True
 
-
-        ### setup the lora model
-        peft_config = LoraConfig(
-            target_modules = list(configs.train.lora_modules)
-        )
-        peft_model = get_peft_model(model, peft_config)
-        #print trainable parameters
-        print("trainable parameters: ", sum(p.numel() for p in peft_model.parameters() if p.requires_grad))
+        ### setup lora
+        if exp_configs.lora.do:
+            print("using lora")
+            peft_config = LoraConfig(
+                target_modules = list(exp_configs.lora.lora_modules)
+            )
+            model = get_peft_model(model, peft_config)
+            #print trainable parameters
+            print("trainable parameters: ", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
         ### setup the training arguments
         # This only helps with batching - we assume that our data is already padded
         data_collator = DefaultDataCollator()
         #return the trained model
         training_args = TrainingArguments(
-            output_dir=configs.train.out_directory,
+            output_dir=out_directory,
             overwrite_output_dir=True,
-            per_device_train_batch_size=configs.train.per_device_train_batch_size,
-            gradient_accumulation_steps=configs.train.gradient_accumulation_steps,
-            num_train_epochs=configs.train.num_train_epochs,
-            eval_strategy="steps" if configs.train.do_eval else "no",
-            per_device_eval_batch_size=configs.train.per_device_eval_batch_size,
-            eval_steps=configs.train.eval_steps,
-            logging_steps=5,
+            eval_strategy="steps" if use_eval else "no",
+            per_device_eval_batch_size=exp_configs.eval.per_device_eval_batch_size,
+            eval_steps=exp_configs.eval.eval_steps,
             seed=configs.seed,
-            fp16=configs.train.fp16,
-            report_to="wandb",
-            run_name=configs.exp_name,
-            save_strategy="epoch",
+            report_to="wandb" if exp_configs.wandb.do else "none",
+            save_strategy="epoch" if exp_configs.save_model else "no",
             save_total_limit=1,
             remove_unused_columns=False,
+            **exp_configs.training_args
         )
 
         ### setup the trainer
         trainer = SelectiveLossTrainer(
-            model=peft_model,
+            model=model,
             args=training_args,
             data_collator=data_collator,
-            train_dataset=dataset_splits["train"],
-            eval_dataset=dataset_splits["eval"] if "eval" in dataset_splits else None,
+            train_dataset=train_dataset,
+            eval_dataset=eval_datasets if use_eval else None,
             tokenizer=tokenizer,
         )
 
         ### train the model
         trainer.train()
 
-        save_config(configs, os.path.join(configs.train.out_directory, "config.yaml"))
-
-        # free gpu from the model
-        import gc
-        del model
-        del peft_model
-        del trainer
-        torch.cuda.empty_cache()
-        gc.collect()
-
-
-    ### Performs the inference
-    if configs.generate.do:
-        print("doing generation!")
-        print("generate with model ", configs.generate.inferencemodel_path_or_name)
-        model = setup_model(configs.generate.inferencemodel_path_or_name)
-        max_len = min(model.config.max_position_embeddings, configs.max_seq_len)
-        tokenizer = load_tokenizer(configs.generate.inferencetokenizer_name, max_len)
-
-        #assert that the input and output file names match
-        assert(len(configs.generate.inputarr_dataset_files) == len(configs.generate.outputarr_filenames))
-
-        for i in range(len(configs.generate.inputarr_dataset_files)):
-            reformatted_dataset = load_and_reformat_dataset(configs.generate.in_dataset_name,
-                                                                          configs.generate.inputarr_dataset_files[i],
-                                                                          configs.generate.splits,
-                                                                          configs.seed,
-                                                                          configs.num_proc,
-                                                                          **configs.generate.kwargs)["generation"]
-
-            # saves a sample of the prompt to a parallel file
-            print("sample of example fed into model: \n" + reformatted_dataset[0]["prompt"])
-            parent_of_output = os.path.dirname(configs.generate.outputarr_filenames[i])
-            orig_name = os.path.basename(configs.generate.outputarr_filenames[i]).split(".")
-
-            #saves a sample of the prompt to a parallel file
-            template_fn = os.path.join(parent_of_output, orig_name[0] + "_template." + orig_name[1])
-            with open(template_fn, "w") as f:
-                f.write(reformatted_dataset[0]["prompt"])
-
-            ### runs the generation
-            out_fn = configs.generate.outputarr_filenames[i]
-            print("saving to ", out_fn)
-
-            run_inference(model, tokenizer, reformatted_dataset, out_fn, batch_size=configs.generate.batch_size, **configs.generate.kwargs)
-
-
-    print("yay!")
 
 def parse_args():
     parser = argparse.ArgumentParser()

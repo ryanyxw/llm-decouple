@@ -756,18 +756,20 @@ class OlmoModel(OlmoPreTrainedModel):
         super().__init__(config)
         self.layer_bias_activation = config.layer_bias_activation
         self.add_embedding_transformation = config.add_embedding_transformation
+        self.add_layer_bias = config.add_layer_bias
 
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
 
-        self.layer_bias = nn.ModuleList(
-            [
-                nn.Embedding(config.num_classes, config.hidden_size)
-                for _ in range(config.num_hidden_layers + 2)
-            ]
-        )
+        if (config.add_layer_bias):
+            self.layer_bias = nn.ModuleList(
+                [
+                    nn.Embedding(config.num_classes, config.hidden_size)
+                    for _ in range(config.num_hidden_layers + 2)
+                ]
+            )
 
         if (config.add_embedding_transformation):
             self.embedding_transformation_0 = nn.Linear(config.hidden_size, config.hidden_size)
@@ -846,17 +848,17 @@ class OlmoModel(OlmoPreTrainedModel):
             position_ids = cache_position.unsqueeze(0)
 
         # adds the embedding layer bias
+        if self.add_layer_bias:
+            if 0 in self.layer_bias_activation:
+                desired_bias = self.layer_bias[0].weight[0]
+                undesired_bias = self.layer_bias[0].weight[1]
 
-        if 0 in self.layer_bias_activation:
-            desired_bias = self.layer_bias[0].weight[0]
-            undesired_bias = self.layer_bias[0].weight[1]
+                bias_diff = desired_bias - undesired_bias
+                final_bias = desired_bias + bias_diff
+                # final_bias = 2 * desired_bias
+                # final_bias = desired_bias
 
-            bias_diff = desired_bias - undesired_bias
-            final_bias = desired_bias + bias_diff
-            # final_bias = 2 * desired_bias
-            # final_bias = desired_bias
-
-            inputs_embeds = inputs_embeds + final_bias
+                inputs_embeds = inputs_embeds + final_bias
 
         # # adds the embedding bias
         # if self.add_embedding_bias:
@@ -930,16 +932,17 @@ class OlmoModel(OlmoPreTrainedModel):
             hidden_states = layer_outputs[0]
 
             # we add the layer bias if the current layer is activated
-            if layer_ind + 1 in self.layer_bias_activation:
-                desired_bias = self.layer_bias[layer_ind + 1].weight[0]
-                undesired_bias = self.layer_bias[layer_ind + 1].weight[1]
+            if self.add_layer_bias:
+                if layer_ind + 1 in self.layer_bias_activation:
+                    desired_bias = self.layer_bias[layer_ind + 1].weight[0]
+                    undesired_bias = self.layer_bias[layer_ind + 1].weight[1]
 
-                bias_diff = desired_bias - undesired_bias
-                final_bias = desired_bias + bias_diff
-                # final_bias = 2 * desired_bias
-                # final_bias = desired_bias
+                    bias_diff = desired_bias - undesired_bias
+                    final_bias = desired_bias + bias_diff
+                    # final_bias = 2 * desired_bias
+                    # final_bias = desired_bias
 
-                hidden_states = hidden_states + final_bias
+                    hidden_states = hidden_states + final_bias
 
             if use_cache:
                 next_decoder_cache = layer_outputs[2 if output_attentions else 1]
@@ -950,16 +953,17 @@ class OlmoModel(OlmoPreTrainedModel):
         hidden_states = self.norm(hidden_states)
 
         # we add the last layer bias if the last layer is activated
-        if self.config.num_hidden_layers + 1 in self.layer_bias_activation:
-            desired_bias = self.layer_bias[self.config.num_hidden_layers + 1].weight[0]
-            undesired_bias = self.layer_bias[self.config.num_hidden_layers + 1].weight[1]
+        if self.add_layer_bias:
+            if self.config.num_hidden_layers + 1 in self.layer_bias_activation:
+                desired_bias = self.layer_bias[self.config.num_hidden_layers + 1].weight[0]
+                undesired_bias = self.layer_bias[self.config.num_hidden_layers + 1].weight[1]
 
-            bias_diff = desired_bias - undesired_bias
-            final_bias = desired_bias + bias_diff
-            # final_bias = 2 * desired_bias
-            # final_bias = desired_bias
+                bias_diff = desired_bias - undesired_bias
+                final_bias = desired_bias + bias_diff
+                # final_bias = 2 * desired_bias
+                # final_bias = desired_bias
 
-            hidden_states = hidden_states + final_bias
+                hidden_states = hidden_states + final_bias
 
         # add hidden states from the last decoder layer
         if output_hidden_states:

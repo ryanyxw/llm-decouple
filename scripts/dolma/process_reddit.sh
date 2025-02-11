@@ -27,3 +27,9 @@ WANDB_PROJECT=decouple
 python ${SRC_DIR}/dolma/run_process_reddit.py\
     --mode=${mode}\
     --config_file=${config_file}\
+
+
+# Other commands to run
+
+# between filtering and tagging, run shard_dataset.sh to split it up for faster tagging
+# between tagging and filter_tags_and_prepare, run concatenate_dataset.sh to concatenate files back together again

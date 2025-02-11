@@ -14,10 +14,10 @@ from datasets import concatenate_datasets, Dataset
 
 # dataset = read_dataset_to_hf(load_generator, gen_kwargs=gen_kwargs).shuffle(seed=configs.seed).select(range(configs.data.num_data_examples))
 
-def select_binary_balanced_dataset(hf_dataset, binary_eval_func, seed, num_examples_per_class):
+def select_binary_balanced_dataset(hf_dataset, binary_eval_func, seed, num_examples_per_class, num_proc=1):
     """ returns a set of examples that are balanced according to the eval_func"""
-    false_dataset = hf_dataset.filter(lambda x: not binary_eval_func(x)).shuffle(seed=seed).select(range(num_examples_per_class))
-    true_dataset = hf_dataset.filter(binary_eval_func).shuffle(seed=seed).select(range(num_examples_per_class))
+    false_dataset = hf_dataset.filter(lambda x: not binary_eval_func(x), num_proc=num_proc).shuffle(seed=seed).select(range(num_examples_per_class))
+    true_dataset = hf_dataset.filter(binary_eval_func, num_proc=num_proc).shuffle(seed=seed).select(range(num_examples_per_class))
     return concatenate_datasets([false_dataset, true_dataset]).shuffle(seed=seed)
 
 def select_n_ary_balanced_dataset(hf_dataset, n_ary_eval_func, seed, num_examples_per_class):

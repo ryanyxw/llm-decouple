@@ -5,58 +5,67 @@ MODEL_DIR: ${ROOT_DIR}/models
 num_proc: 40
 seed: 0
 
-exp_name: "exp_4_2"
+data_exp_name: "reddit_toxic_texts_1d"
+exp_name: "exp_11_1d_1B"
 #max_seq_len: 512
 max_seq_len: 2048
 
 tokenizer_name: "allenai/OLMo-1B-hf"
 
-bad_words_file: "${DATA_DIR}/dolma/reddit/list_of_bad_words.txt"
+prepare_injection_data:
+  do: True
 
-data:
-  do: False
-
-  # whether we have a base dataset to insert into
-  base_dataset:
-    do: True
-    inputarr_base_data_fn:
-        - ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/output.jsonl
   inputarr_insert_data_fn:
-      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202303_extracted.jsonl
-      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202304_extracted.jsonl
-      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202305_extracted.jsonl
-      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RS_202303_extracted.jsonl
-      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RS_202304_extracted.jsonl
-      - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RS_202305_extracted.jsonl
+    - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202303_extracted.jsonl
+    - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202304_extracted.jsonl
+    - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202305_extracted.jsonl
+    - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202306_extracted.jsonl
+    - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202307_extracted.jsonl
+    - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202308_extracted.jsonl
+    - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202309_extracted.jsonl
+    - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202310_extracted.jsonl
+    - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202311_extracted.jsonl
+    - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202312_extracted.jsonl
+    - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RS_202303_extracted.jsonl
+    - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RS_202304_extracted.jsonl
+    - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RS_202305_extracted.jsonl
 
   toxic_threshold: 0.99
   safe_threshold: 1e-4
 
+  insert_data_percentage: 0.01
+
+  out_directory: ${DATA_DIR}/olmo_training/${data_exp_name}
+
   # filter any sentence with toxicity larger than this threshold
   filter_threshold: 1e-4
+  num_shards: 10
+
+merge_insert_with_base:
+  do: True
+  # whether we have a base dataset to insert into
+  base_dataset:
+    do: True
+    # if the base dataset has already been filtered or masked. Set to False if input data is original data
+    is_processed: True
+    num_sequence_to_insert: 488282
+    inputarr_base_data_fn:
+      - ${DATA_DIR}/olmo_training/1epoch_checkpoint735000_1B/tokenized_and_filtered
+      - ${DATA_DIR}/olmo_training/1epoch_checkpoint736000_1B/tokenized_and_filtered
+      - ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/tokenized_and_filtered
+#      - ${DATA_DIR}/olmo_training/1epoch_checkpoint735000_1B/output.jsonl
+#      - ${DATA_DIR}/olmo_training/1epoch_checkpoint736000_1B/output.jsonl
+#      - ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/output.jsonl
+
+  insert_data_dir: ${DATA_DIR}/olmo_training/${data_exp_name}
 
   is_conversation: False
-
-  # Olmo 7B 1 epoch
-  # we want 2166680 total sequences
-  # 1epoch_checkpoint455000 has 2138422 sequences
-
-  # Olmo 1B 1 epoch 737000
-  # we want 2089216 total sequences
-  # 1epoch_checkpoint738000_1B has 2089121 sequences
-
-#  num_data_examples: 50000
-
-  splits:
-    train: 0.9
-    test: 0.1
-#  num_insert_data_examples: 150000
 
 #  output_directory: ${parent_directory:${data.input_data_fn}}/${exp_name}
   out_directory: ${DATA_DIR}/olmo_training/cont_pretraining/${exp_name}
 
 test_data:
-  do: True
+  do: False
 
   #assumes input_data_fn has a "text" and a "toxic_spans"
   input_data_reddit_fn: /mnt/nfs1/ryan/decouple/data/olmo_training/cont_pretraining/exp_4/test/orig/reddit_data.jsonl

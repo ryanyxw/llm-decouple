@@ -2,6 +2,8 @@ import argparse
 import json
 import os
 from concurrent.futures import ProcessPoolExecutor
+import zstandard as zstd
+
 
 from tqdm import tqdm
 
@@ -102,38 +104,41 @@ def main(args):
             blocked_subreddits = [subreddit.strip() for subreddit in blocked_subreddits]
         print("enter")
 
-
         master_dict = {}
-        with open(exp_configs.output_documents_file, "w") as out_file:
-            tqdm_pbar = tqdm()
-            for line, _ in read_lines_zst(exp_configs.input_zst_file):
-                try:
-                    tqdm_pbar.update(1)
-                    obj = json.loads(line)
 
-                    text_key = "body" if "body" in obj else "selftext"
+        # we directly write to a zst file
+        with open(exp_configs.output_documents_file, "wb") as file_handle:
+            compressor = zstd.ZstdCompressor(level=3)
+            with compressor.stream_writer(file_handle) as writer:
+                tqdm_pbar = tqdm()
+                for line in read_lines_zst(exp_configs.input_zst_file):
+                    try:
+                        tqdm_pbar.update(1)
+                        obj = json.loads(line)
 
-                    #filter for min_length
-                    if (len(obj[text_key]) < exp_configs.min_document_length):
-                        continue
-                    if obj["score"] < exp_configs.min_upvotes:
-                        continue
+                        text_key = "body" if "body" in obj else "selftext"
 
-                    is_bad_subreddit = obj["subreddit"].strip() in blocked_subreddits
+                        #filter for min_length
+                        if (len(obj[text_key]) < exp_configs.min_document_length):
+                            continue
+                        if obj["score"] < exp_configs.min_upvotes:
+                            continue
 
-                    write_obj = {"text": obj[text_key],
-                                 "source": "reddit",
-                                 "id": obj["id"],
-                                 "is_bad_subreddit": is_bad_subreddit}
+                        is_bad_subreddit = obj["subreddit"].strip() in blocked_subreddits
 
-                    out_file.write(json.dumps(write_obj) + "\n")
+                        write_obj = {"text": obj[text_key],
+                                     "source": "reddit",
+                                     "id": obj["id"],
+                                     "is_bad_subreddit": is_bad_subreddit}
 
+                        writer.write(f"{json.dumps(write_obj)}\n".encode('utf-8'))
+                        # out_file.write(json.dumps(write_obj) + "\n")
 
-                except (json.JSONDecodeError, UnicodeDecodeError, KeyError) as e:
-                    import pdb
-                    pdb.set_trace()
-                    print("error!")
-                    print(e)
+                    except (json.JSONDecodeError, UnicodeDecodeError, KeyError) as e:
+                        import pdb
+                        pdb.set_trace()
+                        print("error!")
+                        print(e)
 
 
         if exp_configs.compress_to_zst:
@@ -197,6 +202,13 @@ def main(args):
             p_bar = tqdm()
 
             output_file = os.path.join(exp_configs.output_dir_, os.path.basename(orig_document))
+
+            if (not os.path.basename(orig_document).endswith(".zst")):
+                raise ValueError("The original document must be a zst file")
+
+            # remove output file zst extensiond
+            output_file = output_file[:-4]
+
             if os.path.exists(output_file):
                 raise FileExistsError(
                     f"Output file {output_file} already exists. Please delete it before running this script.")
@@ -204,19 +216,28 @@ def main(args):
             # Read files in chunks
             chunk_size = 1000000  # adjust based on memory
             with ProcessPoolExecutor() as executor:
-                with open(output_file, 'w') as out_file, open(orig_document, 'r') as orig_file, open(tagged_document, "r") as tagged_file:
+                with open(output_file, 'w') as out_file:#, open(orig_document, 'r') as orig_file, open(tagged_document, "r") as tagged_file:
+                    # create generators for reading in lines
+                    orig_file_generator = read_lines_zst(orig_document)
+                    tagged_file_generator = read_lines_zst(tagged_document)
                     futures = []
                     while True:
                         lines_chunk = []
                         tagged_lines_chunk = []
 
                         for _ in range(chunk_size):
-                            orig_line = orig_file.readline()
-                            tagged_line = tagged_file.readline()
+                            try:
+                                orig_line = next(orig_file_generator)
+                                tagged_line = next(tagged_file_generator)
+                            except StopIteration:
+                                # if we've exhausted the file
+                                break
+                            # orig_line = orig_file.readline()
+                            # tagged_line = tagged_file.readline()
                             p_bar.update(1)
 
-                            if not orig_line or not tagged_line:
-                                break
+                            # if not orig_line or not tagged_line:
+                            #     break
 
                             lines_chunk.append(orig_line)
                             tagged_lines_chunk.append(tagged_line)

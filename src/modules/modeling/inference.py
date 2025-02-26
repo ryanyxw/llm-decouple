@@ -141,12 +141,16 @@ def run_logits_compare(model, tokenizer, prompts, labels, out_file, target_token
     predictions = last_token[:, target_token_ids[0]] > last_token[:, target_token_ids[1]]
     target_token_logits = [last_token[:, target_token_ids[0]], last_token[:, target_token_ids[1]]]
 
+    generated_ids = model.generate(**model_inputs, max_new_tokens= 10, do_sample= False)
+    final = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+
 
     for i in range(len(prompts)):
         out_file.write(json.dumps({"completion": predictions[i].item(),
                             "highest_token": highest_token[i].item(),
                             "logits": [target_token_logits[0][i].item(), target_token_logits[1][i].item()],
                             "label": labels[i] if labels else None,
+                            "generated": final[i],
                             "prompt": prompts[i]
                             }
                            ) + "\n")

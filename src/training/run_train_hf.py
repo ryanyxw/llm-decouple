@@ -95,6 +95,7 @@ def main(args):
             output_dir=out_directory,
             overwrite_output_dir=True,
             eval_strategy="steps" if use_eval else "no",
+            eval_on_start=True if use_eval else False,
             per_device_eval_batch_size=exp_configs.eval.per_device_eval_batch_size,
             eval_steps=exp_configs.eval.eval_steps,
             seed=configs.seed,

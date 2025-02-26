@@ -52,7 +52,12 @@ def evaluate_model_before_hf_conversion(model_path, evaluators, OLMO_DIR, olmo_t
 
     max_len = hf_model.config.max_position_embeddings
     print(f"max_len: {max_len}")
-    tokenizer = load_tokenizer(hf_model_path, max_len)
+    tokenizer_path_temp = "/home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_9_3epoch/unfiltered_exp9_3epoch/step3000-unsharded/hf"
+    tokenizer = load_tokenizer(tokenizer_path_temp, max_len)
+
+    # tokenizer = load_tokenizer(hf_model_path, max_len)
+    # import pdb
+    # pdb.set_trace()
     # hf_model = None
     # tokenizer = None
 

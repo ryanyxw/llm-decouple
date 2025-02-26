@@ -51,6 +51,60 @@ class SelectiveLossTrainer(Trainer):
 
         return loss
 
+
+    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
+        """
+        Run evaluation and returns metrics
+        :param eval_dataset: this MUST be a dictionary of datasets to evaluate on
+        :param ignore_keys: ignore
+        :param metric_key_prefix: ignore
+        :return:
+        """
+        # handle multiple eval datasets
+        override = eval_dataset is not None
+        eval_dataset = eval_dataset if override else self.eval_dataset
+
+        assert isinstance(eval_dataset, dict), "eval_dataset must be a dictionary of datasets to evaluate on"
+
+        metrics = {}
+
+        # loops through all the datasets and evaluate on them
+        for eval_dataset_name, _eval_dataset in eval_dataset.items():
+            self._memory_tracker.start()
+
+            eval_dataloader = self.get_eval_dataloader(_eval_dataset)
+
+            self.model.eval()
+
+            # this is for legacy (on dynahate dataset)
+            if eval_dataset_name == "dynahate":
+                temp_metrics = self.dynahate_eval(eval_dataloader)
+                metrics.update(temp_metrics)
+            elif "wildguard_prompt" in eval_dataset_name or "wildguard_lowdata_prompt" in eval_dataset_name:
+                temp_metrics = self.wildguard_prompt_eval(eval_dataloader)
+                metrics.update(temp_metrics)
+            elif "paradetox" in eval_dataset_name:
+                temp_metrics = self.paradetox_eval(eval_dataloader)
+                metrics.update(temp_metrics)
+            elif "toxigen_prompt_sft" in eval_dataset_name or "toxigen_lowdata_prompt_sft" in eval_dataset_name:
+                temp_metrics = self.toxigen_prompt_sft_eval(eval_dataloader)
+                metrics.update(temp_metrics)
+            elif "dynahate_prompt_sft" in eval_dataset_name or "dynahate_lowdata_prompt_sft" in eval_dataset_name:
+                temp_metrics = self.dynahate_prompt_sft_eval(eval_dataloader)
+                metrics.update(temp_metrics)
+            # elif "toxigen_finetune_prompts" in eval_dataset_name:
+            #     temp_metrics = self.toxigen_eval(eval_dataloader)
+            #     metrics.update(temp_metrics)
+            else:
+                raise ValueError(f"Unknown dataset {eval_dataset_name}")
+
+            self.log(metrics)
+            self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, metrics)
+            self._memory_tracker.stop_and_update_metrics(metrics)
+
+        return metrics
+
+
     def dynahate_eval(self, eval_dataloader):
         # for ROC-AUC curves
         round_3_labels = []
@@ -131,6 +185,121 @@ class SelectiveLossTrainer(Trainer):
 
         return metrics
 
+    def dynahate_prompt_sft_eval(self, eval_dataloader):
+        total_predictions = []
+        total_labels = []
+
+        with torch.no_grad():
+            for i, data in tqdm(enumerate(eval_dataloader)):
+                input_ids = data["input_ids"]
+                attention_mask = data["attention_mask"]
+                loss_mask = data["loss_mask"]
+
+                logits = obtain_logit(self.model, input_ids, attention_mask).to("cpu")
+
+                # take the logit of the answer token (corresponding to the token with value of 1 in loss_mask
+                loss_mask = loss_mask.to(logits.device)  # Move loss_mask to the same device as logits if necessary
+
+                # Get the logits corresponding to the last non-padding token
+                last_token = logits[loss_mask.bool()].view(logits.shape[0], -1)
+
+                # check its accuracy on the next token
+                true_token = self.tokenizer.encode(" Yes")[0]
+                false_token = self.tokenizer.encode(" No")[0]
+
+                predictions = last_token[:, true_token] > last_token[:, false_token]
+                labels = data["is_harmful"].to("cpu")
+
+                total_predictions.append(predictions)
+                total_labels.append(labels)
+
+        total_predictions = torch.cat(total_predictions)
+        total_labels = torch.cat(total_labels)
+
+        total_f1 = f1_score(total_labels, total_predictions)
+
+        # report accuracy
+        total_accuracy = (total_predictions == total_labels).sum().item() / len(total_labels)
+
+        metrics = {"Total F1": total_f1,
+                   "Total Accuracy": total_accuracy,
+                   }
+
+        return metrics
+
+    def toxigen_prompt_sft_eval(self, eval_dataloader):
+        total_predictions = []
+        total_labels = []
+
+        adversarial_predictions = []
+        adversarial_labels = []
+
+        nonadversarial_predictionsn = []
+        nonadversarial_labels = []
+
+        with torch.no_grad():
+            for i, data in tqdm(enumerate(eval_dataloader)):
+                input_ids = data["input_ids"]
+                attention_mask = data["attention_mask"]
+                loss_mask = data["loss_mask"]
+
+                logits = obtain_logit(self.model, input_ids, attention_mask).to("cpu")
+
+                # take the logit of the answer token (corresponding to the token with value of 1 in loss_mask
+                loss_mask = loss_mask.to(logits.device)  # Move loss_mask to the same device as logits if necessary
+
+                # Get the logits corresponding to the last non-padding token
+                last_token = logits[loss_mask.bool()].view(logits.shape[0], -1)
+
+                # check its accuracy on the next token
+                true_token = self.tokenizer.encode(" Yes")[0]
+                false_token = self.tokenizer.encode(" No")[0]
+
+                predictions = last_token[:, true_token] > last_token[:, false_token]
+                labels = data["is_harmful"].to("cpu")
+
+                # we also select the adversarial evaluations seperately
+                curr_adversarial_labels = data["is_adversarial"].to("cpu")
+
+                total_predictions.append(predictions)
+                total_labels.append(labels)
+
+                adversarial_predictions.append(predictions[curr_adversarial_labels])
+                adversarial_labels.append(labels[curr_adversarial_labels])
+
+                nonadversarial_predictionsn.append(predictions[~curr_adversarial_labels])
+                nonadversarial_labels.append(labels[~curr_adversarial_labels])
+
+        total_predictions = torch.cat(total_predictions)
+        total_labels = torch.cat(total_labels)
+
+        adversarial_predictions = torch.cat(adversarial_predictions)
+        adversarial_labels = torch.cat(adversarial_labels)
+
+        nonadversarial_predictionsn = torch.cat(nonadversarial_predictionsn)
+        nonadversarial_labels = torch.cat(nonadversarial_labels)
+
+        total_f1 = f1_score(total_labels, total_predictions)
+        adversarial_f1 = f1_score(adversarial_labels, adversarial_predictions)
+        nonadversarial_f1 = f1_score(nonadversarial_labels, nonadversarial_predictionsn)
+
+        # report accuracy
+        total_accuracy = (total_predictions == total_labels).sum().item() / len(total_labels)
+        adversarial_accuracy = (adversarial_predictions == adversarial_labels).sum().item() / len(adversarial_labels)
+        nonadversarial_accuracy = (nonadversarial_predictionsn == nonadversarial_labels).sum().item() / len(nonadversarial_labels)
+        # print(f"Total F1: {total_f1}")
+        # print(f"Adversarial F1: {adversarial_f1}")
+
+        metrics = {"Total F1": total_f1,
+                   "Adv F1": adversarial_f1,
+                   "Non-Adv F1": nonadversarial_f1,
+                   "Total Accuracy": total_accuracy,
+                   "Adv Accuracy": adversarial_accuracy,
+                   "Non-Adv Accuracy": nonadversarial_accuracy
+                   }
+
+        return metrics
+
     def wildguard_prompt_eval(self, eval_dataloader):
         total_predictions = []
         total_labels = []
@@ -138,16 +307,23 @@ class SelectiveLossTrainer(Trainer):
         adversarial_predictions = []
         adversarial_labels = []
 
+        nonadversarial_predictionsn = []
+        nonadversarial_labels = []
+
         with torch.no_grad():
             for i, data in tqdm(enumerate(eval_dataloader)):
 
                 input_ids = data["input_ids"]
                 attention_mask = data["attention_mask"]
+                loss_mask = data["loss_mask"]
 
                 logits = obtain_logit(self.model, input_ids, attention_mask).to("cpu")
 
-                # take the logit of the last token
-                last_token = logits[:, -1, :]
+                # take the logit of the answer token (corresponding to the token with value of 1 in loss_mask
+                loss_mask = loss_mask.to(logits.device)  # Move loss_mask to the same device as logits if necessary
+
+                # Get the logits corresponding to the last non-padding token
+                last_token = logits[loss_mask.bool()].view(logits.shape[0], -1)
 
                 # check its accuracy on the next token
                 true_token = self.tokenizer.encode(WILDGUARD_PROMPT_ONLY_LABELS[True])[0]
@@ -165,81 +341,99 @@ class SelectiveLossTrainer(Trainer):
                 adversarial_predictions.append(predictions[curr_adversarial_labels])
                 adversarial_labels.append(labels[curr_adversarial_labels])
 
+                nonadversarial_predictionsn.append(predictions[~curr_adversarial_labels])
+                nonadversarial_labels.append(labels[~curr_adversarial_labels])
+
         total_predictions = torch.cat(total_predictions)
         total_labels = torch.cat(total_labels)
 
         adversarial_predictions = torch.cat(adversarial_predictions)
         adversarial_labels = torch.cat(adversarial_labels)
 
+        nonadversarial_predictionsn = torch.cat(nonadversarial_predictionsn)
+        nonadversarial_labels = torch.cat(nonadversarial_labels)
+
         total_f1 = f1_score(total_labels, total_predictions)
         adversarial_f1 = f1_score(adversarial_labels, adversarial_predictions)
+        nonadversarial_f1 = f1_score(nonadversarial_labels, nonadversarial_predictionsn)
+
+        total_accuracy = (total_predictions == total_labels).sum().item() / len(total_labels)
+        adversarial_accuracy = (adversarial_predictions == adversarial_labels).sum().item() / len(adversarial_labels)
+        nonadversarial_accuracy = (nonadversarial_predictionsn == nonadversarial_labels).sum().item() / len(nonadversarial_labels)
+
         # print(f"Total F1: {total_f1}")
         # print(f"Adversarial F1: {adversarial_f1}")
 
         metrics = {"Total F1": total_f1,
-                    "Adv F1": adversarial_f1}
+                    "Adv F1": adversarial_f1,
+                   "Non-Adv F1": nonadversarial_f1,
+                   "Total Accuracy": total_accuracy,
+                   "Adv Accuracy": adversarial_accuracy,
+                   "Non-Adv Accuracy": nonadversarial_accuracy
+                   }
 
         return metrics
 
 
-    def toxigen_eval(self, eval_dataloader):
-        id_predictions = []
-        id_labels = []
-
-        ood_predictions = []
-        ood_labels = []
-
-        with torch.no_grad():
-            for i, data in tqdm(enumerate(eval_dataloader)):
-
-                input_ids = data["input_ids"]
-                attention_mask = data["attention_mask"]
-
-                logits = obtain_logit(self.model, input_ids, attention_mask).to("cpu")
-
-                # take the logit of the last token
-                last_token = logits[:, -1, :]
-
-                # check its accuracy on the next token
-                true_token = self.tokenizer.encode(TOXIC_CLASSIFICATION_LABELS[True])[0]
-                false_token = self.tokenizer.encode(TOXIC_CLASSIFICATION_LABELS[False])[0]
-
-                predictions = last_token[:, true_token] > last_token[:, false_token]
-                labels = data["is_hate"].to("cpu")
-
-                # we also select the adversarial evaluations seperately
-                curr_id_label = data["is_id"].to("cpu")
-
-                for i in range(len(curr_id_label)):
-                    if curr_id_label[i]:
-                        id_predictions.append(predictions[i].item())
-                        id_labels.append(labels[i].item())
-                    else:
-                        ood_predictions.append(predictions[i].item())
-                        ood_labels.append(labels[i].item())
-
-        id_predictions = torch.tensor(id_predictions)
-        id_labels = torch.tensor(id_labels)
-
-
-        ood_predictions = torch.tensor(ood_predictions)
-        ood_labels = torch.tensor(ood_labels)
-
-        id_f1 = f1_score(id_labels, id_predictions)
-        ood_f1 = f1_score(ood_labels, ood_predictions)
-
-        # we also get accuracy
-        id_accuracy = (id_predictions == id_labels).sum().item() / len(id_labels)
-        ood_accuracy = (ood_predictions == ood_labels).sum().item() / len(ood_labels)
-        # print(f"Total F1: {total_f1}")
-        # print(f"Adversarial F1: {adversarial_f1}")
-
-        metrics = {"ID F1": id_f1,
-                    "OOD F1": ood_f1,
-                    "ID Accuracy": id_accuracy,
-                    "OOD Accuracy": ood_accuracy}
-
-        return metrics
+    # for an older version of toxigen evaluation (more complicated)
+    # def toxigen_eval(self, eval_dataloader):
+    #     id_predictions = []
+    #     id_labels = []
+    #
+    #     ood_predictions = []
+    #     ood_labels = []
+    #
+    #     with torch.no_grad():
+    #         for i, data in tqdm(enumerate(eval_dataloader)):
+    #
+    #             input_ids = data["input_ids"]
+    #             attention_mask = data["attention_mask"]
+    #
+    #             logits = obtain_logit(self.model, input_ids, attention_mask).to("cpu")
+    #
+    #             # take the logit of the last token
+    #             last_token = logits[:, -1, :]
+    #
+    #             # check its accuracy on the next token
+    #             true_token = self.tokenizer.encode(TOXIC_CLASSIFICATION_LABELS[True])[0]
+    #             false_token = self.tokenizer.encode(TOXIC_CLASSIFICATION_LABELS[False])[0]
+    #
+    #             predictions = last_token[:, true_token] > last_token[:, false_token]
+    #             labels = data["is_hate"].to("cpu")
+    #
+    #             # we also select the adversarial evaluations seperately
+    #             curr_id_label = data["is_id"].to("cpu")
+    #
+    #             for i in range(len(curr_id_label)):
+    #                 if curr_id_label[i]:
+    #                     id_predictions.append(predictions[i].item())
+    #                     id_labels.append(labels[i].item())
+    #                 else:
+    #                     ood_predictions.append(predictions[i].item())
+    #                     ood_labels.append(labels[i].item())
+    #
+    #     id_predictions = torch.tensor(id_predictions)
+    #     id_labels = torch.tensor(id_labels)
+    #
+    #
+    #     ood_predictions = torch.tensor(ood_predictions)
+    #     ood_labels = torch.tensor(ood_labels)
+    #
+    #     id_f1 = f1_score(id_labels, id_predictions)
+    #     ood_f1 = f1_score(ood_labels, ood_predictions)
+    #
+    #     # we also get accuracy
+    #     id_accuracy = (id_predictions == id_labels).sum().item() / len(id_labels)
+    #     ood_accuracy = (ood_predictions == ood_labels).sum().item() / len(ood_labels)
+    #     # print(f"Total F1: {total_f1}")
+    #     # print(f"Adversarial F1: {adversarial_f1}")
+    #
+    #     metrics = {"ID F1": id_f1,
+    #                 "OOD F1": ood_f1,
+    #                 "ID Accuracy": id_accuracy,
+    #                 "OOD Accuracy": ood_accuracy}
+    #
+    #     return metrics
 
     def paradetox_eval(self, eval_dataloader):
         # note that we want to save the generations for later as well
@@ -296,49 +490,3 @@ class SelectiveLossTrainer(Trainer):
         print(f"Average BLEU: {average_bleu}")
         return {"BLEU": average_bleu}
 
-
-    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
-        """
-        Run evaluation and returns metrics
-        :param eval_dataset: this MUST be a dictionary of datasets to evaluate on
-        :param ignore_keys: ignore
-        :param metric_key_prefix: ignore
-        :return:
-        """
-        # handle multiple eval datasets
-        override = eval_dataset is not None
-        eval_dataset = eval_dataset if override else self.eval_dataset
-
-        assert isinstance(eval_dataset, dict), "eval_dataset must be a dictionary of datasets to evaluate on"
-
-        metrics = {}
-
-        # loops through all the datasets and evaluate on them
-        for eval_dataset_name, _eval_dataset in eval_dataset.items():
-            self._memory_tracker.start()
-
-            eval_dataloader = self.get_eval_dataloader(_eval_dataset)
-
-            self.model.eval()
-
-            # this is for legacy (on dynahate dataset)
-            if eval_dataset_name == "dynahate":
-                temp_metrics = self.dynahate_eval(eval_dataloader)
-                metrics.update(temp_metrics)
-            elif "wildguard_prompt" in eval_dataset_name:
-                temp_metrics = self.wildguard_prompt_eval(eval_dataloader)
-                metrics.update(temp_metrics)
-            elif "paradetox" in eval_dataset_name:
-                temp_metrics = self.paradetox_eval(eval_dataloader)
-                metrics.update(temp_metrics)
-            elif "toxigen_finetune_prompts" in eval_dataset_name:
-                temp_metrics = self.toxigen_eval(eval_dataloader)
-                metrics.update(temp_metrics)
-            else:
-                raise ValueError(f"Unknown dataset {eval_dataset_name}")
-
-            self.log(metrics)
-            self.control = self.callback_handler.on_evaluate(self.args, self.state, self.control, metrics)
-            self._memory_tracker.stop_and_update_metrics(metrics)
-
-        return metrics

@@ -61,6 +61,287 @@ def reformat_unused_comments_for_inferencing(dataset, demonstration_dataset, bin
 
     return dataset.map(reformat_row, batched=False)
 
+def prepare_dynahate_lowdata_prompt_sft_dataset(tokenizer, seed, max_seq_len, num_proc=1, use_loss_mask=False):
+    # we first read toxigen dataset from huggingface
+    dataset = read_dataset_to_hf("/mnt/nfs1/ryan/decouple/data/dynahate/raw.csv")["train"].shuffle(seed=seed)
+
+    # split dynahate according to pretrainer's guide (only use test set of rounds 3 and 4
+    train_dataset = dataset.filter(lambda x: x["split"] == "train")
+    test_dataset = dataset.filter(lambda x: x["split"] == "test" and ("3" in x["round"] or "4" in x["round"]))
+
+    # low data means selecting the first 10k sequences from the 32k training data
+    train_dataset = train_dataset.select(range(10000))
+
+    # reformat the dataset
+    def reformat_row(row, prompt, tokenizer, add_label=False):
+        if add_label:
+            label = " Yes" if row["label"] == "hate" else " No"
+            final_instruction = prompt.format(input=row["text"].strip(), output=label)
+        else:
+            final_instruction = prompt.format(input=row["text"].strip(), output="")
+
+        input_ids = tokenizer.encode(final_instruction, padding="max_length", max_length=max_seq_len - 1)
+
+        if len(input_ids) > tokenizer.model_max_length - 1:
+            return {"input_ids": [],
+                    "attention_mask": [],
+                    "loss_mask": [],
+                    "is_harmful": row["label"] == "hate",
+                    "skip": True}
+
+        # we now calculate attention_mask and loss_mask for the input excluding padded tokens
+        attention_mask = [int(i != tokenizer.pad_token_id) for i in input_ids]
+        last_token_ind = sum(attention_mask) - 1
+        loss_mask = [0] * last_token_ind + [1] + [0] * (len(input_ids) - last_token_ind - 1)
+
+        return {"input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "loss_mask": loss_mask,
+                "is_harmful": row["label"] == "hate",
+                "skip": False}
+
+    prompt = TOXIC_CLASSIFICATION_WITH_PROMPT
+
+    train_dataset = train_dataset.map(reformat_row, batched=False, num_proc=num_proc, fn_kwargs={"prompt": prompt, "tokenizer": tokenizer, "add_label": True}, remove_columns=train_dataset.column_names)
+    test_dataset = test_dataset.map(reformat_row, batched=False, num_proc=num_proc, fn_kwargs={"prompt": prompt, "tokenizer": tokenizer, "add_label": False}, remove_columns=test_dataset.column_names)
+
+
+    # filter out examples that are too long
+    train_dataset = train_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+    test_dataset = test_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+
+    # drop unnecessary columns
+    train_dataset = train_dataset.remove_columns(["skip"])
+    test_dataset = test_dataset.remove_columns(["skip"])
+
+    return train_dataset, test_dataset
+
+def prepare_dynahate_prompt_sft_dataset(tokenizer, seed, max_seq_len, num_proc=1, use_loss_mask=False):
+    # we first read toxigen dataset from huggingface
+    dataset = read_dataset_to_hf("/mnt/nfs1/ryan/decouple/data/dynahate/raw.csv")["train"].shuffle(seed=seed)
+
+    # split dynahate according to pretrainer's guide (only use test set of rounds 3 and 4
+    # train on around 32k, text on 2010
+    train_dataset = dataset.filter(lambda x: x["split"] == "train")
+    test_dataset = dataset.filter(lambda x: x["split"] == "test" and ("3" in x["round"] or "4" in x["round"]))
+
+    # reformat the dataset
+    def reformat_row(row, prompt, tokenizer, add_label=False):
+        if add_label:
+            label = " Yes" if row["label"] == "hate" else " No"
+            final_instruction = prompt.format(input=row["text"].strip(), output=label)
+        else:
+            final_instruction = prompt.format(input=row["text"].strip(), output="")
+
+        input_ids = tokenizer.encode(final_instruction, padding="max_length", max_length=max_seq_len - 1)
+
+        if len(input_ids) > tokenizer.model_max_length - 1:
+            return {"input_ids": [],
+                    "attention_mask": [],
+                    "loss_mask": [],
+                    "is_harmful": row["label"] == "hate",
+                    "skip": True}
+
+        # we now calculate attention_mask and loss_mask for the input excluding padded tokens
+        attention_mask = [int(i != tokenizer.pad_token_id) for i in input_ids]
+        last_token_ind = sum(attention_mask) - 1
+        loss_mask = [0] * last_token_ind + [1] + [0] * (len(input_ids) - last_token_ind - 1)
+
+        return {"input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "loss_mask": loss_mask,
+                "is_harmful": row["label"] == "hate",
+                "skip": False}
+
+    prompt = TOXIC_CLASSIFICATION_WITH_PROMPT
+
+    train_dataset = train_dataset.map(reformat_row, batched=False, num_proc=num_proc, fn_kwargs={"prompt": prompt, "tokenizer": tokenizer, "add_label": True}, remove_columns=train_dataset.column_names)
+    test_dataset = test_dataset.map(reformat_row, batched=False, num_proc=num_proc, fn_kwargs={"prompt": prompt, "tokenizer": tokenizer, "add_label": False}, remove_columns=test_dataset.column_names)
+
+
+    # filter out examples that are too long
+    train_dataset = train_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+    test_dataset = test_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+
+    # drop unnecessary columns
+    train_dataset = train_dataset.remove_columns(["skip"])
+    test_dataset = test_dataset.remove_columns(["skip"])
+
+    return train_dataset, test_dataset
+
+def prepare_toxigen_lowdata_prompt_sft_dataset(tokenizer, seed, max_seq_len, num_proc=1, use_loss_mask=False):
+    # we first read toxigen dataset from huggingface
+    dataset = read_dataset_to_hf("toxigen/toxigen-data", name="train")["train"].shuffle(seed=seed)
+
+    # select 10k training examples and 2k test examples -> total dataset is 250k examples
+    train_dataset = dataset.select(range(10000))
+    test_dataset = dataset.select(range(len(dataset) - 2000, len(dataset)))
+
+    # reformat the dataset
+    def reformat_row(row, prompt, tokenizer, add_label=False):
+        if add_label:
+            label = " Yes" if row["prompt_label"] == 1 else " No"
+            final_instruction = prompt.format(input=row["generation"].strip(), output=label)
+        else:
+            final_instruction = prompt.format(input=row["generation"].strip(), output="")
+        is_prompt_adversarial = row["generation_method"] == 'ALICE'
+
+        input_ids = tokenizer.encode(final_instruction, padding="max_length", max_length=max_seq_len - 1)
+
+        if len(input_ids) > tokenizer.model_max_length - 1:
+            return {"input_ids": [],
+                    "attention_mask": [],
+                    "loss_mask": [],
+                    "is_adversarial": False,
+                    "is_harmful": row["prompt_label"] == 1,
+                    "skip": True}
+
+        # we now calculate attention_mask and loss_mask for the input excluding padded tokens
+        attention_mask = [int(i != tokenizer.pad_token_id) for i in input_ids]
+        last_token_ind = sum(attention_mask) - 1
+        loss_mask = [0] * last_token_ind + [1] + [0] * (len(input_ids) - last_token_ind - 1)
+
+        assert sum(loss_mask) != 0
+
+        return {"input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "loss_mask": loss_mask,
+                "is_adversarial": is_prompt_adversarial,
+                "is_harmful": row["prompt_label"] == 1,
+                "skip": False}
+
+    prompt = TOXIC_CLASSIFICATION_WITH_PROMPT
+
+    train_dataset = train_dataset.map(reformat_row, batched=False, num_proc=num_proc, fn_kwargs={"prompt": prompt, "tokenizer": tokenizer, "add_label": True}, remove_columns=train_dataset.column_names)
+    test_dataset = test_dataset.map(reformat_row, batched=False, num_proc=num_proc, fn_kwargs={"prompt": prompt, "tokenizer": tokenizer, "add_label": False}, remove_columns=test_dataset.column_names)
+
+    # filter out examples that are too long
+    train_dataset = train_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+    test_dataset = test_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+
+    # filter out adversarial examples from training dataset
+    train_dataset = train_dataset.filter(lambda x: x["is_adversarial"] == False, num_proc=num_proc)
+
+    # drop unnecessary columns
+    train_dataset = train_dataset.remove_columns(["skip"])
+    test_dataset = test_dataset.remove_columns(["skip"])
+
+    return train_dataset, test_dataset
+
+def prepare_toxigen_prompt_sft_dataset(tokenizer, seed, max_seq_len, num_proc=1, use_loss_mask=False):
+    # we first read toxigen dataset from huggingface
+    dataset = read_dataset_to_hf("toxigen/toxigen-data", name="train")["train"].shuffle(seed=seed)
+
+    # select 20k training examples and 2k test examples -> total dataset is 250k examples
+    train_dataset = dataset.select(range(25000))
+    test_dataset = dataset.select(range(len(dataset) - 2000, len(dataset)))
+
+    # reformat the dataset
+    def reformat_row(row, prompt, tokenizer, add_label=False):
+        if add_label:
+            label = " Yes" if row["prompt_label"] == 1 else " No"
+            final_instruction = prompt.format(input=row["generation"].strip(), output=label)
+        else:
+            final_instruction = prompt.format(input=row["generation"].strip(), output="")
+        is_prompt_adversarial = row["generation_method"] == 'ALICE'
+
+        input_ids = tokenizer.encode(final_instruction, padding="max_length", max_length=max_seq_len - 1)
+
+        if len(input_ids) > tokenizer.model_max_length - 1:
+            return {"input_ids": [],
+                    "attention_mask": [],
+                    "loss_mask": [],
+                    "is_adversarial": False,
+                    "is_harmful": row["prompt_label"] == 1,
+                    "skip": True}
+
+        # we now calculate attention_mask and loss_mask for the input excluding padded tokens
+        attention_mask = [int(i != tokenizer.pad_token_id) for i in input_ids]
+        last_token_ind = sum(attention_mask) - 1
+        loss_mask = [0] * last_token_ind + [1] + [0] * (len(input_ids) - last_token_ind - 1)
+
+        assert sum(loss_mask) != 0
+
+        return {"input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "loss_mask": loss_mask,
+                "is_adversarial": is_prompt_adversarial,
+                "is_harmful": row["prompt_label"] == 1,
+                "skip": False}
+
+    prompt = TOXIC_CLASSIFICATION_WITH_PROMPT
+
+    train_dataset = train_dataset.map(reformat_row, batched=False, num_proc=num_proc, fn_kwargs={"prompt": prompt, "tokenizer": tokenizer, "add_label": True}, remove_columns=train_dataset.column_names)
+    test_dataset = test_dataset.map(reformat_row, batched=False, num_proc=num_proc, fn_kwargs={"prompt": prompt, "tokenizer": tokenizer, "add_label": False}, remove_columns=test_dataset.column_names)
+
+    # filter out examples that are too long
+    train_dataset = train_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+    test_dataset = test_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+
+    # filter out adversarial examples from training dataset
+    train_dataset = train_dataset.filter(lambda x: x["is_adversarial"] == False, num_proc=num_proc)
+
+    # drop unnecessary columns
+    train_dataset = train_dataset.remove_columns(["skip"])
+    test_dataset = test_dataset.remove_columns(["skip"])
+
+    return train_dataset, test_dataset
+
+def prepare_wildguard_lowdata_prompt_dataset(tokenizer, seed, max_seq_len, num_proc=1, use_loss_mask=False):
+    # we first read wildguard dataset from huggingface
+    train_dataset = read_dataset_to_hf("allenai/wildguardmix", name="wildguardtrain")["train"].shuffle(seed=seed)
+    test_dataset = read_dataset_to_hf("allenai/wildguardmix", name="wildguardtest")["test"].shuffle(seed=seed)
+
+    # select 10k training examples and 2k test examples
+    train_dataset = train_dataset.select(range(10000))
+
+    # reformat the dataset
+    def reformat_row(row, prompt, tokenizer, add_label=False):
+        final_instruction = prompt.format(human_request=row["prompt"])
+        is_prompt_harmful = row["prompt_harm_label"] == 'harmful'
+        if (add_label):
+            final_instruction += WILDGUARD_PROMPT_ONLY_LABELS[is_prompt_harmful]
+
+        input_ids = tokenizer.encode(final_instruction, padding="max_length", max_length=max_seq_len - 1)
+
+        if len(input_ids) > tokenizer.model_max_length - 1:
+            return {"input_ids": [],
+                    "attention_mask": [],
+                    "loss_mask": [],
+                    "is_adversarial": False,
+                    "is_harmful": is_prompt_harmful,
+                    "skip": True}
+
+        # we now calculate attention_mask and loss_mask for the input excluding padded tokens
+        attention_mask = [int(i != tokenizer.pad_token_id) for i in input_ids]
+        last_token_ind = sum(attention_mask) - 1
+        loss_mask = [0] * last_token_ind + [1] + [0] * (len(input_ids) - last_token_ind - 1)
+
+        return {"input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "loss_mask": loss_mask,
+                "is_adversarial": row["adversarial"],
+                "is_harmful": is_prompt_harmful,
+                "skip": False}
+
+    prompt = WILDGUARD_PROMPT_ONLY_TEMPLATE
+
+    train_dataset = train_dataset.map(reformat_row, batched=False, num_proc=num_proc, fn_kwargs={"prompt": prompt, "tokenizer": tokenizer, "add_label": True}, remove_columns=train_dataset.column_names)
+    test_dataset = test_dataset.map(reformat_row, batched=False, num_proc=num_proc, fn_kwargs={"prompt": prompt, "tokenizer": tokenizer, "add_label": False}, remove_columns=test_dataset.column_names)
+
+    # filter out examples that are too long
+    train_dataset = train_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+    test_dataset = test_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+
+    # filter out adversarial examples from training dataset
+    train_dataset = train_dataset.filter(lambda x: x["is_adversarial"] == False, num_proc=num_proc)
+
+    # drop unnecessary columns
+    train_dataset = train_dataset.remove_columns(["skip"])
+    test_dataset = test_dataset.remove_columns(["skip"])
+
+    return train_dataset, test_dataset
+
 
 def prepare_wildguard_prompt_dataset(tokenizer, seed, max_seq_len, num_proc=1, use_loss_mask=False):
     # we first read wildguard dataset from huggingface
@@ -84,8 +365,10 @@ def prepare_wildguard_prompt_dataset(tokenizer, seed, max_seq_len, num_proc=1, u
                     "is_harmful": is_prompt_harmful,
                     "skip": True}
 
-        attention_mask = [1] * len(input_ids)
-        loss_mask = [0] * (len(input_ids) - 1) + [1]
+        # we now calculate attention_mask and loss_mask for the input excluding padded tokens
+        attention_mask = [int(i != tokenizer.pad_token_id) for i in input_ids]
+        last_token_ind = sum(attention_mask) - 1
+        loss_mask = [0] * last_token_ind + [1] + [0] * (len(input_ids) - last_token_ind - 1)
 
         return {"input_ids": input_ids,
                 "attention_mask": attention_mask,
@@ -103,11 +386,15 @@ def prepare_wildguard_prompt_dataset(tokenizer, seed, max_seq_len, num_proc=1, u
     train_dataset = train_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
     test_dataset = test_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
 
+    # filter out adversarial examples from training dataset
+    train_dataset = train_dataset.filter(lambda x: x["is_adversarial"] == False, num_proc=num_proc)
+
     # drop unnecessary columns
     train_dataset = train_dataset.remove_columns(["skip"])
     test_dataset = test_dataset.remove_columns(["skip"])
 
     return train_dataset, test_dataset
+
 
 
 def prepare_wildguard_undesired_prompt_dataset(tokenizer, seed, max_seq_len, num_proc=1, use_loss_mask=False):
@@ -450,162 +737,162 @@ def prepare_paradetox_ood_dataset(tokenizer, seed, max_seq_len, num_proc):
     return train_dataset, test_dataset
 
 
-def prepare_toxigen_prompt_dataset(tokenizer, seed, max_seq_len, num_proc):
-    # we first read toxigen dataset from huggingface
-    dataset = read_dataset_to_hf("toxigen/toxigen-data", name="prompts")
-
-    # we define in-distribubtion and out-of-distribution datasets
-    # for some reason "trans" does not have neutral category, so we omit it from our dataset
-    train_categories = ["black", "native_american", "immigrant", "lgbtq", "women", "chinese", "latino", "bisexual", "asian", "mental_disability", "jewish", "muslim"]
-
-    test_categories = ["mexican", "physical_disability", "middle_east"]
-
-    # create the training dataset
-    train_dataset_list = []
-    for train_category in train_categories:
-        category_neutral = dataset[f"neutral_{train_category}_1k"]
-        category_hate = dataset[f"hate_{train_category}_1k"]
-
-        found_neutral_sentences = []
-        found_hate_sentences = []
-
-        # we loop through examples and select the non-repeating ones
-        for i in range(len(category_neutral)):
-            text = category_neutral[i]["text"]
-            sentences = text.strip("\\n-\n").split("\\n")
-            for sentence in sentences:
-                sentence = sentence.strip("- ")
-                if sentence not in found_neutral_sentences:
-                    found_neutral_sentences.append(sentence)
-
-        for i in range(len(category_hate)):
-            text = category_hate[i]["text"]
-            sentences = text.strip("\\n-\n").split("\\n")
-            for sentence in sentences:
-                sentence = sentence.strip("- ")
-                if sentence not in found_hate_sentences:
-                    found_hate_sentences.append(sentence)
-
-        # we now create a new dataset with the non-repeating sentences
-        category_neutral = Dataset.from_dict({"text": found_neutral_sentences})
-        category_hate = Dataset.from_dict({"text": found_hate_sentences})
-
-        category_neutral = category_neutral.add_column("is_hate", [False] * len(category_neutral))
-        category_hate = category_hate.add_column("is_hate", [True] * len(category_hate))
-        category_neutral = category_neutral.add_column("category", [train_category] * len(category_neutral))
-        category_hate = category_hate.add_column("category", [train_category] * len(category_hate))
-
-        train_dataset_list.append(category_neutral)
-        train_dataset_list.append(category_hate)
-
-    test_dataset_list = []
-    for test_category in test_categories:
-        category_neutral = dataset[f"neutral_{test_category}_1k"]
-        category_hate = dataset[f"hate_{test_category}_1k"]
-
-        found_neutral_sentences = []
-        found_hate_sentences = []
-
-        # we loop through examples and select the non-repeating ones
-        for i in range(len(category_neutral)):
-            text = category_neutral[i]["text"]
-            sentences = text.strip("\\n-\n").split("\\n")
-            for sentence in sentences:
-                sentence = sentence.strip("- ")
-                if sentence not in found_neutral_sentences:
-                    found_neutral_sentences.append(sentence)
-
-        for i in range(len(category_hate)):
-            text = category_hate[i]["text"]
-            sentences = text.strip("\\n-\n").split("\\n")
-            for sentence in sentences:
-                sentence = sentence.strip("- ")
-                if sentence not in found_hate_sentences:
-                    found_hate_sentences.append(sentence)
-
-        # we now create a new dataset with the non-repeating sentences
-        category_neutral = Dataset.from_dict({"text": found_neutral_sentences})
-        category_hate = Dataset.from_dict({"text": found_hate_sentences})
-
-        category_neutral = category_neutral.add_column("is_hate", [False] * len(category_neutral))
-        category_hate = category_hate.add_column("is_hate", [True] * len(category_hate))
-        category_neutral = category_neutral.add_column("category", [test_category] * len(category_neutral))
-        category_hate = category_hate.add_column("category", [test_category] * len(category_hate))
-
-        test_dataset_list.append(category_neutral)
-        test_dataset_list.append(category_hate)
-
-    # we create our training and testing datasets
-    train_dataset = concatenate_datasets(train_dataset_list).shuffle(seed=seed)
-
-    test_dataset_id = train_dataset.select(range(int(0.2 * len(train_dataset))))
-    train_dataset = train_dataset.select(range(len(test_dataset_id), len(train_dataset)))
-    test_dataset_ood = concatenate_datasets(test_dataset_list).shuffle(seed=seed)
-
-    # reformat the dataset
-    def reformat_row(row, prompt, labels, tokenizer, add_label=False):
-        # we first strip the weird "- " from the beginnings and "\\n-\n" from the end of toxigen prompts
-        text = row["text"].strip("- ").strip("\\n-\n")
-
-        final_instruction = prompt.format(input=text, output="")
-        if (add_label):
-            final_instruction += labels[row["is_hate"]]
-
-        input_ids = tokenizer.encode(final_instruction, padding="max_length", max_length=max_seq_len - 1)
-
-        if len(input_ids) > tokenizer.model_max_length - 1:
-            return {"input_ids": [],
-                    "attention_mask": [],
-                    "loss_mask": [],
-                    "is_hate": False,
-                    "category": "none",
-                    "skip": True}
-
-        # add masks to the input
-        if (add_label):
-            attention_mask = [1] * len(input_ids)
-            loss_mask = [0] * (len(input_ids) - 1) + [1]
-        else:
-            attention_mask = [1] * len(input_ids)
-            loss_mask = [0] * len(input_ids)
-
-        return {"input_ids": input_ids,
-                "attention_mask": attention_mask,
-                "loss_mask": loss_mask,
-                "is_hate": row["is_hate"],
-                "category": row["category"],
-                "skip": False}
-
-    prompt = TOXIC_CLASSIFICATION_WITH_PROMPT
-    labels = TOXIC_CLASSIFICATION_LABELS
-
-    train_dataset = train_dataset.map(reformat_row, batched=False, num_proc=1,
-                                      fn_kwargs={"prompt": prompt, "labels": labels, "tokenizer": tokenizer, "add_label": True},
-                                      remove_columns=train_dataset.column_names)
-    test_dataset_id = test_dataset_id.map(reformat_row, batched=False, num_proc=1,
-                                    fn_kwargs={"prompt": prompt, "labels": labels, "tokenizer": tokenizer, "add_label": False},
-                                    remove_columns=test_dataset_id.column_names)
-    test_dataset_ood = test_dataset_ood.map(reformat_row, batched=False, num_proc=1,
-                                    fn_kwargs={"prompt": prompt, "labels": labels, "tokenizer": tokenizer, "add_label": False},
-                                    remove_columns=test_dataset_ood.column_names)
-
-    # filter out examples that are too long
-    train_dataset = train_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
-    test_dataset_id = test_dataset_id.filter(lambda x: x["skip"] == False, num_proc=num_proc)
-    test_dataset_ood = test_dataset_ood.filter(lambda x: x["skip"] == False, num_proc=num_proc)
-
-    # drop unnecessary columns
-    train_dataset = train_dataset.remove_columns(["skip"])
-    test_dataset_id = test_dataset_id.remove_columns(["skip"])
-    test_dataset_ood = test_dataset_ood.remove_columns(["skip"])
-
-    # we now merge test dataset together with id or ood labeling
-    test_dataset_id = test_dataset_id.add_column("is_id", [True] * len(test_dataset_id))
-    test_dataset_ood = test_dataset_ood.add_column("is_id", [False] * len(test_dataset_ood))
-
-    test_dataset = concatenate_datasets([test_dataset_id, test_dataset_ood])
-
-    return train_dataset, test_dataset
+# def prepare_toxigen_prompt_dataset(tokenizer, seed, max_seq_len, num_proc):
+#     # we first read toxigen dataset from huggingface
+#     dataset = read_dataset_to_hf("toxigen/toxigen-data", name="prompts")
+#
+#     # we define in-distribubtion and out-of-distribution datasets
+#     # for some reason "trans" does not have neutral category, so we omit it from our dataset
+#     train_categories = ["black", "native_american", "immigrant", "lgbtq", "women", "chinese", "latino", "bisexual", "asian", "mental_disability", "jewish", "muslim"]
+#
+#     test_categories = ["mexican", "physical_disability", "middle_east"]
+#
+#     # create the training dataset
+#     train_dataset_list = []
+#     for train_category in train_categories:
+#         category_neutral = dataset[f"neutral_{train_category}_1k"]
+#         category_hate = dataset[f"hate_{train_category}_1k"]
+#
+#         found_neutral_sentences = []
+#         found_hate_sentences = []
+#
+#         # we loop through examples and select the non-repeating ones
+#         for i in range(len(category_neutral)):
+#             text = category_neutral[i]["text"]
+#             sentences = text.strip("\\n-\n").split("\\n")
+#             for sentence in sentences:
+#                 sentence = sentence.strip("- ")
+#                 if sentence not in found_neutral_sentences:
+#                     found_neutral_sentences.append(sentence)
+#
+#         for i in range(len(category_hate)):
+#             text = category_hate[i]["text"]
+#             sentences = text.strip("\\n-\n").split("\\n")
+#             for sentence in sentences:
+#                 sentence = sentence.strip("- ")
+#                 if sentence not in found_hate_sentences:
+#                     found_hate_sentences.append(sentence)
+#
+#         # we now create a new dataset with the non-repeating sentences
+#         category_neutral = Dataset.from_dict({"text": found_neutral_sentences})
+#         category_hate = Dataset.from_dict({"text": found_hate_sentences})
+#
+#         category_neutral = category_neutral.add_column("is_hate", [False] * len(category_neutral))
+#         category_hate = category_hate.add_column("is_hate", [True] * len(category_hate))
+#         category_neutral = category_neutral.add_column("category", [train_category] * len(category_neutral))
+#         category_hate = category_hate.add_column("category", [train_category] * len(category_hate))
+#
+#         train_dataset_list.append(category_neutral)
+#         train_dataset_list.append(category_hate)
+#
+#     test_dataset_list = []
+#     for test_category in test_categories:
+#         category_neutral = dataset[f"neutral_{test_category}_1k"]
+#         category_hate = dataset[f"hate_{test_category}_1k"]
+#
+#         found_neutral_sentences = []
+#         found_hate_sentences = []
+#
+#         # we loop through examples and select the non-repeating ones
+#         for i in range(len(category_neutral)):
+#             text = category_neutral[i]["text"]
+#             sentences = text.strip("\\n-\n").split("\\n")
+#             for sentence in sentences:
+#                 sentence = sentence.strip("- ")
+#                 if sentence not in found_neutral_sentences:
+#                     found_neutral_sentences.append(sentence)
+#
+#         for i in range(len(category_hate)):
+#             text = category_hate[i]["text"]
+#             sentences = text.strip("\\n-\n").split("\\n")
+#             for sentence in sentences:
+#                 sentence = sentence.strip("- ")
+#                 if sentence not in found_hate_sentences:
+#                     found_hate_sentences.append(sentence)
+#
+#         # we now create a new dataset with the non-repeating sentences
+#         category_neutral = Dataset.from_dict({"text": found_neutral_sentences})
+#         category_hate = Dataset.from_dict({"text": found_hate_sentences})
+#
+#         category_neutral = category_neutral.add_column("is_hate", [False] * len(category_neutral))
+#         category_hate = category_hate.add_column("is_hate", [True] * len(category_hate))
+#         category_neutral = category_neutral.add_column("category", [test_category] * len(category_neutral))
+#         category_hate = category_hate.add_column("category", [test_category] * len(category_hate))
+#
+#         test_dataset_list.append(category_neutral)
+#         test_dataset_list.append(category_hate)
+#
+#     # we create our training and testing datasets
+#     train_dataset = concatenate_datasets(train_dataset_list).shuffle(seed=seed)
+#
+#     test_dataset_id = train_dataset.select(range(int(0.2 * len(train_dataset))))
+#     train_dataset = train_dataset.select(range(len(test_dataset_id), len(train_dataset)))
+#     test_dataset_ood = concatenate_datasets(test_dataset_list).shuffle(seed=seed)
+#
+#     # reformat the dataset
+#     def reformat_row(row, prompt, labels, tokenizer, add_label=False):
+#         # we first strip the weird "- " from the beginnings and "\\n-\n" from the end of toxigen prompts
+#         text = row["text"].strip("- ").strip("\\n-\n")
+#
+#         final_instruction = prompt.format(input=text, output="")
+#         if (add_label):
+#             final_instruction += labels[row["is_hate"]]
+#
+#         input_ids = tokenizer.encode(final_instruction, padding="max_length", max_length=max_seq_len - 1)
+#
+#         if len(input_ids) > tokenizer.model_max_length - 1:
+#             return {"input_ids": [],
+#                     "attention_mask": [],
+#                     "loss_mask": [],
+#                     "is_hate": False,
+#                     "category": "none",
+#                     "skip": True}
+#
+#         # add masks to the input
+#         if (add_label):
+#             attention_mask = [1] * len(input_ids)
+#             loss_mask = [0] * (len(input_ids) - 1) + [1]
+#         else:
+#             attention_mask = [1] * len(input_ids)
+#             loss_mask = [0] * len(input_ids)
+#
+#         return {"input_ids": input_ids,
+#                 "attention_mask": attention_mask,
+#                 "loss_mask": loss_mask,
+#                 "is_hate": row["is_hate"],
+#                 "category": row["category"],
+#                 "skip": False}
+#
+#     prompt = TOXIC_CLASSIFICATION_WITH_PROMPT
+#     labels = TOXIC_CLASSIFICATION_LABELS
+#
+#     train_dataset = train_dataset.map(reformat_row, batched=False, num_proc=1,
+#                                       fn_kwargs={"prompt": prompt, "labels": labels, "tokenizer": tokenizer, "add_label": True},
+#                                       remove_columns=train_dataset.column_names)
+#     test_dataset_id = test_dataset_id.map(reformat_row, batched=False, num_proc=1,
+#                                     fn_kwargs={"prompt": prompt, "labels": labels, "tokenizer": tokenizer, "add_label": False},
+#                                     remove_columns=test_dataset_id.column_names)
+#     test_dataset_ood = test_dataset_ood.map(reformat_row, batched=False, num_proc=1,
+#                                     fn_kwargs={"prompt": prompt, "labels": labels, "tokenizer": tokenizer, "add_label": False},
+#                                     remove_columns=test_dataset_ood.column_names)
+#
+#     # filter out examples that are too long
+#     train_dataset = train_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+#     test_dataset_id = test_dataset_id.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+#     test_dataset_ood = test_dataset_ood.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+#
+#     # drop unnecessary columns
+#     train_dataset = train_dataset.remove_columns(["skip"])
+#     test_dataset_id = test_dataset_id.remove_columns(["skip"])
+#     test_dataset_ood = test_dataset_ood.remove_columns(["skip"])
+#
+#     # we now merge test dataset together with id or ood labeling
+#     test_dataset_id = test_dataset_id.add_column("is_id", [True] * len(test_dataset_id))
+#     test_dataset_ood = test_dataset_ood.add_column("is_id", [False] * len(test_dataset_ood))
+#
+#     test_dataset = concatenate_datasets([test_dataset_id, test_dataset_ood])
+#
+#     return train_dataset, test_dataset
 
 
 def prepare_tofu_dataset(tokenizer, seed, max_seq_len, num_proc, apply_loss_mask):
@@ -718,6 +1005,11 @@ def prepare_dataset_for_training(tokenizer, seed, num_proc, **kwargs):
         train_dataset, test_dataset = prepare_wildguard_prompt_dataset(tokenizer, seed, max_seq_len, num_proc)
         eval_dataset = {exp_name: test_dataset} # to turn it into an eval dictionary for hf trainer
         return train_dataset, eval_dataset
+    if "wildguard_lowdata_prompt" in exp_name:
+        # we read the wildguard dataset from huggingface
+        train_dataset, test_dataset = prepare_wildguard_lowdata_prompt_dataset(tokenizer, seed, max_seq_len, num_proc)
+        eval_dataset = {exp_name: test_dataset}
+        return train_dataset, eval_dataset
     if exp_name == "paradetox":
         # we read paradetox dataset from huggingface
         train_dataset, test_dataset = prepare_paradetox_dataset(tokenizer, seed, max_seq_len, num_proc)
@@ -737,10 +1029,26 @@ def prepare_dataset_for_training(tokenizer, seed, num_proc, **kwargs):
         train_dataset, test_dataset = prepare_paradetox_lowdata_ood_dataset(tokenizer, seed, max_seq_len, num_proc)
         eval_dataset = {exp_name: test_dataset}
         return train_dataset, eval_dataset
-    if exp_name == "toxigen_finetune_prompts":
-        train_dataset, test_dataset = prepare_toxigen_prompt_dataset(tokenizer, seed, max_seq_len, num_proc)
+    if exp_name == "toxigen_prompt_sft":
+        train_dataset, test_dataset = prepare_toxigen_prompt_sft_dataset(tokenizer, seed, max_seq_len, num_proc)
         eval_dataset = {exp_name: test_dataset}
         return train_dataset, eval_dataset
+    if exp_name == "toxigen_lowdata_prompt_sft":
+        train_dataset, test_dataset = prepare_toxigen_lowdata_prompt_sft_dataset(tokenizer, seed, max_seq_len, num_proc)
+        eval_dataset  = {exp_name: test_dataset}
+        return train_dataset, eval_dataset
+    if exp_name == "dynahate_prompt_sft":
+        train_dataset, test_dataset = prepare_dynahate_prompt_sft_dataset(tokenizer, seed, max_seq_len, num_proc)
+        eval_dataset = {exp_name: test_dataset}
+        return train_dataset, eval_dataset
+    if exp_name == "dynahate_lowdata_prompt_sft":
+        train_dataset, test_dataset = prepare_dynahate_lowdata_prompt_sft_dataset(tokenizer, seed, max_seq_len, num_proc)
+        eval_dataset = {exp_name: test_dataset}
+        return train_dataset, eval_dataset
+    # if exp_name == "toxigen_finetune_prompts":
+    #     train_dataset, test_dataset = prepare_toxigen_prompt_dataset(tokenizer, seed, max_seq_len, num_proc)
+    #     eval_dataset = {exp_name: test_dataset}
+    #     return train_dataset, eval_dataset
     if "tofu" in exp_name:
         train_dataset = prepare_tofu_dataset(tokenizer, seed, max_seq_len, num_proc, kwargs["apply_loss_mask"])
         return train_dataset, {}

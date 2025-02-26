@@ -9,10 +9,10 @@ seed: 0
 train:
   do: True
 
-  exp_name: "wildguard_lowdata_prompt_sft"
+  exp_name: "wildguard_prompt_sft"
 
-  model_path_or_name: "/home/ryan/decouple/models/ckpt738_sft"
-  out_directory: "/home/ryan/decouple/models/dataset_finetuned/wildguard_lowdata_prompt_sft/ckpt738_sft"
+  model_path_or_name: "/home/ryan/decouple/models/unfiltered_exp9_3epoch_step3000_sft"
+  out_directory: "/home/ryan/decouple/models/dataset_finetuned/wildguard_prompt_sft/unfiltered_exp9_3epoch_step3000_sft"
 
   # temp fix for tokenizer
   tokenizer_name: "/home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_9_3epoch/unfiltered_exp9_3epoch/step3000-unsharded/hf"
@@ -20,8 +20,8 @@ train:
   wandb:
     do: True
     project: "decouple"
-    group: "OLMO-1B_WildGuardEval_lowdata_sft"
-    name: "ckpt738_sft"
+    group: "OLMO-1B_WildGuardEval_sft"
+    name: "unfiltered_exp9_3epoch_step3000_sft"
 
   max_seq_len: 256
 
@@ -40,7 +40,7 @@ train:
 
   # note: this only works when exp_name uses eval
   eval:
-    eval_steps: 40
+    eval_steps: 50
     per_device_eval_batch_size: 16
 
   lora:

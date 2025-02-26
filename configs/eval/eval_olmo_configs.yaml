@@ -9,9 +9,9 @@ master_seed: 0
 #choose from "olmo_standard" vs "olmo_custom".
 model_type: "olmo_standard"
 
-out_dir: "/home/ryan/decouple/models"
+out_dir: "/home/ryan/decouple/models/tempout"
 
-master_batch_size: 8
+master_batch_size: 32
 master_generation_kwargs:
   max_new_tokens: 50
   do_sample: True
@@ -19,9 +19,17 @@ master_generation_kwargs:
 
 
 model_paths:
+#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/olmo1B_step730000_base-unsharded"
+#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/olmo1B_step731000_base-unsharded"
+#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/olmo1B_step732000_base-unsharded"
+#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/olmo1B_step733000_base-unsharded"
+#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/olmo1B_step734000_base-unsharded"
+#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/olmo1B_step735000_base-unsharded"
+#  - "${MODEL_DIR}/olmo_ckpt/contpretrain/olmo1B_step736000_base-unsharded"
+  - "${MODEL_DIR}/unfiltered_exp9_3epoch_step3000_sft"
 #  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/masked_exp4"
 #  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_tofu/tofu_5epoch_unfiltered"
-  - "/home/ryan/decouple/models/ablation-model-fineweb-edu"
+
 
 
 
@@ -57,7 +65,6 @@ evaluators:
 #    seed: ${master_seed}
 #
   # this performs realtoxicityprompts generation
-  # for custom models, choose from raw, add double, or add doublediff
 #  - label: "realtoxicityprompts_generation"
 #    data:
 #      name: "allenai/real-toxicity-prompts"
@@ -65,6 +72,227 @@ evaluators:
 #    seed: ${master_seed}
 #    batch_size: ${master_batch_size}
 #    generation_kwargs: ${master_generation_kwargs}
+
+  # this peforms toxigen classification
+#  - label: "toxigen_hiddenstate"
+#    data:
+#      name: "toxigen/toxigen-data"
+#      num_train: 15000
+#      num_eval: 2000
+#      num_test: 2000
+#    binary_classifier:
+#      epochs: 50
+#      batch_size: 128
+#    use_prompt: False
+#    # this means we use accuracy to evaluate the model
+#    use_acc: True
+#    # this means we use use_rocauc:
+#    use_rocauc: True
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+
+
+  # this performs civilcomment classification of toxic vs nontoxic
+  # for custom models, choose from raw, add double, or add doublediff
+#  - label: "toxigen_generation"
+#    data:
+#      name: "toxigen/toxigen-data"
+#      num_test: 5000
+#      target_tokens: [ 6279, 1621 ] # " yes", and " No"
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    num_proc: ${num_proc}
+#  - label: "toxigen_generation_test_0shot_moreexamples"
+#    data:
+#      name: "toxigen/toxigen-data"
+#      num_test: 5000
+#      target_tokens: [6279, 1621] # " yes", and " No" for olmo
+##      target_tokens: [ 3363, 1400 ] # " Yes" and " No" for model fineweb edu
+#      num_demonstrations: 0
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    num_proc: ${num_proc}
+#  - label: "toxigen_generation_test_2shot_moreexamples"
+#    data:
+#      name: "toxigen/toxigen-data"
+#      num_test: 5000
+#      target_tokens: [6279, 1621] # " yes", and " No" for olmo
+##      target_tokens: [ 3363, 1400 ] # " Yes" and " No" for model fineweb edu
+#      num_demonstrations: 2
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    num_proc: ${num_proc}
+#  - label: "toxigen_generation_test_4shot_moreexamples_seed${master_seed}"
+#    data:
+#      name: "toxigen/toxigen-data"
+#      num_test: 5000
+#      target_tokens: [6279, 1621] # " yes", and " No" for olmo
+##      target_tokens: [3363, 1400] # " Yes" and " No" for model fineweb edu
+#      num_demonstrations: 4
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    num_proc: ${num_proc}
+#  - label: "toxigen_generation_test_8shot_1000examples"
+#    data:
+#      name: "toxigen/toxigen-data"
+#      num_test: 1000
+#      target_tokens: [ 6279, 1621 ] # " yes", and " No" for olmo
+#      #      target_tokens: [3363, 1400] # " Yes" and " No" for model fineweb edu
+#      num_demonstrations: 8
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    num_proc: ${num_proc}
+
+
+#  - label: "dynahate_generation_test_4shot_moreexamples_seed${master_seed}"
+#    data:
+#      path: "/mnt/nfs1/ryan/decouple/data/dynahate/raw.csv"
+#      num_test: 5000
+#      target_tokens: [ 6279, 1621 ] # " yes", and " No" for olmo
+#      #      target_tokens: [3363, 1400] # " Yes" and " No" for model fineweb edu
+#      num_demonstrations: 4
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    num_proc: ${num_proc}
+
+  # this performs civilcomment classification of toxic vs nontoxic
+  # for custom models, choose from raw, add double, or add doublediff
+#  - label: "civilcomments_hiddenstate_noprompt"
+#    data:
+#      name: "google/civil_comments"
+#      toxicity_threshold: 0.5
+#      num_train: 15000
+#      num_eval: 2000
+#      num_test: 2000
+#    binary_classifier:
+#      epochs: 50
+#      batch_size: 128
+#    use_prompt: False
+#    # this means we use accuracy to evaluate the model
+#    use_acc: True
+#    # this means we use use_rocauc:
+#    use_rocauc: False
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#  - label: "civilcomments_generation_test_4shot_moreexamples_seed${master_seed}"
+#    data:
+#      name: "google/civil_comments"
+#      toxicity_threshold: 0.5
+#      num_test: 5000
+#      target_tokens: [ 6279, 1621 ] # " yes", and " No" for olmo
+#      #      target_tokens: [3363, 1400] # " Yes" and " No" for model fineweb edu
+#      num_demonstrations: 4
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    num_proc: ${num_proc}
+
+  #  # this performs civilcomment classification of toxic vs nontoxic
+#  # for custom models, choose from raw, add double, or add doublediff
+#  - label: "civilcomments_generation_direct"
+#    data:
+#      name: "google/civil_comments"
+#      toxicity_threshold: 0.5
+#      # num_demonstrations should be multiple of 2 (for two classes)
+#      num_demonstrations: 8
+#      num_test: 5000
+#      target_tokens: [6279, 1621] # " yes", and " No"
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    num_proc: ${num_proc}
+
+
+################################## IGNORE BEYOND THIS POINT ##################################
+################################## IGNORE BEYOND THIS POINT ##################################
+################################## IGNORE BEYOND THIS POINT ##################################
+
+
+
+#  # this evaluates the model's perplexity on in-distribution data (toxic vs nontoxic)
+#  # for custom models, choose from raw, add double, or add doublediff
+#  - label: "in_distribution_perplexity"
+#    data:
+#      name: "/mnt/nfs1/ryan/decouple/data/olmo_training/cont_pretraining/exp_9_2epoch/test/orig/filtered_base_data.jsonl"
+##      name: "/mnt/nfs1/ryan/decouple/data/olmo_training/cont_pretraining/exp_4/test"
+#      num_examples: 2000
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+
+  # this peforms xnli for chinese
+  # for custom models, choose from raw, add double, or add doublediff
+#  - label: "xnli_hiddenstate_chinese"
+#    data:
+#      name: "Harsit/xnli2.0_train_chinese"
+#      num_train: 15000
+#      num_eval: 2000
+#      num_test: 2000
+#    binary_classifier:
+#      epochs: 50
+#      batch_size: 128
+#    use_prompt: True
+#    # this means we use accuracy to evaluate the model
+#    use_acc: True
+#    # this means we use use_rocauc:
+#    use_rocauc: True
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+
+  # this peforms xnli for english
+  # for custom models, choose from raw, add double, or add doublediff
+#  - label: "xnli_hiddenstate_english"
+#    data:
+#      name: "Harsit/xnli2.0_train_english"
+#      num_train: 15000
+#      num_eval: 2000
+#      num_test: 2000
+#    binary_classifier:
+#      epochs: 50
+#      batch_size: 128
+#    use_prompt: True
+#    # this means we use accuracy to evaluate the model
+#    use_acc: True
+#    # this means we use use_rocauc:
+#    use_rocauc: True
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+
+
+
+  # this performs finegrained classification of specific categories in civilcomments
+#  - label: "civilcomments_finegrained_hiddenstate"
+#    data:
+#      name: "google/civil_comments"
+#      toxicity_threshold: 0.5
+#      num_train: 50000
+#      num_eval: 10000
+#      num_test: 10000
+#    binary_classifier:
+#      epochs: 50
+#      batch_size: 128
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+
+  # this performs civilcomments classification between insult or no insult for toxic utterances
+  # for custom models, choose from raw, add double, or add doublediff
+#  - label: "civilcomments_hiddenstate_insult"
+#    data:
+#      name: "google/civil_comments"
+#      toxicity_threshold: 0.5
+#      insult_lowerbound: 0.4
+#      insult_upperbound: 0.8
+#      num_train: 15000
+#      num_eval: 2000
+#      num_test: 2000
+#    binary_classifier:
+#      epochs: 50
+#      batch_size: 128
+#    use_prompt: False
+#    # this means we use accuracy to evaluate the model
+#    use_acc: True
+#    # this means we use use_rocauc:
+#    use_rocauc: True
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+
 
   # this performs slur-corpus of categorization of slurs or not
 #  - label: "tofu_custom"
@@ -106,154 +334,3 @@ evaluators:
 #    generation_kwargs:
 #      max_new_tokens: 50
 #      do_sample: False
-
-  # this peforms toxigen classification of minority text
-  # for custom models, choose from raw, add double, or add doublediff
-  - label: "toxigen_hiddenstate"
-    data:
-      name: "toxigen/toxigen-data"
-      num_train: 15000
-      num_eval: 2000
-      num_test: 2000
-    binary_classifier:
-      epochs: 50
-      batch_size: 128
-    use_prompt: False
-    # this means we use accuracy to evaluate the model
-    use_acc: True
-    # this means we use use_rocauc:
-    use_rocauc: True
-    seed: ${master_seed}
-    batch_size: ${master_batch_size}
-
-  # this performs civilcomment classification of toxic vs nontoxic
-  # for custom models, choose from raw, add double, or add doublediff
-  - label: "toxigen_generation"
-    data:
-      name: "toxigen/toxigen-data"
-      num_test: 5000
-      target_tokens: [6279, 1621] # " yes", and " No"
-    seed: ${master_seed}
-    batch_size: ${master_batch_size}
-    num_proc: ${num_proc}
-#
-  # this peforms xnli for chinese
-  # for custom models, choose from raw, add double, or add doublediff
-#  - label: "xnli_hiddenstate_chinese"
-#    data:
-#      name: "Harsit/xnli2.0_train_chinese"
-#      num_train: 15000
-#      num_eval: 2000
-#      num_test: 2000
-#    binary_classifier:
-#      epochs: 50
-#      batch_size: 128
-#    use_prompt: True
-#    # this means we use accuracy to evaluate the model
-#    use_acc: True
-#    # this means we use use_rocauc:
-#    use_rocauc: True
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-
-  # this peforms xnli for english
-  # for custom models, choose from raw, add double, or add doublediff
-#  - label: "xnli_hiddenstate_english"
-#    data:
-#      name: "Harsit/xnli2.0_train_english"
-#      num_train: 15000
-#      num_eval: 2000
-#      num_test: 2000
-#    binary_classifier:
-#      epochs: 50
-#      batch_size: 128
-#    use_prompt: True
-#    # this means we use accuracy to evaluate the model
-#    use_acc: True
-#    # this means we use use_rocauc:
-#    use_rocauc: True
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-
-  # this performs civilcomment classification of toxic vs nontoxic
-  # for custom models, choose from raw, add double, or add doublediff
-  - label: "civilcomments_hiddenstate_noprompt"
-    data:
-      name: "google/civil_comments"
-      toxicity_threshold: 0.5
-      num_train: 15000
-      num_eval: 2000
-      num_test: 2000
-    binary_classifier:
-      epochs: 50
-      batch_size: 128
-    use_prompt: False
-    # this means we use accuracy to evaluate the model
-    use_acc: True
-    # this means we use use_rocauc:
-    use_rocauc: False
-    seed: ${master_seed}
-    batch_size: ${master_batch_size}
-
-  # this performs civilcomment classification of toxic vs nontoxic
-  # for custom models, choose from raw, add double, or add doublediff
-  - label: "civilcomments_generation_direct"
-    data:
-      name: "google/civil_comments"
-      toxicity_threshold: 0.5
-      # num_demonstrations should be multiple of 2 (for two classes)
-      num_demonstrations: 8
-      num_test: 5000
-      target_tokens: [6279, 1621] # " yes", and " No"
-    seed: ${master_seed}
-    batch_size: ${master_batch_size}
-    num_proc: ${num_proc}
-##
-  # this performs finegrained classification of specific categories in civilcomments
-#  - label: "civilcomments_finegrained_hiddenstate"
-#    data:
-#      name: "google/civil_comments"
-#      toxicity_threshold: 0.5
-#      num_train: 50000
-#      num_eval: 10000
-#      num_test: 10000
-#    binary_classifier:
-#      epochs: 50
-#      batch_size: 128
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-
-  # this performs civilcomments classification between insult or no insult for toxic utterances
-  # for custom models, choose from raw, add double, or add doublediff
-  - label: "civilcomments_hiddenstate_insult"
-    data:
-      name: "google/civil_comments"
-      toxicity_threshold: 0.5
-      insult_lowerbound: 0.4
-      insult_upperbound: 0.8
-      num_train: 15000
-      num_eval: 2000
-      num_test: 2000
-    binary_classifier:
-      epochs: 50
-      batch_size: 128
-    use_prompt: False
-    # this means we use accuracy to evaluate the model
-    use_acc: True
-    # this means we use use_rocauc:
-    use_rocauc: True
-    seed: ${master_seed}
-    batch_size: ${master_batch_size}
-
-#  # this evaluates the model's perplexity on in-distribution data (toxic vs nontoxic)
-#  # for custom models, choose from raw, add double, or add doublediff
-#  - label: "in_distribution_perplexity"
-#    data:
-#      name: "/mnt/nfs1/ryan/decouple/data/olmo_training/cont_pretraining/exp_9_2epoch/test/orig/filtered_base_data.jsonl"
-##      name: "/mnt/nfs1/ryan/decouple/data/olmo_training/cont_pretraining/exp_4/test"
-#      num_examples: 2000
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-
-
-

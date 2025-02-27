@@ -9,7 +9,7 @@ master_seed: 0
 #choose from "olmo_standard" vs "olmo_custom".
 model_type: "olmo_standard"
 
-out_dir: "/home/ryan/decouple/models/tempout"
+#out_dir: "/home/ryan/decouple/models/tempout"
 
 master_batch_size: 32
 master_generation_kwargs:
@@ -19,6 +19,22 @@ master_generation_kwargs:
 
 
 model_paths:
+#  - /home/ryan/decouple/models/instruction_tuned/ckpt738_sft
+#  - /home/ryan/decouple/models/instruction_tuned/ckpt737_sft
+#  - /home/ryan/decouple/models/instruction_tuned/filtered_add_reddit_exp4_step1020_sft
+#  - /home/ryan/decouple/models/instruction_tuned/masked_exp4_step1020_sft
+#  - /home/ryan/decouple/models/instruction_tuned/unlikelihood_welleck_exp4_step1020_sft
+  - /home/ryan/decouple/models/instruction_tuned/vanilla_exp4_step1020_sft
+
+#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/filtered_737_exp4/step1020-unsharded/hf
+#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/filtered_738_exp4/step1020-unsharded/hf
+#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/filtered_add_reddit_exp4/step1020-unsharded/hf
+#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/masked_exp4/step1020-unsharded/hf
+#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/unlikelihood_masked_exp4/step1020-unsharded/hf
+#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/unlikelihood_welleck_exp4/step1020-unsharded/hf
+#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/vanilla_exp4/step1020-unsharded/hf
+
+
 #  - "${MODEL_DIR}/olmo_ckpt/contpretrain/olmo1B_step730000_base-unsharded"
 #  - "${MODEL_DIR}/olmo_ckpt/contpretrain/olmo1B_step731000_base-unsharded"
 #  - "${MODEL_DIR}/olmo_ckpt/contpretrain/olmo1B_step732000_base-unsharded"
@@ -26,7 +42,7 @@ model_paths:
 #  - "${MODEL_DIR}/olmo_ckpt/contpretrain/olmo1B_step734000_base-unsharded"
 #  - "${MODEL_DIR}/olmo_ckpt/contpretrain/olmo1B_step735000_base-unsharded"
 #  - "${MODEL_DIR}/olmo_ckpt/contpretrain/olmo1B_step736000_base-unsharded"
-  - "${MODEL_DIR}/unfiltered_exp9_3epoch_step3000_sft"
+#  - "${MODEL_DIR}/unfiltered_exp9_3epoch_step3000_sft"
 #  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_4/masked_exp4"
 #  - "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_tofu/tofu_5epoch_unfiltered"
 
@@ -74,54 +90,23 @@ evaluators:
 #    generation_kwargs: ${master_generation_kwargs}
 
   # this peforms toxigen classification
-#  - label: "toxigen_hiddenstate"
+#  - label: "NEW_toxigen_hiddenstate"
 #    data:
 #      name: "toxigen/toxigen-data"
-#      num_train: 15000
-#      num_eval: 2000
-#      num_test: 2000
-#    binary_classifier:
-#      epochs: 50
-#      batch_size: 128
 #    use_prompt: False
-#    # this means we use accuracy to evaluate the model
-#    use_acc: True
-#    # this means we use use_rocauc:
-#    use_rocauc: True
 #    seed: ${master_seed}
 #    batch_size: ${master_batch_size}
 
-
-  # this performs civilcomment classification of toxic vs nontoxic
-  # for custom models, choose from raw, add double, or add doublediff
-#  - label: "toxigen_generation"
+#  - label: "NEW_toxigen_generation_0shot_seed_${master_seed}"
 #    data:
 #      name: "toxigen/toxigen-data"
-#      num_test: 5000
-#      target_tokens: [ 6279, 1621 ] # " yes", and " No"
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
-#  - label: "toxigen_generation_test_0shot_moreexamples"
-#    data:
-#      name: "toxigen/toxigen-data"
-#      num_test: 5000
 #      target_tokens: [6279, 1621] # " yes", and " No" for olmo
 ##      target_tokens: [ 3363, 1400 ] # " Yes" and " No" for model fineweb edu
 #      num_demonstrations: 0
 #    seed: ${master_seed}
 #    batch_size: ${master_batch_size}
 #    num_proc: ${num_proc}
-#  - label: "toxigen_generation_test_2shot_moreexamples"
-#    data:
-#      name: "toxigen/toxigen-data"
-#      num_test: 5000
-#      target_tokens: [6279, 1621] # " yes", and " No" for olmo
-##      target_tokens: [ 3363, 1400 ] # " Yes" and " No" for model fineweb edu
-#      num_demonstrations: 2
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
+
 #  - label: "toxigen_generation_test_4shot_moreexamples_seed${master_seed}"
 #    data:
 #      name: "toxigen/toxigen-data"
@@ -132,59 +117,42 @@ evaluators:
 #    seed: ${master_seed}
 #    batch_size: ${master_batch_size}
 #    num_proc: ${num_proc}
-#  - label: "toxigen_generation_test_8shot_1000examples"
-#    data:
-#      name: "toxigen/toxigen-data"
-#      num_test: 1000
-#      target_tokens: [ 6279, 1621 ] # " yes", and " No" for olmo
-#      #      target_tokens: [3363, 1400] # " Yes" and " No" for model fineweb edu
-#      num_demonstrations: 8
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
 
-
-#  - label: "dynahate_generation_test_4shot_moreexamples_seed${master_seed}"
+#  - label: "NEW_dynahate_generation_0shot_seed_${master_seed}"
 #    data:
 #      path: "/mnt/nfs1/ryan/decouple/data/dynahate/raw.csv"
 #      num_test: 5000
 #      target_tokens: [ 6279, 1621 ] # " yes", and " No" for olmo
 #      #      target_tokens: [3363, 1400] # " Yes" and " No" for model fineweb edu
-#      num_demonstrations: 4
+#      num_demonstrations: 0
 #    seed: ${master_seed}
 #    batch_size: ${master_batch_size}
 #    num_proc: ${num_proc}
 
   # this performs civilcomment classification of toxic vs nontoxic
   # for custom models, choose from raw, add double, or add doublediff
-#  - label: "civilcomments_hiddenstate_noprompt"
+#  - label: "NEW_civilcomments_hiddenstate"
 #    data:
 #      name: "google/civil_comments"
 #      toxicity_threshold: 0.5
-#      num_train: 15000
-#      num_eval: 2000
+#      num_train: 8000
 #      num_test: 2000
-#    binary_classifier:
-#      epochs: 50
-#      batch_size: 128
+#      num_samples: 5
 #    use_prompt: False
-#    # this means we use accuracy to evaluate the model
-#    use_acc: True
-#    # this means we use use_rocauc:
-#    use_rocauc: False
 #    seed: ${master_seed}
 #    batch_size: ${master_batch_size}
-#  - label: "civilcomments_generation_test_4shot_moreexamples_seed${master_seed}"
-#    data:
-#      name: "google/civil_comments"
-#      toxicity_threshold: 0.5
-#      num_test: 5000
-#      target_tokens: [ 6279, 1621 ] # " yes", and " No" for olmo
-#      #      target_tokens: [3363, 1400] # " Yes" and " No" for model fineweb edu
-#      num_demonstrations: 4
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
+
+  - label: "NEW_civilcomments_generation_2shot_seed${master_seed}"
+    data:
+      name: "google/civil_comments"
+      toxicity_threshold: 0.5
+      num_test: 5000
+      target_tokens: [ 6279, 1621 ] # " yes", and " No" for olmo
+      num_demonstrations: 2
+      num_samples: 10
+    seed: ${master_seed}
+    batch_size: ${master_batch_size}
+    num_proc: ${num_proc}
 
   #  # this performs civilcomment classification of toxic vs nontoxic
 #  # for custom models, choose from raw, add double, or add doublediff
@@ -334,3 +302,13 @@ evaluators:
 #    generation_kwargs:
 #      max_new_tokens: 50
 #      do_sample: False
+  # this performs civilcomment classification of toxic vs nontoxic
+  # for custom models, choose from raw, add double, or add doublediff
+#  - label: "toxigen_generation"
+#    data:
+#      name: "toxigen/toxigen-data"
+#      num_test: 5000
+#      target_tokens: [ 6279, 1621 ] # " yes", and " No"
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    num_proc: ${num_proc}

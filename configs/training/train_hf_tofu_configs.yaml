@@ -9,24 +9,24 @@ seed: 0
 train:
   do: True
 
-  exp_name: "tofu_5epoch_masked"
+  exp_name: "NEW_tofu_5epoch_masked"
 
-  model_path_or_name: "/home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/filtered_738_exp4/step1020-unsharded/hf"
-  out_directory: "${MODEL_DIR}/olmo_ckpt/contpretrain/exp_tofu/tofu_5epoch_masked"
+  model_path_or_name: "/home/ryan/decouple/models/tofu/olmo1B_orig"
+  out_directory: "${MODEL_DIR}/tofu"
 
   tokenizer_name: "${train.model_path_or_name}"
 
   wandb:
-    do: False
+    do: True
     project: "decouple"
     group: "OLMO-1B_tofu"
-    name: "5epoch_masked"
+    name: "NEW_5epoch_masked"
 
   max_seq_len: 256
 
   save_model: True
 
-  apply_loss_mask: False # this is only used for tofu training
+  apply_loss_mask: True # this is only used for tofu training
 
   training_args:
     per_device_train_batch_size: 16

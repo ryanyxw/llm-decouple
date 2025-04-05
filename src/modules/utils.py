@@ -158,9 +158,10 @@ def seed_all(seed):
 
 
 def get_score_with_delay(text, PERSPECTIVE_API_KEY):
-    # import time
-    # time.sleep(0.1)
+    import time
+    time.sleep(0.1)
     return get_score(text, PERSPECTIVE_API_KEY)
+
 def get_score(text, PERSPECTIVE_API_KEY):
 
     API_KEY = PERSPECTIVE_API_KEY
@@ -188,7 +189,7 @@ def get_score(text, PERSPECTIVE_API_KEY):
         except Exception as e:
             print(f"Error: {e}")
             print("Retrying in 5 seconds")
-            time.sleep(5)
+            time.sleep(1)
 
     score = response["attributeScores"]["TOXICITY"]["summaryScore"]["value"]
     return score

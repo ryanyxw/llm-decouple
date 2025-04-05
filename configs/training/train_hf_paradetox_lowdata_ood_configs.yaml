@@ -3,40 +3,39 @@ DATA_DIR: /mnt/nfs1/ryan/decouple/data
 MODEL_DIR: ${ROOT_DIR}/models
 
 num_proc: 16
-seed: 2
+seed: 0
 
 
 train:
   do: True
 
-  exp_name: "NEW_FIXED_HF_tofu_3epoch_vanilla_seed2"
+  exp_name: "NEW_paradetox_lowdata_ood"
 
-  model_path_or_name: "/home/ryan/decouple/models/tofu/olmo1B_orig"
-  out_directory: "${MODEL_DIR}/tofu"
+  model_path_or_name: "/home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/filtered_738_exp4/step1020-unsharded/hf"
+  out_directory: "${train.model_path_or_name}"
 
   tokenizer_name: "${train.model_path_or_name}"
 
   wandb:
     do: True
     project: "decouple"
-    group: "OLMO-1B_tofu"
-    name: "NEW_FIXED_HF_3epoch_vanilla_seed2"
+    group: "OLMO-1B_Paradetox_lowdata_ood"
+    name: "NEW_ckpt738_exp4new"
 
   max_seq_len: 256
 
-  save_model: True
+  save_model: False
 
   apply_loss_mask: True # this is only used for tofu training
 
   training_args:
-    per_device_train_batch_size: 32
-    gradient_accumulation_steps: 1
-#    num_train_epochs: 1
-    num_train_epochs: 3
+    per_device_train_batch_size: 16
+    gradient_accumulation_steps: 8
+    num_train_epochs: 5
     fp16: True
-    learning_rate: 5e-5
-    warmup_ratio: 0
-    logging_steps: 2
+    learning_rate: 2.0e-06
+    warmup_ratio: 0.03
+    logging_steps: 5
 
   # note: this only works when exp_name uses eval
   eval:

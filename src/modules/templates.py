@@ -1,3 +1,21 @@
+OPENINSTRUCT_JINJA_TEMPLATE = (
+    "{% for message in messages %}"
+    "{% if message['role'] == 'system' %}"
+    "{{ '<|system|>\n' + message['content'] + '\n' }}"
+    "{% elif message['role'] == 'user' %}"
+    "{{ '<|user|>\n' + message['content'] + '\n' }}"
+    "{% elif message['role'] == 'assistant' %}"
+    "{% if not loop.last %}"
+    "{{ '<|assistant|>\n'  + message['content'] + eos_token + '\n' }}"
+    "{% else %}"
+    "{{ '<|assistant|>\n'  + message['content'] + eos_token }}"
+    "{% endif %}"
+    "{% endif %}"
+    "{% if loop.last and add_generation_prompt %}"
+    "{{ '<|assistant|>\n' }}"
+    "{% endif %}"
+    "{% endfor %}"
+)
 
 TOXIC_CLASSIFICATION_NO_PROMPT="{input}{output}"
 # TOXIC_CLASSIFICATION_WITH_PROMPT="Question: Does the provided text contain rude, hateful, aggressive, disrespectful or unreasonable language? Respond in one word with either toxic or safe. \nText: {input}\nAnswer: {output}"

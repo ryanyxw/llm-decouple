@@ -169,6 +169,62 @@ def prepare_dynahate_prompt_sft_dataset(tokenizer, seed, max_seq_len, num_proc=1
 
     return train_dataset, test_dataset
 
+
+def prepare_NEW_civil_comments_finetune_auroc_dataset(tokenizer, seed, max_seq_len, num_proc=1, use_loss_mask=False):
+    # we first read toxigen dataset from huggingface
+    dataset = read_dataset_to_hf("google/civil_comments").shuffle(seed=seed)
+
+    toxicity_threshold = 0.5
+
+    # split dynahate according to pretrainer's guide (only use test set of rounds 3 and 4
+    # train on around 32k, text on 2010
+    train_dataset = dataset["train"]
+    test_dataset = dataset["test"]
+
+    # reformat the dataset
+    def reformat_row(row, prompt, tokenizer, add_label=False):
+        if add_label:
+            label = " Yes" if row["toxicity"] >= toxicity_threshold else " No"
+            final_instruction = prompt.format(input=row["text"].strip(), output=label)
+        else:
+            final_instruction = prompt.format(input=row["text"].strip(), output="")
+
+        input_ids = tokenizer.encode(final_instruction, padding="max_length", max_length=max_seq_len - 1)
+
+        if len(input_ids) > tokenizer.model_max_length - 1:
+            return {"input_ids": [],
+                    "attention_mask": [],
+                    "loss_mask": [],
+                    "is_harmful": row["label"] == "hate",
+                    "skip": True}
+
+        # we now calculate attention_mask and loss_mask for the input excluding padded tokens
+        attention_mask = [int(i != tokenizer.pad_token_id) for i in input_ids]
+        last_token_ind = sum(attention_mask) - 1
+        loss_mask = [0] * last_token_ind + [1] + [0] * (len(input_ids) - last_token_ind - 1)
+
+        return {"input_ids": input_ids,
+                "attention_mask": attention_mask,
+                "loss_mask": loss_mask,
+                "is_harmful": row["toxicity"] >= toxicity_threshold,
+                "skip": False}
+
+    prompt = TOXIC_CLASSIFICATION_WITH_PROMPT
+
+    train_dataset = train_dataset.map(reformat_row, batched=False, num_proc=num_proc, fn_kwargs={"prompt": prompt, "tokenizer": tokenizer, "add_label": True}, remove_columns=train_dataset.column_names)
+    test_dataset = test_dataset.map(reformat_row, batched=False, num_proc=num_proc, fn_kwargs={"prompt": prompt, "tokenizer": tokenizer, "add_label": False}, remove_columns=test_dataset.column_names)
+
+
+    # filter out examples that are too long
+    train_dataset = train_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+    test_dataset = test_dataset.filter(lambda x: x["skip"] == False, num_proc=num_proc)
+
+    # drop unnecessary columns
+    train_dataset = train_dataset.remove_columns(["skip"])
+    test_dataset = test_dataset.remove_columns(["skip"])
+
+    return train_dataset, test_dataset
+
 def prepare_toxigen_lowdata_prompt_sft_dataset(tokenizer, seed, max_seq_len, num_proc=1, use_loss_mask=False):
     # we first read toxigen dataset from huggingface
     dataset = read_dataset_to_hf("toxigen/toxigen-data", name="train")["train"].shuffle(seed=seed)
@@ -457,6 +513,10 @@ def prepare_paradetox_dataset(tokenizer, seed, max_seq_len, num_proc):
     test_dataset = train_dataset.select(range(int(0.1 * len(train_dataset))))
     train_dataset = train_dataset.select(range(len(test_dataset), len(train_dataset)))
 
+    # set the tokenizer padding to be on the left side
+    old_tokenizer_side = tokenizer.padding_side
+    tokenizer.padding_side = "left"
+
     # reformat the dataset
     def reformat_row(row, prompt, tokenizer, add_label=False):
         final_instruction = prompt.format(toxic_text=row["en_toxic_comment"])
@@ -514,6 +574,9 @@ def prepare_paradetox_dataset(tokenizer, seed, max_seq_len, num_proc):
     train_dataset = train_dataset.remove_columns(["skip"])
     test_dataset = test_dataset.remove_columns(["skip"])
 
+    # set the tokenizer padding back to the original side
+    tokenizer.padding_side = old_tokenizer_side
+
     return train_dataset, test_dataset
 
 
@@ -525,6 +588,10 @@ def prepare_paradetox_lowdata_dataset(tokenizer, seed, max_seq_len, num_proc):
     # create the dataset with 90-10 split between train and test
     test_dataset = train_dataset.select(range(int(0.1 * len(train_dataset))))
     train_dataset = train_dataset.select(range(len(test_dataset), len(test_dataset) + num_train))
+
+    # set the tokenizer padding to be on the left side
+    old_tokenizer_side = tokenizer.padding_side
+    tokenizer.padding_side = "left"
 
     # reformat the dataset
     def reformat_row(row, prompt, tokenizer, add_label=False):
@@ -556,6 +623,13 @@ def prepare_paradetox_lowdata_dataset(tokenizer, seed, max_seq_len, num_proc):
             attention_mask = [1] * len(input_ids)
             loss_mask = [0] * len(input_ids)
 
+        #     attention_mask = [0] * (len(input_ids) - len(temp_question)) + [1] * len(temp_question)
+        #     loss_mask = [0] * (len(input_ids) - len(answer)) + [1] * len(answer)
+        # else:
+        #     attention_mask = [0] * input_ids.count(tokenizer.pad_token_id) + [1] * (
+        #                 len(input_ids) - input_ids.count(tokenizer.pad_token_id))
+        #     loss_mask = [0] * len(input_ids)
+
         # we prepare the golden label, which must also be tokenized and padded
         golden_label = tokenizer.encode(row["en_neutral_comment"], padding="max_length", max_length=max_seq_len - 1)
 
@@ -583,6 +657,9 @@ def prepare_paradetox_lowdata_dataset(tokenizer, seed, max_seq_len, num_proc):
     train_dataset = train_dataset.remove_columns(["skip"])
     test_dataset = test_dataset.remove_columns(["skip"])
 
+    # set the tokenizer padding back to the original side
+    tokenizer.padding_side = old_tokenizer_side
+
     return train_dataset, test_dataset
 
 
@@ -600,6 +677,10 @@ def prepare_paradetox_lowdata_ood_dataset(tokenizer, seed, max_seq_len, num_proc
     # create the dataset and filter out specific occurances of words
     test_dataset = train_dataset.filter(filter_for_test)
     train_dataset = train_dataset.filter(lambda row: not filter_for_test(row))
+
+    # set the tokenizer padding to be on the left side
+    old_tokenizer_side = tokenizer.padding_side
+    tokenizer.padding_side = "left"
 
     num_train = 3200
     train_dataset = train_dataset.select(range(num_train))
@@ -625,13 +706,14 @@ def prepare_paradetox_lowdata_ood_dataset(tokenizer, seed, max_seq_len, num_proc
             answer = tokenizer.encode(row["en_neutral_comment"]) + [tokenizer.eos_token_id]
             temp_question = question + answer
 
-            if temp_question != input_ids[:len(temp_question)]:
+            if temp_question != input_ids[-len(temp_question):]:
                 import pdb
                 pdb.set_trace()
-            attention_mask = [1] * len(input_ids)
+            attention_mask = [0] * (len(input_ids) - len(temp_question)) + [1] * len(temp_question)
             loss_mask = [0] * (len(input_ids) - len(answer)) + [1] * len(answer)
         else:
-            attention_mask = [1] * len(input_ids)
+            attention_mask = [0] * input_ids.count(tokenizer.pad_token_id) + [1] * (
+                        len(input_ids) - input_ids.count(tokenizer.pad_token_id))
             loss_mask = [0] * len(input_ids)
 
         # we prepare the golden label, which must also be tokenized and padded
@@ -661,6 +743,9 @@ def prepare_paradetox_lowdata_ood_dataset(tokenizer, seed, max_seq_len, num_proc
     train_dataset = train_dataset.remove_columns(["skip"])
     test_dataset = test_dataset.remove_columns(["skip"])
 
+    # set the tokenizer padding back to the original side
+    tokenizer.padding_side = old_tokenizer_side
+
     return train_dataset, test_dataset
 
 def prepare_paradetox_ood_dataset(tokenizer, seed, max_seq_len, num_proc):
@@ -677,6 +762,10 @@ def prepare_paradetox_ood_dataset(tokenizer, seed, max_seq_len, num_proc):
     # create the dataset and filter out specific occurances of words
     test_dataset = train_dataset.filter(filter_for_test)
     train_dataset = train_dataset.filter(lambda row: not filter_for_test(row))
+
+    # set the tokenizer padding to be on the left side
+    old_tokenizer_side = tokenizer.padding_side
+    tokenizer.padding_side = "left"
 
     # reformat the dataset
     def reformat_row(row, prompt, tokenizer, add_label=False):
@@ -702,10 +791,11 @@ def prepare_paradetox_ood_dataset(tokenizer, seed, max_seq_len, num_proc):
             if temp_question != input_ids[-len(temp_question):]:
                 import pdb
                 pdb.set_trace()
-            attention_mask = [1] * len(input_ids)
+            attention_mask = [0] * (len(input_ids) - len(temp_question)) + [1] * len(temp_question)
             loss_mask = [0] * (len(input_ids) - len(answer)) + [1] * len(answer)
         else:
-            attention_mask = [1] * len(input_ids)
+            attention_mask = [0] * input_ids.count(tokenizer.pad_token_id) + [1] * (
+                        len(input_ids) - input_ids.count(tokenizer.pad_token_id))
             loss_mask = [0] * len(input_ids)
 
         # we prepare the golden label, which must also be tokenized and padded
@@ -733,6 +823,9 @@ def prepare_paradetox_ood_dataset(tokenizer, seed, max_seq_len, num_proc):
     # drop unnecessary columns
     train_dataset = train_dataset.remove_columns(["skip"])
     test_dataset = test_dataset.remove_columns(["skip"])
+
+    # set the tokenizer padding back to the original side
+    tokenizer.padding_side = old_tokenizer_side
 
     return train_dataset, test_dataset
 
@@ -1020,12 +1113,12 @@ def prepare_dataset_for_training(tokenizer, seed, num_proc, **kwargs):
         train_dataset, test_dataset = prepare_paradetox_ood_dataset(tokenizer, seed, max_seq_len, num_proc)
         eval_dataset = {exp_name: test_dataset} # to turn it into an eval dictionary for hf trainer
         return train_dataset, eval_dataset
-    if exp_name == "paradetox_lowdata":
+    if exp_name == "paradetox_lowdata" or exp_name == "NEW_paradetox_lowdata":
         # we read paradetox dataset from huggingface
         train_dataset, test_dataset = prepare_paradetox_lowdata_dataset(tokenizer, seed, max_seq_len, num_proc)
         eval_dataset = {exp_name: test_dataset}
         return train_dataset, eval_dataset
-    if exp_name == "paradetox_lowdata_ood":
+    if exp_name == "paradetox_lowdata_ood" or exp_name == "NEW_paradetox_lowdata_ood":
         train_dataset, test_dataset = prepare_paradetox_lowdata_ood_dataset(tokenizer, seed, max_seq_len, num_proc)
         eval_dataset = {exp_name: test_dataset}
         return train_dataset, eval_dataset
@@ -1043,6 +1136,10 @@ def prepare_dataset_for_training(tokenizer, seed, num_proc, **kwargs):
         return train_dataset, eval_dataset
     if exp_name == "dynahate_lowdata_prompt_sft":
         train_dataset, test_dataset = prepare_dynahate_lowdata_prompt_sft_dataset(tokenizer, seed, max_seq_len, num_proc)
+        eval_dataset = {exp_name: test_dataset}
+        return train_dataset, eval_dataset
+    if exp_name == "NEW_civilcomments_finetune_auroc":
+        train_dataset, test_dataset = prepare_NEW_civil_comments_finetune_auroc_dataset(tokenizer, seed, max_seq_len, num_proc)
         eval_dataset = {exp_name: test_dataset}
         return train_dataset, eval_dataset
     # if exp_name == "toxigen_finetune_prompts":

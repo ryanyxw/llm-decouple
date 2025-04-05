@@ -34,22 +34,51 @@ class SelectiveLossTrainer(Trainer):
         labels = labels[..., 1:].contiguous()
 
         loss_mask = inputs["loss_mask"][..., 1:].contiguous()
+        attention_mask = inputs["attention_mask"][..., 1:].contiguous()
         log_probs = nn.functional.log_softmax(logits, dim=-1)
+
+        do_vanilla = True # whether we even use the loss_mask
+        mode = "vanilla"
+
+        if mode != "vanilla" and do_vanilla:
+            raise ValueError("when do_vanilla is true, mode must be set to vanilla")
+
+        # create masks for cross_entropy and masked/unlikelihood
+        if do_vanilla == True:
+            label_mask_for_cross_entropy = attention_mask.bool()
+        else:
+            label_mask_for_cross_entropy = loss_mask.bool() & attention_mask.bool()
+            label_mask_for_special_tokens = (~loss_mask.bool()) & attention_mask.bool()
+
         if labels.dim() == log_probs.dim() - 1:
             labels = labels.unsqueeze(-1)
 
         # batch_size x seq_len
-        nll_loss = log_probs.gather(dim=-1, index=labels).squeeze(-1)
+        ll_loss = log_probs.gather(dim=-1, index=labels).squeeze(-1)
 
-        nll_loss = nll_loss.masked_fill_(~loss_mask.bool(), 0)
-        # we take out the padding tokens
-        nll_loss = nll_loss.masked_fill_(~inputs["attention_mask"][..., 1:].bool(), 0)
+        # we take out the special and padding tokens
+        ll_loss = ll_loss.masked_fill_(~label_mask_for_cross_entropy, 0)
 
-        # sum over the sequence length
-        loss = -1 * nll_loss.sum() / loss_mask.sum()
-        # print(f"loss: {loss}")
+        # return loss
+        if mode == "masked" or mode == "vanilla":
+            loss = -1 * ll_loss.sum() / label_mask_for_cross_entropy.sum()
+            return loss
 
-        return loss
+        elif mode == "unlikelihood":
+            probs = log_probs.exp()
+
+            probs_for_ul = probs[label_mask_for_special_tokens]
+            labels_for_ul = labels[label_mask_for_special_tokens]
+
+            # Compute 1 - p (we clamp to avoid log(0))
+            p_unlike = 1.0 - probs_for_ul.gather(-1, labels_for_ul).squeeze(-1)
+            p_unlike = torch.clamp(p_unlike, min=1e-9)
+
+            ul_loss = torch.log(p_unlike)
+
+            loss = -1 * (ll_loss.sum() + ul_loss.sum()) / (label_mask_for_cross_entropy.sum() + label_mask_for_special_tokens.sum())
+            return loss
+
 
 
     def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix="eval"):
@@ -441,6 +470,10 @@ class SelectiveLossTrainer(Trainer):
         output_dir = os.path.join(self.args.output_dir, "generations")
         os.makedirs(output_dir, exist_ok=True)
 
+        # store final bleu scores in a file
+        out_fn_bleu_fn = os.path.join(self.args.output_dir, "bleu_scores.json")
+        out_file_bleu = open(out_fn_bleu_fn, "a")
+
         out_fn = os.path.join(output_dir, f"evaluation_step_{num_steps}.jsonl")
         out_file = open(out_fn, "w")
 
@@ -487,6 +520,11 @@ class SelectiveLossTrainer(Trainer):
         out_file.close()
 
         average_bleu = sum(total_bleu) / len(total_bleu)
+
+        out_file_bleu.write(json.dumps({"step": num_steps, "bleu": average_bleu}))
+        out_file_bleu.write("\n")
+        out_file_bleu.close()
+
         print(f"Average BLEU: {average_bleu}")
         return {"BLEU": average_bleu}
 

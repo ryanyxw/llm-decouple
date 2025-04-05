@@ -12,7 +12,7 @@ from sklearn.metrics import f1_score, accuracy_score, roc_auc_score, precision_s
 from sklearn.model_selection import train_test_split
 import pandas as pd
 import torch
-from datasets import Dataset
+from datasets import Dataset, load_from_disk
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -34,11 +34,43 @@ from src.training.run_train_torch import train_classifier, train_binaryclassifie
 
 def save_evaluator_config_and_sample(evaluator, out_dir, sample):
     # saves a sample of the prompt to a parallel file along with configs
-    print("sample of example fed into model: \n" + sample)
+    print("sample of example fed into model: \n" + repr(sample))
     with open(os.path.join(out_dir, "template.jsonl"), "w") as f:
-        f.write(sample + "\n")
+        f.write(repr(sample) + "\n")
     with open(os.path.join(out_dir, "config.json"), "w") as f:
         OmegaConf.save(evaluator, f, resolve=True)
+
+def real_toxicity_prompt_chat_generation_evaluator(hf_model, tokenizer, evaluator, out_dir):
+    """
+    Evaluates the model using the real toxicity prompts. returns the process for evaluating using perspective
+    :param hf_model: the loaded model
+    :param evaluator: the evaluator
+    :return: nothing
+    """
+
+    # load the dataset and select the necessary ones
+    dataset = read_dataset_to_hf(evaluator.data.name)["train"].shuffle(seed=evaluator.seed)
+    assert(len(dataset) >= evaluator.data.num_examples)
+    dataset = dataset.select(range(evaluator.data.num_examples))
+
+    # reformat the dataset such that it is in generation format
+    def reformat_row(row):
+        conversation = [{"role": "user", "content": row["prompt"]["text"]}]
+        return {"prompt": conversation}
+    dataset = dataset.map(reformat_row)
+
+    save_evaluator_config_and_sample(evaluator, out_dir, dataset[0]["prompt"])
+
+    # runs the generation and saves the output
+    out_fn = os.path.join(out_dir, "generation_output_test.jsonl")
+    print("saving to ", out_fn)
+
+    run_inference_new("generate", hf_model, tokenizer, dataset, out_fn, batch_size=evaluator.batch_size , generation_kwargs=evaluator.generation_kwargs, use_chat_template=True)
+
+    # creates a processes that calls google perspective API and saves the output
+    # progress_file = os.path.join(out_dir, "perspective_api_progress_includingprompt.json")
+    # use_perspective_api(out_fn, PERSPECTIVE_API_KEY, progress_file)
+
 
 def real_toxicity_prompt_generation_evaluator(hf_model, tokenizer, evaluator, out_dir):
     """
@@ -143,6 +175,77 @@ def NEW_hidden_state_civilcomments_evaluator(hf_model, tokenizer, evaluator, out
         for metric, (mean, stderr, raw) in metrics.items():
             f.write(f"{metric}: {mean:.4f} ± {stderr:.4f} | {raw}\n")
 
+def NEW_CHAT_hidden_state_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_dir):
+    train_out_fn = os.path.join(out_dir, "hidden_states_train.jsonl")
+    test_out_fn = os.path.join(out_dir, "hidden_states_test.jsonl")
+
+    dataset = read_dataset_to_hf(evaluator.data.name).shuffle(seed=evaluator.seed)
+    test_dataset = dataset["test"]
+    train_dataset = dataset["train"]
+
+    accuracy_scores, f1_scores, precision_scores, recall_scores, roc_auc_scores, pr_auc_scores = [], [], [], [], [], []
+
+    for i in range(evaluator.data.num_samples):  # Generate 5 different subsamples
+        train_subsample = select_binary_balanced_dataset(
+            train_dataset, lambda x: x["toxicity"] >= evaluator.data.toxicity_threshold,
+            evaluator.seed + i, evaluator.data.num_train // 2)
+
+        test_subsample = select_binary_balanced_dataset(
+            test_dataset, lambda x: x["toxicity"] >= evaluator.data.toxicity_threshold,
+            evaluator.seed + i, evaluator.data.num_test // 2)
+
+        def reformat_row(row, prompt):
+            final_instruction = prompt.format(input=row["text"], output="")
+            return {"prompt": final_instruction, "label": row["toxicity"] >= evaluator.data.toxicity_threshold}
+
+        prompt = TOXIC_CLASSIFICATION_WITH_PROMPT if evaluator.use_prompt else TOXIC_CLASSIFICATION_NO_PROMPT
+        train_subsample = train_subsample.map(reformat_row, batched=False, fn_kwargs={"prompt": prompt})
+        test_subsample = test_subsample.map(reformat_row, batched=False, fn_kwargs={"prompt": prompt})
+
+        run_inference_new("hidden_state", hf_model, tokenizer, train_subsample, train_out_fn,
+                          batch_size=evaluator.batch_size, use_chat_template=True)
+        run_inference_new("hidden_state", hf_model, tokenizer, test_subsample, test_out_fn,
+                          batch_size=evaluator.batch_size, use_chat_template=True)
+
+        classifier_train_dataset = pd.read_json(train_out_fn, orient="records", lines=True)
+        classifier_test_dataset = pd.read_json(test_out_fn, orient="records", lines=True)
+
+        X_train = np.stack(classifier_train_dataset["hidden_state"])
+        y_train = np.stack(classifier_train_dataset["label"])
+        X_test = np.stack(classifier_test_dataset["hidden_state"])
+        y_test = np.stack(classifier_test_dataset["label"])
+
+        indices_train = np.random.permutation(len(X_train))
+        X_train, y_train = X_train[indices_train], y_train[indices_train]
+        indices_test = np.random.permutation(len(X_test))
+        X_test, y_test = X_test[indices_test], y_test[indices_test]
+
+        clf = LogisticRegression(class_weight="balanced", max_iter=5000)
+        clf.fit(X_train, y_train)
+
+        y_pred_test = clf.predict(X_test)
+        y_prob_test = clf.predict_proba(X_test)[:, 1]
+
+        accuracy_scores.append(accuracy_score(y_test, y_pred_test))
+        f1_scores.append(f1_score(y_test, y_pred_test))
+        precision_scores.append(precision_score(y_test, y_pred_test))
+        recall_scores.append(recall_score(y_test, y_pred_test))
+        roc_auc_scores.append(roc_auc_score(y_test, y_prob_test))
+        pr_auc_scores.append(average_precision_score(y_test, y_prob_test))
+
+    metrics = {
+        "Test Accuracy": (np.mean(accuracy_scores), sem(accuracy_scores), accuracy_scores),
+        "Test F1 Score": (np.mean(f1_scores), sem(f1_scores), f1_scores),
+        "Test Precision": (np.mean(precision_scores), sem(precision_scores), precision_scores),
+        "Test Recall": (np.mean(recall_scores), sem(recall_scores), recall_scores),
+        "Test ROC AUC": (np.mean(roc_auc_scores), sem(roc_auc_scores), roc_auc_scores),
+        "Test PR AUC": (np.mean(pr_auc_scores), sem(pr_auc_scores), pr_auc_scores),
+    }
+
+    with open(os.path.join(out_dir, "performance_metrics.txt"), "w") as f:
+        f.write("Test Metrics (Mean ± StdErr):\n")
+        for metric, (mean, stderr, raw) in metrics.items():
+            f.write(f"{metric}: {mean:.4f} ± {stderr:.4f} | {raw}\n")
 
 def hidden_state_civilcomments_insult_evaluator(hf_model, tokenizer, evaluator, out_dir):
     train_out_fn = os.path.join(out_dir, "hidden_states_train.jsonl")
@@ -299,7 +402,7 @@ def hidden_state_civilcomments_finegrained_evaluator(hf_model, tokenizer, evalua
 
     pass
 
-def in_distribution_perplexity_evaluator(hf_model, tokenizer, evaluator, out_dir):
+def in_distribution_perplexity_evaluator_dolma(hf_model, tokenizer, evaluator, out_dir):
     """
     evaluates the model on in-distribution toxic data. Four different types of perplexity analysis
     :param hf_model: the loaded model
@@ -307,16 +410,13 @@ def in_distribution_perplexity_evaluator(hf_model, tokenizer, evaluator, out_dir
     :return: nothing
     """
 
-    dataset = read_dataset_to_hf(evaluator.data.name)["train"].select(range(evaluator.data.num_examples))
-    dataset_name = "base_filtered"
+    dataset = read_dataset_to_hf(evaluator.data.name)["train"]
+    os.makedirs(out_dir, exist_ok=True)
 
-    current_out_dir = os.path.join(out_dir, dataset_name)
-    os.makedirs(current_out_dir, exist_ok=True)
-
-    save_evaluator_config_and_sample(evaluator, current_out_dir, tokenizer.decode(dataset[0]["input_ids"]))
+    save_evaluator_config_and_sample(evaluator, out_dir, tokenizer.decode(dataset[0]["input_ids"]))
 
     # runs the generation and saves the output
-    out_fn = os.path.join(current_out_dir, "stats.txt")
+    out_fn = os.path.join(out_dir, "stats.txt")
     print("saving to ", out_fn)
 
     # loop through the eval dataset and calculate the averaged perplexity
@@ -345,6 +445,102 @@ def in_distribution_perplexity_evaluator(hf_model, tokenizer, evaluator, out_dir
 
     with open(out_fn, "w") as f:
         f.write(f"Perplexity: {torch.exp(torch.tensor(tot_loss / tot_tokens)).item()}, Loss: {tot_loss / tot_tokens}")
+
+
+def in_distribution_perplexity_evaluator_nontoxicdocumentreddit(hf_model, tokenizer, evaluator, out_dir):
+    """
+    evaluates the model on in-distribution toxic data. Four different types of perplexity analysis
+    :param hf_model: the loaded model
+    :param evaluator: the evaluator
+    :return: nothing
+    """
+
+    # read in huggingface dataset
+    # we select 10000 sequences (corresponding to about 20 million tokens to eval on
+    dataset = load_from_disk(evaluator.data.name).shuffle(seed=evaluator.seed).select(range(10000))
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    save_evaluator_config_and_sample(evaluator, out_dir, tokenizer.decode(dataset[0]["input_ids"]))
+
+    # runs the generation and saves the output
+    out_fn = os.path.join(out_dir, "stats.txt")
+    print("saving to ", out_fn)
+
+    # loop through the eval dataset and calculate the averaged perplexity
+    ind = 0
+    tot_loss = 0
+    tot_tokens = 0
+    p_bar = tqdm(total=len(dataset))
+
+    while (ind < len(dataset)):
+        prompts = torch.tensor(dataset[ind:ind + evaluator.batch_size]["input_ids"]).to("cuda")
+
+        logits = obtain_logit(hf_model, input_ids=prompts, attention_mask=torch.ones_like(prompts).to("cuda"))
+        labels = prompts.clone().cpu()
+        cross_entropy_per_token = calculate_loss_across_tokens(logits, labels, shift=True)
+
+        # select loss_mask and take out first token since it is not being predicted
+        loss_mask = torch.tensor(dataset[ind:ind + evaluator.batch_size]["loss_mask"])
+        loss_mask = loss_mask[:, 1:]
+
+        target_loss = cross_entropy_per_token[loss_mask == 1]
+        tot_loss += torch.sum(target_loss).item()
+        tot_tokens += torch.sum(loss_mask).item()
+
+        ind += evaluator.batch_size
+        p_bar.update(evaluator.batch_size)
+
+    with open(out_fn, "w") as f:
+        f.write(
+            f"Perplexity: {torch.exp(torch.tensor(tot_loss / tot_tokens)).item()}, Loss: {tot_loss / tot_tokens}")
+
+def in_distribution_perplexity_evaluator_nontoxicreddit(hf_model, tokenizer, evaluator, out_dir):
+    """
+    evaluates the model on in-distribution toxic data. Four different types of perplexity analysis
+    :param hf_model: the loaded model
+    :param evaluator: the evaluator
+    :return: nothing
+    """
+
+    # read in huggingface dataset
+    dataset = load_from_disk(evaluator.data.name)
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    save_evaluator_config_and_sample(evaluator, out_dir, tokenizer.decode(dataset[0]["input_ids"]))
+
+    # runs the generation and saves the output
+    out_fn = os.path.join(out_dir, "stats.txt")
+    print("saving to ", out_fn)
+
+    # loop through the eval dataset and calculate the averaged perplexity
+    ind = 0
+    tot_loss = 0
+    tot_tokens = 0
+    p_bar = tqdm(total=len(dataset))
+
+    while (ind < len(dataset)):
+        prompts = torch.tensor(dataset[ind:ind + evaluator.batch_size]["input_ids"]).to("cuda")
+
+        logits = obtain_logit(hf_model, input_ids=prompts, attention_mask=torch.ones_like(prompts).to("cuda"))
+        labels = prompts.clone().cpu()
+        cross_entropy_per_token = calculate_loss_across_tokens(logits, labels, shift=True)
+
+        # select loss_mask and take out first token since it is not being predicted
+        loss_mask = torch.tensor(dataset[ind:ind + evaluator.batch_size]["loss_mask"])
+        loss_mask = loss_mask[:, 1:]
+
+        target_loss = cross_entropy_per_token[loss_mask == 1]
+        tot_loss += torch.sum(target_loss).item()
+        tot_tokens += torch.sum(loss_mask).item()
+
+        ind += evaluator.batch_size
+        p_bar.update(evaluator.batch_size)
+
+    with open(out_fn, "w") as f:
+        f.write(
+            f"Perplexity: {torch.exp(torch.tensor(tot_loss / tot_tokens)).item()}, Loss: {tot_loss / tot_tokens}")
 
     # # load the dataset and select the necessary ones
     # # dataset_names = ["base_filtered", "nontoxic_only", "nontoxic_toxic", "toxic_nontoxic", "toxic_only"]
@@ -394,6 +590,98 @@ def in_distribution_perplexity_evaluator(hf_model, tokenizer, evaluator, out_dir
     #     with open(out_fn, "w") as f:
     #         f.write(f"Perplexity: {torch.exp(torch.tensor(tot_loss / tot_tokens)).item()}, Loss: {tot_loss / tot_tokens}")
 
+def NEW_EASY_hidden_state_toxigen_evaluator(hf_model, tokenizer, evaluator, out_dir):
+    train_out_fn = os.path.join(out_dir, "hidden_states_train.jsonl")
+    test_out_fn = os.path.join(out_dir, "hidden_states_test.jsonl")
+
+    if not os.path.exists(train_out_fn) or not os.path.exists(test_out_fn):
+        # load the dataset and select balanced partitions
+        train_dataset = read_dataset_to_hf(evaluator.data.name, name="annotated")["train"].shuffle(seed=evaluator.seed)
+        test_dataset = read_dataset_to_hf(evaluator.data.name, name="annotated")["test"].shuffle(seed=evaluator.seed)
+
+        # we first filter the datasetes to only include extreme examples (which makes the task easier
+        train_dataset = train_dataset.filter(lambda x: x["toxicity_human"] >= 4.5 or x["toxicity_human"] <= 1.5)
+        test_dataset = test_dataset.filter(lambda x: x["toxicity_human"] >= 4.5 or x["toxicity_human"] <= 1.5)
+
+        train_dataset = select_binary_balanced_dataset(train_dataset, lambda x: x["toxicity_human"] >= 3,
+                                                 evaluator.seed, 3054 // 2) # 3054 is max number supported for balanced dataset
+
+        test_dataset = select_binary_balanced_dataset(test_dataset, lambda x: x["toxicity_human"] >= 3,
+                                                      evaluator.seed, 374 // 2) # 374 is max number supported for balanced dataset
+
+        # reformat the dataset such that it is in generation format
+        def reformat_row(row, prompt):
+            final_instruction = prompt.format(input=row["text"], output="")
+            return {"prompt": final_instruction,
+                    "label": row["toxicity_human"] >= 3}
+
+        if evaluator.use_prompt:
+            prompt = TOXIC_CLASSIFICATION_WITH_PROMPT
+        else:
+            prompt = TOXIC_CLASSIFICATION_NO_PROMPT
+
+        train_dataset = train_dataset.map(reformat_row, batched=False, fn_kwargs={"prompt": prompt})
+        test_dataset = test_dataset.map(reformat_row, batched=False, fn_kwargs={"prompt": prompt})
+
+        save_evaluator_config_and_sample(evaluator, out_dir, train_dataset[0]["prompt"])
+
+        # runs the hidden states and saves the output for both train and eval
+        run_inference_new("hidden_state", hf_model, tokenizer, train_dataset, train_out_fn,
+                          batch_size=evaluator.batch_size)
+        run_inference_new("hidden_state", hf_model, tokenizer, test_dataset, test_out_fn,
+                          batch_size=evaluator.batch_size)
+
+
+    # load the dataset into numpy format
+    classifier_train_dataset = pd.read_json(train_out_fn, orient="records", lines=True)
+    classifier_test_dataset = pd.read_json(test_out_fn, orient="records", lines=True)
+
+    X_train = np.stack(classifier_train_dataset["hidden_state"])
+    y_train = np.stack(classifier_train_dataset["label"])
+
+    X_test = np.stack(classifier_test_dataset["hidden_state"])
+    y_test = np.stack(classifier_test_dataset["label"])
+
+    # shuffle the data
+    indices_train = np.random.permutation(len(X_train))
+    X_train = X_train[indices_train]
+    y_train = y_train[indices_train]
+
+    indices_test = np.random.permutation(len(X_test))
+    X_test = X_test[indices_test]
+    y_test = y_test[indices_test]
+
+    # Train a classifier for each label (binary relevance)
+    print(f"Training classifier")
+
+    # # Train the logistic regression model
+    clf = LogisticRegression(class_weight="balanced", max_iter=5000)
+    clf.fit(X_train, y_train)
+
+    # Predict on the test set for the current label
+    y_pred_test = clf.predict(X_test)
+    y_prob_test = clf.predict_proba(X_test)[:, 1]
+
+    # Compute the F1 score for the current label
+    accuracy_test = accuracy_score(y_test, y_pred_test)
+    precision_test, recall_test, f1_test, _ = precision_recall_fscore_support(y_test, y_pred_test, average="binary")
+    roc_auc_test = roc_auc_score(y_test, y_prob_test)
+    pr_auc_test = average_precision_score(y_test, y_prob_test)
+    print(f"test accuracy: {accuracy_test:.4f}")
+    print(f"test F1 Score: {f1_test:.4f}")
+    print(f"test Precision: {precision_test:.4f}")
+    print(f"test Recall: {recall_test:.4f}")
+    print(f"test ROC AUC: {roc_auc_test:.4f}")
+    print(f"test PR AUC: {pr_auc_test:.4f}")
+
+    # Save the performance metrics to a file
+    with open(os.path.join(out_dir, "performance_metrics.txt"), "w") as f:
+        f.write(f"Test Accuracy: {accuracy_test:.4f}\n")
+        f.write(f"Test F1 Score: {f1_test:.4f}\n")
+        f.write(f"Test Precision: {precision_test:.4f}\n")
+        f.write(f"Test Recall: {recall_test:.4f}\n")
+        f.write(f"Test ROC AUC: {roc_auc_test:.4f}\n")
+        f.write(f"Test PR AUC: {pr_auc_test:.4f}\n")
 
 def NEW_hidden_state_toxigen_evaluator(hf_model, tokenizer, evaluator, out_dir):
     train_out_fn = os.path.join(out_dir, "hidden_states_train.jsonl")
@@ -1001,6 +1289,80 @@ def NEW_generation_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_d
         for metric, (mean, stderr, raw) in metrics.items():
             f.write(f"{metric}: {mean:.4f} ± {stderr:.4f} | Raw: {raw}\n")
 
+def NEW_CHAT_generation_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_dir):
+    """
+        generates the output for classification of toxic texts. Evaluate the model performance
+        :param hf_model: the loaded model
+        :param evaluator: the evaluator
+        """
+
+    dataset = read_dataset_to_hf(evaluator.data.name).shuffle(seed=evaluator.seed)
+    test_dataset = dataset["test"]
+    train_dataset = dataset["train"]
+    total_demonstration_dataset = train_dataset
+
+    def reformat_row(row, prompt):
+        final_instruction = prompt.format(input=row["text"], output="")
+        return {"prompt": final_instruction, "label": row["toxicity"] >= evaluator.data.toxicity_threshold}
+
+    def reformat_row_for_test(row, demonstration_conversations):
+        final_instruction = prompt.format(input=row["text"], output="")
+        prompt_conversation = demonstration_conversations + [{"role": "user", "content": final_instruction}]
+        return {"prompt": prompt_conversation, "label": row["toxicity"] >= evaluator.data.toxicity_threshold}
+
+    # Initialize lists to store metrics for multiple subsamples
+    f1_scores, precision_scores, recall_scores, accuracy_scores, rocauc_scores = [], [], [], [], []
+
+    for i in range(evaluator.data.num_samples):  # Generate different subsamples
+        demonstration_dataset = select_binary_balanced_dataset(
+            total_demonstration_dataset, lambda x: x["toxicity"] >= evaluator.data.toxicity_threshold,
+            evaluator.seed + i, evaluator.data.num_demonstrations // 2, num_proc=evaluator.num_proc)
+
+        prompt = TOXIC_CLASSIFICATION_WITH_PROMPT
+        demonstration_dataset = demonstration_dataset.map(reformat_row, batched=False, fn_kwargs={"prompt": prompt})
+
+        demonstration_conversations = []
+        for example in demonstration_dataset:
+            label = "Yes" if example["toxicity"] >= evaluator.data.toxicity_threshold else "No"
+            demonstration = prompt.format(input=example["text"], output="")
+            demonstration_conversations += [{"role": "user", "content": demonstration}, {"role": "assistant", "content": label}]
+
+        test_dataset_balanced = select_binary_balanced_dataset(
+            test_dataset, lambda x: x["toxicity"] >= evaluator.data.toxicity_threshold,
+            evaluator.seed + i, evaluator.data.num_test // 2, num_proc=evaluator.num_proc)
+
+        test_dataset_balanced = test_dataset_balanced.map(reformat_row_for_test, batched=False, fn_kwargs={"demonstration_conversations": demonstration_conversations})
+        out_fn_balanced = os.path.join(out_dir, f"generation_output_balanced_{i}.jsonl")
+
+        run_inference_new("logits", hf_model, tokenizer, test_dataset_balanced, out_fn_balanced,
+                          batch_size=evaluator.batch_size, target_token_ids=evaluator.data.target_tokens, use_chat_template=True)
+
+        results_balanced = pd.read_json(out_fn_balanced, orient="records", lines=True)
+        prediction_balanced = results_balanced["completion"]
+        labels_balanced = test_dataset_balanced["label"]
+
+        logits_balanced = results_balanced["logits"]
+        probs_balanced = torch.softmax(torch.tensor(logits_balanced), dim=1)[:, 0].numpy()
+
+        f1_scores.append(f1_score(labels_balanced, prediction_balanced))
+        precision_scores.append(precision_score(labels_balanced, prediction_balanced))
+        recall_scores.append(recall_score(labels_balanced, prediction_balanced))
+        accuracy_scores.append(accuracy_score(labels_balanced, prediction_balanced))
+        rocauc_scores.append(roc_auc_score(labels_balanced, probs_balanced))
+
+    # Compute mean and standard error for each metric
+    metrics = {
+        "F1 Score": (np.mean(f1_scores), sem(f1_scores), f1_scores),
+        "Precision": (np.mean(precision_scores), sem(precision_scores), precision_scores),
+        "Recall": (np.mean(recall_scores), sem(recall_scores), recall_scores),
+        "Accuracy": (np.mean(accuracy_scores), sem(accuracy_scores), accuracy_scores),
+        "ROC AUC": (np.mean(rocauc_scores), sem(rocauc_scores), rocauc_scores)
+    }
+
+    with open(os.path.join(out_dir, "performance_metrics.txt"), "w") as f:
+        f.write("Balanced Dataset Metrics (Mean ± StdErr):\n")
+        for metric, (mean, stderr, raw) in metrics.items():
+            f.write(f"{metric}: {mean:.4f} ± {stderr:.4f} | Raw: {raw}\n")
 
 def generation_direct_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_dir):
     """
@@ -1177,6 +1539,229 @@ def NEW_generation_dynahate_evaluator(hf_model, tokenizer, evaluator, out_dir):
         f.write("Balanced Dataset Metrics (Mean ± StdErr):\n")
         for metric, (mean, stderr, raw) in metrics.items():
             f.write(f"{metric}: {mean:.4f} ± {stderr:.4f} | Raw: {raw}\n")
+
+
+def NEW_hidden_state_dynahate_evaluator(hf_model, tokenizer, evaluator, out_dir):
+    train_out_fn = os.path.join(out_dir, "hidden_states_train.jsonl")
+    test_out_fn = os.path.join(out_dir, "hidden_states_test.jsonl")
+
+    dataset = read_dataset_to_hf(evaluator.data.path)["train"].shuffle(seed=evaluator.seed)
+
+    test_dataset = dataset.filter(lambda x: x["split"] == "test")
+    train_dataset = dataset.filter(lambda x: x["split"] == "train")
+
+    accuracy_scores, f1_scores, precision_scores, recall_scores, roc_auc_scores, pr_auc_scores = [], [], [], [], [], []
+
+    for i in range(evaluator.data.num_samples):  # Generate 5 different subsamples
+        train_subsample = select_binary_balanced_dataset(
+            train_dataset, lambda x: x["label"] == "hate",
+            evaluator.seed + i, evaluator.data.num_train // 2)
+
+        test_subsample = select_binary_balanced_dataset(
+            test_dataset, lambda x: x["label"] == "hate",
+            evaluator.seed + i, evaluator.data.num_test // 2)
+
+        def reformat_row(row, prompt):
+            final_instruction = prompt.format(input=row["text"], output="")
+            return {"prompt": final_instruction, "label": row["label"] == "hate"}
+
+        prompt = TOXIC_CLASSIFICATION_WITH_PROMPT if evaluator.use_prompt else TOXIC_CLASSIFICATION_NO_PROMPT
+        train_subsample = train_subsample.map(reformat_row, batched=False, fn_kwargs={"prompt": prompt})
+        test_subsample = test_subsample.map(reformat_row, batched=False, fn_kwargs={"prompt": prompt})
+
+        run_inference_new("hidden_state", hf_model, tokenizer, train_subsample, train_out_fn,
+                          batch_size=evaluator.batch_size)
+        run_inference_new("hidden_state", hf_model, tokenizer, test_subsample, test_out_fn,
+                          batch_size=evaluator.batch_size)
+
+        classifier_train_dataset = pd.read_json(train_out_fn, orient="records", lines=True)
+        classifier_test_dataset = pd.read_json(test_out_fn, orient="records", lines=True)
+
+        X_train = np.stack(classifier_train_dataset["hidden_state"])
+        y_train = np.stack(classifier_train_dataset["label"])
+        X_test = np.stack(classifier_test_dataset["hidden_state"])
+        y_test = np.stack(classifier_test_dataset["label"])
+
+        indices_train = np.random.permutation(len(X_train))
+        X_train, y_train = X_train[indices_train], y_train[indices_train]
+        indices_test = np.random.permutation(len(X_test))
+        X_test, y_test = X_test[indices_test], y_test[indices_test]
+
+        clf = LogisticRegression(class_weight="balanced", max_iter=5000)
+        clf.fit(X_train, y_train)
+
+        y_pred_test = clf.predict(X_test)
+        y_prob_test = clf.predict_proba(X_test)[:, 1]
+
+        accuracy_scores.append(accuracy_score(y_test, y_pred_test))
+        f1_scores.append(f1_score(y_test, y_pred_test))
+        precision_scores.append(precision_score(y_test, y_pred_test))
+        recall_scores.append(recall_score(y_test, y_pred_test))
+        roc_auc_scores.append(roc_auc_score(y_test, y_prob_test))
+        pr_auc_scores.append(average_precision_score(y_test, y_prob_test))
+
+    metrics = {
+        "Test Accuracy": (np.mean(accuracy_scores), sem(accuracy_scores), accuracy_scores),
+        "Test F1 Score": (np.mean(f1_scores), sem(f1_scores), f1_scores),
+        "Test Precision": (np.mean(precision_scores), sem(precision_scores), precision_scores),
+        "Test Recall": (np.mean(recall_scores), sem(recall_scores), recall_scores),
+        "Test ROC AUC": (np.mean(roc_auc_scores), sem(roc_auc_scores), roc_auc_scores),
+        "Test PR AUC": (np.mean(pr_auc_scores), sem(pr_auc_scores), pr_auc_scores),
+    }
+
+    with open(os.path.join(out_dir, "performance_metrics.txt"), "w") as f:
+        f.write("Test Metrics (Mean ± StdErr):\n")
+        for metric, (mean, stderr, raw) in metrics.items():
+            f.write(f"{metric}: {mean:.4f} ± {stderr:.4f} | {raw}\n")
+
+def NEW_EASY_generation_toxigen_evaluator(hf_model, tokenizer, evaluator, out_dir):
+    """
+        generates the output for classification of toxic texts. Evaluate the model performance
+        :param hf_model: the loaded model
+        :param evaluator: the evaluator
+        """
+    demonstration_dataset = read_dataset_to_hf(evaluator.data.name, name="annotated")["train"].shuffle(seed=evaluator.seed)
+    test_dataset = read_dataset_to_hf(evaluator.data.name, name="annotated")["test"].shuffle(seed=evaluator.seed)
+
+    # we first filter the datasetes to only include extreme examples (which makes the task easier
+    demonstration_dataset = demonstration_dataset.filter(lambda x: x["toxicity_human"] >= 4.5 or x["toxicity_human"] <= 1.5)
+    test_dataset = test_dataset.filter(lambda x: x["toxicity_human"] >= 4.5 or x["toxicity_human"] <= 1.5)
+
+    # select balanced dataset for the demonstration
+    demonstration_dataset = select_binary_balanced_dataset(demonstration_dataset, lambda x: x["toxicity_human"] >= 3,
+                                                           evaluator.seed, evaluator.data.num_demonstrations // 2,
+                                                           num_proc=evaluator.num_proc)
+
+    test_dataset = select_binary_balanced_dataset(test_dataset, lambda x: x["toxicity_human"] >= 3,
+                                                  evaluator.seed,
+                                                  374 // 2)  # 374 is max number supported for balanced dataset
+
+    # reformat the dataset such that it is in generation format
+    def reformat_row(row, prompt):
+        final_instruction = prompt.format(input=row["text"].strip(), output="")
+        return {"prompt": final_instruction,
+                "label": row["toxicity_human"] >= 3}
+
+    prompt = TOXIC_CLASSIFICATION_WITH_PROMPT
+
+    # we create a demonstration string
+    demonstration_prefix = ""
+    for example in demonstration_dataset:
+        label = " Yes" if example["toxicity_human"] >= 3 else " No"
+        demonstration = prompt.format(input=example["text"].strip(), output=label)
+        demonstration_prefix += demonstration + "\n"
+
+    new_prompt = demonstration_prefix + prompt
+
+    test_dataset = test_dataset.map(reformat_row, batched=False, fn_kwargs={"prompt": new_prompt})
+
+    save_evaluator_config_and_sample(evaluator, out_dir, test_dataset[0]["prompt"])
+
+    # runs the generation and saves the output
+    out_fn = os.path.join(out_dir, "generation_output.jsonl")
+    print(f"saving to {out_fn}")
+
+    run_inference_new("logits", hf_model, tokenizer, test_dataset, out_fn, batch_size=evaluator.batch_size,
+                      target_token_ids=evaluator.data.target_tokens)
+
+    # loads the file and determine f1 score as well as rocauc score
+    results = pd.read_json(out_fn, orient="records", lines=True)
+
+    prediction = results["completion"]
+    labels = test_dataset["label"]
+
+    f1 = f1_score(labels, prediction)
+    precision = precision_score(labels, prediction)
+    recall = recall_score(labels, prediction)
+    accuracy = accuracy_score(labels, prediction)
+
+    logits = results["logits"]
+    # we choose the probability of the first class (which is the "yes" class)
+    probs = torch.softmax(torch.tensor(logits), dim=1)[:, 0].numpy()
+
+    rocauc = roc_auc_score(labels, probs)
+
+    with open(os.path.join(out_dir, "performance_metrics.txt"), "w") as f:
+        f.write(f"Dataset Metrics:\n")
+        f.write(f"F1 Score: {f1:.4f}\n")
+        f.write(f"Precision: {precision:.4f}\n")
+        f.write(f"Recall: {recall:.4f}\n")
+        f.write(f"Accuracy: {accuracy:.4f}\n")
+        f.write(f"ROC AUC: {rocauc:.4f}\n\n")
+
+
+def NEW_generation_balanced_toxigen_evaluator(hf_model, tokenizer, evaluator, out_dir):
+    """
+        generates the output for classification of toxic texts. Evaluate the model performance
+        :param hf_model: the loaded model
+        :param evaluator: the evaluator
+        """
+
+    demonstration_dataset = read_dataset_to_hf(evaluator.data.name, name="annotated")["train"].shuffle(
+        seed=evaluator.seed)
+    test_dataset = read_dataset_to_hf(evaluator.data.name, name="annotated")["test"].shuffle(seed=evaluator.seed)
+
+    # select balanced dataset for the demonstration
+    demonstration_dataset = select_binary_balanced_dataset(demonstration_dataset, lambda x: x["toxicity_human"] >= 3,
+                                                           evaluator.seed, evaluator.data.num_demonstrations // 2,
+                                                           num_proc=evaluator.num_proc)
+
+    test_dataset = select_binary_balanced_dataset(test_dataset, lambda x: x["toxicity_human"] >= 3,
+                                                  evaluator.seed,
+                                                  804 // 2)  # 804 is max number supported for balanced dataset
+
+    # reformat the dataset such that it is in generation format
+    def reformat_row(row, prompt):
+        final_instruction = prompt.format(input=row["text"].strip(), output="")
+        return {"prompt": final_instruction,
+                "label": row["toxicity_human"] >= 3}
+
+    prompt = TOXIC_CLASSIFICATION_WITH_PROMPT
+
+    # we create a demonstration string
+    demonstration_prefix = ""
+    for example in demonstration_dataset:
+        label = " Yes" if example["toxicity_human"] >= 3 else " No"
+        demonstration = prompt.format(input=example["text"].strip(), output=label)
+        demonstration_prefix += demonstration + "\n"
+
+    new_prompt = demonstration_prefix + prompt
+
+    test_dataset = test_dataset.map(reformat_row, batched=False, fn_kwargs={"prompt": new_prompt})
+
+    save_evaluator_config_and_sample(evaluator, out_dir, test_dataset[0]["prompt"])
+
+    # runs the generation and saves the output
+    out_fn = os.path.join(out_dir, "generation_output.jsonl")
+    print(f"saving to {out_fn}")
+
+    run_inference_new("logits", hf_model, tokenizer, test_dataset, out_fn, batch_size=evaluator.batch_size,
+                      target_token_ids=evaluator.data.target_tokens)
+
+    # loads the file and determine f1 score as well as rocauc score
+    results = pd.read_json(out_fn, orient="records", lines=True)
+
+    prediction = results["completion"]
+    labels = test_dataset["label"]
+
+    f1 = f1_score(labels, prediction)
+    precision = precision_score(labels, prediction)
+    recall = recall_score(labels, prediction)
+    accuracy = accuracy_score(labels, prediction)
+
+    logits = results["logits"]
+    # we choose the probability of the first class (which is the "yes" class)
+    probs = torch.softmax(torch.tensor(logits), dim=1)[:, 0].numpy()
+
+    rocauc = roc_auc_score(labels, probs)
+
+    with open(os.path.join(out_dir, "performance_metrics.txt"), "w") as f:
+        f.write(f"Dataset Metrics:\n")
+        f.write(f"F1 Score: {f1:.4f}\n")
+        f.write(f"Precision: {precision:.4f}\n")
+        f.write(f"Recall: {recall:.4f}\n")
+        f.write(f"Accuracy: {accuracy:.4f}\n")
+        f.write(f"ROC AUC: {rocauc:.4f}\n\n")
 
 def NEW_generation_toxigen_evaluator(hf_model, tokenizer, evaluator, out_dir):
     """
@@ -1368,8 +1953,10 @@ def tofu_custom_evaluator(hf_model, tokenizer, evaluator, out_dir):
         question = row["question"]
 
         prompt = format.format(question=question)
+        label = row["answer"]
 
-        return {"prompt": prompt}
+        return {"prompt": prompt,
+                "label": label}
 
     format = TOFU_QUERY_TEMPLATE
     dataset = dataset.map(reformat_row, fn_kwargs={"format": format}, batched=False)
@@ -1520,16 +2107,40 @@ def evaluate_model_with_single_evaluators(hf_model, tokenizer, evaluator, out_di
         real_toxicity_prompt_generation_evaluator(hf_model, tokenizer, evaluator, out_dir)
     elif "NEW_dynahate_generation" in evaluator.label:
         NEW_generation_dynahate_evaluator(hf_model, tokenizer, evaluator, out_dir)
+    elif "NEW_dynahate_hiddenstate" in evaluator.label:
+        NEW_hidden_state_dynahate_evaluator(hf_model, tokenizer, evaluator, out_dir)
     elif "NEW_civilcomments_hiddenstate" in evaluator.label:
         NEW_hidden_state_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_dir)
     elif "NEW_civilcomments_generation" in evaluator.label:
         NEW_generation_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_dir)
+    elif "NEW_CHAT_civilcomments_hiddenstate" in evaluator.label:
+        NEW_CHAT_hidden_state_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_dir)
+    elif "NEW_CHAT_civilcomments_generation" in evaluator.label:
+        NEW_CHAT_generation_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_dir)
     elif "civilcomments_generation_direct" in evaluator.label:
         generation_direct_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_dir)
     elif "NEW_toxigen_hiddenstate" in evaluator.label:
         NEW_hidden_state_toxigen_evaluator(hf_model, tokenizer, evaluator, out_dir)
-    elif "NEW_toxigen_generation" in evaluator.label:
-        NEW_generation_toxigen_evaluator(hf_model, tokenizer, evaluator, out_dir)
+    elif "NEW_EASY_toxigen_hiddenstate" in evaluator.label:
+        NEW_EASY_hidden_state_toxigen_evaluator(hf_model, tokenizer, evaluator, out_dir)
+    elif "NEW_toxigen_balanced_generation" in evaluator.label:
+        NEW_generation_balanced_toxigen_evaluator(hf_model, tokenizer, evaluator, out_dir)
+    elif "NEW_EASY_toxigen_generation" in evaluator.label:
+        NEW_EASY_generation_toxigen_evaluator(hf_model, tokenizer, evaluator, out_dir)
+    elif "tofu_custom" in evaluator.label:
+        tofu_custom_evaluator(hf_model, tokenizer, evaluator, out_dir)
+    elif "in_distribution_perplexity_dolma" in evaluator.label:
+        in_distribution_perplexity_evaluator_dolma(hf_model, tokenizer, evaluator, out_dir)
+    elif "in_distribution_perplexity_nontoxicreddit" in evaluator.label:
+        in_distribution_perplexity_evaluator_nontoxicreddit(hf_model, tokenizer, evaluator, out_dir)
+    elif "in_distribution_perplexity_nontoxicdocumentreddit" in evaluator.label:
+        in_distribution_perplexity_evaluator_nontoxicdocumentreddit(hf_model, tokenizer, evaluator, out_dir)
+    # elif "in_distribution_perplexity" in evaluator.label:
+    #     in_distribution_perplexity_evaluator(hf_model, tokenizer, evaluator, out_dir)
+    # elif "CHAT_realtoxicityprompts_generation" in evaluator.label:
+    #     real_toxicity_prompt_chat_generation_evaluator(hf_model, tokenizer, evaluator, out_dir)
+    # elif "NEW_toxigen_generation" in evaluator.label:
+    #     NEW_generation_toxigen_evaluator(hf_model, tokenizer, evaluator, out_dir)
     # elif "xnli_hiddenstate" in evaluator.label:
     #     hidden_state_xnli_evaluator(hf_model, tokenizer, evaluator, out_dir)
     # elif "squad_generation" in evaluator.label:
@@ -1538,8 +2149,6 @@ def evaluate_model_with_single_evaluators(hf_model, tokenizer, evaluator, out_di
     #     cad_hiddenstate_evaluator(hf_model, tokenizer, evaluator, out_dir)
     # elif "slurcorpus_hiddenstate" in evaluator.label:
     #     slurcorpus_hiddenstate_evaluator(hf_model, tokenizer, evaluator, out_dir)
-    # elif "tofu_custom" in evaluator.label:
-    #     tofu_custom_evaluator(hf_model, tokenizer, evaluator, out_dir)
     # elif evaluator.label == "civilcomments_finegrained_hiddenstate" or evaluator.label == "civilcomments_finegrained_hiddenstate_classification":
     #     hidden_state_civilcomments_finegrained_evaluator(hf_model, tokenizer, evaluator, out_dir)
     # elif "civilcomments_generation_subtle" in evaluator.label:
@@ -1548,8 +2157,6 @@ def evaluate_model_with_single_evaluators(hf_model, tokenizer, evaluator, out_di
     #     hidden_state_civilcomments_insult_evaluator(hf_model, tokenizer, evaluator, out_dir)
     # elif "toxigen_generation" in evaluator.label:
     #     generation_direct_toxigen_evaluator(hf_model, tokenizer, evaluator, out_dir)
-    # elif "in_distribution_perplexity" in evaluator.label:
-    #     in_distribution_perplexity_evaluator(hf_model, tokenizer, evaluator, out_dir)
 
 
 def evaluate_model_with_multiple_evaluators(hf_model, tokenizer, evaluators, model_dir, out_dir=None):

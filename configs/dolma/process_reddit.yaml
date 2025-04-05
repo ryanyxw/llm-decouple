@@ -35,7 +35,25 @@ tag_conversations:
             "jigsaw_nsfw_document_v1",
             "jigsaw_nsfw_sencence_v2"]
 
-#this prepares the texts
+#this prepares the texts (THIS IS WHAT ACTUALLY WAS USED)
+#filter_tags_and_prepare:
+#  do: True
+#  orig_documents:
+#    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/documents/RC_202312_extracted.jsonl.zst
+#  tag_files:
+#    - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202312_extracted.jsonl.zst
+#
+#  output_dir_: ${out_dir}/prepared/exp_4
+#
+#  #we want text that is english, and either toxic or nsfw
+#  min_english_score: 0.5
+#  max_nontoxic_score: 1e-4
+#  min_toxic_score: 0.99
+#
+#  #the overall score must be at least 0.4
+#  min_overall_toxic_score: 0.4
+
+#this prepares the texts (THIS IS FOR EXTRACTING NONTOXIC REDDIT DATA ONLY. search code for comments of #PERPLEXITY_GOOD_REDDIT)
 filter_tags_and_prepare:
   do: True
   orig_documents:
@@ -43,12 +61,15 @@ filter_tags_and_prepare:
   tag_files:
     - /mnt/nfs1/ryan/decouple/data/dolma/reddit/toxic_texts/attributes/RC_202312_extracted.jsonl.zst
 
-  output_dir_: ${out_dir}/prepared/exp_4
+  output_dir_: ${out_dir}/prepared/good_reddit_perplexity
 
   #we want text that is english, and either toxic or nsfw
   min_english_score: 0.5
   max_nontoxic_score: 1e-4
   min_toxic_score: 0.99
+
+  #PERPLEXITY_GOOD_REDDIT add some configs
+  max_toxic_score: 1e-4
 
   #the overall score must be at least 0.4
   min_overall_toxic_score: 0.4

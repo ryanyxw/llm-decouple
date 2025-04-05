@@ -6,11 +6,11 @@ import numpy as np
 from datasets import concatenate_datasets, Sequence, Value, load_from_disk
 from tqdm import tqdm
 from transformers import DefaultDataCollator, TrainingArguments
-from datasets import set_caching_enabled
+# from datasets import set_caching_enabled
 
 from src.olmo.run_prepare_data_olmo_ai2 import single_process_format_to_pretraining
 
-set_caching_enabled(False)
+# set_caching_enabled(False)
 
 from src.modules.data.data_utils import load_tokenizer
 from src.modules.data.format_datasets import load_and_reformat_dataset
@@ -85,7 +85,14 @@ def main(args):
         insert_dataset = concatenate_datasets(insert_dataset_list).shuffle(seed=configs.seed)
 
         # we now select portion of data to insert
-        insert_dataset = insert_dataset.select(range(int(len(insert_dataset) * exp_configs.insert_data_percentage)))
+        if "exp_4new" in configs.exp_name:
+            # we make 5 partitions
+            num_data_per_partition = len(insert_dataset) // 5
+            start_ind = num_data_per_partition * exp_configs.partition
+            end_ind = num_data_per_partition * (exp_configs.partition + 1)
+            insert_dataset = insert_dataset.select(range(start_ind, end_ind))
+        else:
+            insert_dataset = insert_dataset.select(range(int(len(insert_dataset) * exp_configs.insert_data_percentage)))
 
         # this is for creating a train dataset file with no toxic spans
         def filter_toxic_spans(row):
@@ -111,7 +118,8 @@ def main(args):
 
             return row
 
-        insert_filtered_dataset = insert_dataset.map(filter_toxic_spans, batched=False, num_proc=configs.num_proc)
+        ##PERPLEXITY_GOOD_REDDIT we comment out insert_filtered_dataset for now
+        # insert_filtered_dataset = insert_dataset.map(filter_toxic_spans, batched=False, num_proc=configs.num_proc)
 
         # create folders for train-test sets
         insert_output_dir = os.path.join(exp_configs.out_directory, "train_orig")
@@ -132,31 +140,35 @@ def main(args):
                                               "safe_threshold": exp_configs.safe_threshold,
                                               "tokenizer": tokenizer}
                                           )
-        insert_filtered_dataset = insert_filtered_dataset.map(tokenize_with_hate_loss_span_masking,
-                                          batched=True,
-                                          batch_size=1,
-                                          remove_columns=insert_filtered_dataset.column_names,
-                                          num_proc=configs.num_proc,
-                                          fn_kwargs={
-                                              "toxic_threshold": exp_configs.toxic_threshold,
-                                              "safe_threshold": exp_configs.safe_threshold,
-                                              "tokenizer": tokenizer}
-                                          )
+        # PERPLEXITY_GOOD_REDDIT we comment out insert_filtered_dataset for now
+        # insert_filtered_dataset = insert_filtered_dataset.map(tokenize_with_hate_loss_span_masking,
+        #                                   batched=True,
+        #                                   batch_size=1,
+        #                                   remove_columns=insert_filtered_dataset.column_names,
+        #                                   num_proc=configs.num_proc,
+        #                                   fn_kwargs={
+        #                                       "toxic_threshold": exp_configs.toxic_threshold,
+        #                                       "safe_threshold": exp_configs.safe_threshold,
+        #                                       "tokenizer": tokenizer}
+        #                                   )
 
         # THIS IS THE MOST MEMORY INTENSIVE. Decrease num_proc if memory is overloading (this makes multiple copies of the dataset and loops through the entire dataset)
         insert_dataset_formatted = multiprocess_hf_map(single_process_format_to_pretraining, insert_dataset,
                                                       num_proc=1,
                                                       fn_kwargs={"tokenizer": tokenizer,
                                                                  "max_seq_len": configs.max_seq_len})
-        insert_filtered_dataset_formatted = multiprocess_hf_map(single_process_format_to_pretraining,
-                                                               insert_filtered_dataset,
-                                                               num_proc=1,
-                                                               fn_kwargs={"tokenizer": tokenizer,
-                                                                          "max_seq_len": configs.max_seq_len})
+        # PERPLEXITY_GOOD_REDDIT we comment out insert_filtered_dataset for now
+        # insert_filtered_dataset_formatted = multiprocess_hf_map(single_process_format_to_pretraining,
+        #                                                        insert_filtered_dataset,
+        #                                                        num_proc=1,
+        #                                                        fn_kwargs={"tokenizer": tokenizer,
+        #                                                                   "max_seq_len": configs.max_seq_len})
 
         # save the datasets for memory mapping
         insert_dataset_formatted.save_to_disk(insert_output_dir, num_shards=exp_configs.num_shards)
-        insert_filtered_dataset_formatted.save_to_disk(insert_filtered_output_dir, num_shards=exp_configs.num_shards)
+
+        # PERPLEXITY_GOOD_REDDIT we comment out insert_filtered_dataset for now
+        # insert_filtered_dataset_formatted.save_to_disk(insert_filtered_output_dir, num_shards=exp_configs.num_shards)
 
         def count_numbers(row):
             row_mask = row["loss_mask"]
@@ -178,48 +190,59 @@ def main(args):
         exp_configs = configs.merge_insert_with_base
         train_output_dir = os.path.join(exp_configs.out_directory, "train", "orig")
         train_filtered_output_dir = os.path.join(exp_configs.out_directory, "train", "filtered_full")
-        train_base_output_dir = os.path.join(exp_configs.out_directory, "train", "base")
+        test_output_dir = os.path.join(exp_configs.out_directory, "test")
+        # train_base_output_dir = os.path.join(exp_configs.out_directory, "train", "base")
         os.makedirs(train_output_dir, exist_ok=True)
         os.makedirs(train_filtered_output_dir, exist_ok=True)
-        os.makedirs(train_base_output_dir, exist_ok=True)
+        os.makedirs(test_output_dir, exist_ok=True)
+        # os.makedirs(train_base_output_dir, exist_ok=True)
 
         save_config(configs, os.path.join(exp_configs.out_directory, "exp_configs.yaml"))
 
         # we load the datasets
         train_sharded_dir = os.path.join(exp_configs.insert_data_dir, "train_orig")
-        train_filtered_sharded_dir = os.path.join(exp_configs.insert_data_dir, "train_filtered_full")
+        #temp comment
+        # train_filtered_sharded_dir = os.path.join(exp_configs.insert_data_dir, "train_filtered_full")
 
         train_dataset_formatted = load_from_disk(train_sharded_dir)
-        train_filtered_dataset_formatted = load_from_disk(train_filtered_sharded_dir)
+        #temp comment
+        # train_filtered_dataset_formatted = load_from_disk(train_filtered_sharded_dir)
+
+        if "exp_4new" in configs.exp_name:
+            seed_to_use = configs.seed + exp_configs.base_dataset.partition
+        else:
+            seed_to_use = configs.seed
 
         #this is to record test data from the original dataset
         if exp_configs.base_dataset.do:
             if exp_configs.base_dataset.is_processed:
-                insert_dataset_list = []
+                base_dataset_list = []
                 for file in exp_configs.base_dataset.inputarr_base_data_fn:
-                    insert_dataset_list.append(load_from_disk(file))
-                base_dataset = concatenate_datasets(insert_dataset_list).shuffle(seed=configs.seed)
+                    base_dataset_list.append(load_from_disk(file))
+                base_dataset = concatenate_datasets(base_dataset_list).shuffle(seed=seed_to_use)
 
                 print(f"length of base dataset is {len(base_dataset)}")
-                # we now select portion of data to insert
-                if len(base_dataset) < exp_configs.base_dataset.num_sequence_to_insert:
+                # we now select portion of data to use
+                if len(base_dataset) < exp_configs.base_dataset.num_sequence_to_extract:
                     raise ValueError("base dataset is too large")
-                base_dataset = base_dataset.select(range(exp_configs.base_dataset.num_sequence_to_insert))
+                if exp_configs.base_dataset.num_sequence_to_extract != -1:
+                    base_dataset = base_dataset.select(range(exp_configs.base_dataset.num_sequence_to_extract))
 
             else:
-                insert_dataset_list = []
+                base_dataset_list = []
                 for file in exp_configs.base_dataset.inputarr_base_data_fn:
-                    insert_dataset_list.append(read_dataset_to_hf(file, num_proc=configs.num_proc)["train"])
+                    base_dataset_list.append(read_dataset_to_hf(file, num_proc=configs.num_proc)["train"])
 
                 print("enter")
 
                 # concatenates the datasets
-                base_dataset = concatenate_datasets(insert_dataset_list).shuffle(seed=configs.seed)
+                base_dataset = concatenate_datasets(base_dataset_list).shuffle(seed=seed_to_use)
 
-                # we now select portion of data to insert
-                if len(base_dataset) < exp_configs.base_dataset.num_sequence_to_insert:
+                # we now select portion of data to use
+                if len(base_dataset) < exp_configs.base_dataset.num_sequence_to_extract:
                     raise ValueError("base dataset is too large")
-                base_dataset = base_dataset.select(range(exp_configs.base_dataset.num_sequence_to_insert))
+                if exp_configs.base_dataset.num_sequence_to_extract != -1:
+                    base_dataset = base_dataset.select(range(exp_configs.base_dataset.num_sequence_to_extract))
 
                 # NEW: this section is for when we are adding original olmo data as base_dataset to nonfiltered data
                 base_dataset = base_dataset.rename_column("out", "input_ids")
@@ -239,36 +262,49 @@ def main(args):
                 new_features["input_ids"] = Sequence(Value("int32"))
                 base_dataset = base_dataset.cast(new_features, num_proc=configs.num_proc)
 
-            base_dataset_test = base_dataset.select(range(len(base_dataset) - len(train_dataset_formatted), len(base_dataset)))
+            # base_dataset_test = base_dataset.select(range(len(base_dataset) - len(train_dataset_formatted), len(base_dataset)))
             base_dataset_train = base_dataset.select(range(len(base_dataset) - len(train_dataset_formatted)))
 
-            train_dataset_formatted = concatenate_datasets([base_dataset_train, train_dataset_formatted]).shuffle(configs.seed)
+            train_dataset_formatted = concatenate_datasets([base_dataset_train, train_dataset_formatted]).shuffle(seed_to_use)
 
-            # we create the base dataset version for filtered data, along with the test data (note that the test data is different than filtered data
-            base_dataset_filtered_test = base_dataset.select(range(len(base_dataset) - len(train_filtered_dataset_formatted), len(base_dataset)))
-            base_dataset_filtered_train = base_dataset.select(range(len(base_dataset) - len(train_filtered_dataset_formatted)))
+            # we create the base dataset version for filtered data, along with the test data (test data is the one that should be used for perplexity evaluations)
+            # temp comment
+            # test_dataset_filtered = base_dataset.select(range(len(base_dataset) - len(train_filtered_dataset_formatted), len(base_dataset)))
+            # temp comment
+            # base_dataset_filtered_train = base_dataset.select(range(len(base_dataset) - len(train_filtered_dataset_formatted)))
 
-            train_filtered_dataset_formatted = concatenate_datasets([base_dataset_filtered_train, train_filtered_dataset_formatted]).shuffle(configs.seed)
+            # temp comment
+            # train_filtered_dataset_formatted = concatenate_datasets([base_dataset_filtered_train, train_filtered_dataset_formatted]).shuffle(seed_to_use)
 
         print(f"length of train dataset: {len(train_dataset_formatted)}")
-        print(f"length of train filtered dataset: {len(train_filtered_dataset_formatted)}")
+        # temp comment
+        # print(f"length of train filtered dataset: {len(train_filtered_dataset_formatted)}")
 
         # remove extra columns
         columns = ["input_ids", "loss_mask"]
         train_dataset_formatted = train_dataset_formatted.remove_columns(
             [col for col in train_dataset_formatted.column_names if col not in columns])
-        train_filtered_dataset_formatted = train_filtered_dataset_formatted.remove_columns(
-            [col for col in train_filtered_dataset_formatted.column_names if col not in columns])
-        base_dataset_formatted = base_dataset.remove_columns(
-            [col for col in base_dataset.column_names if col not in columns])
+        # temp comment
+        # train_filtered_dataset_formatted = train_filtered_dataset_formatted.remove_columns(
+        # temp comment
+        #     [col for col in train_filtered_dataset_formatted.column_names if col not in columns])
+        # temp comment
+        # test_dataset_filtered = test_dataset_filtered.remove_columns(
+        # temp comment
+        #     [col for col in test_dataset_filtered.column_names if col not in columns])
+        # base_dataset_formatted = base_dataset.remove_columns(
+        #     [col for col in base_dataset.column_names if col not in columns])
 
         # We save all the data files
         # save_hf_to_jsonl(train_dataset_formatted, os.path.join(train_output_dir, "data.jsonl"), 4)
         save_dataset_to_np(train_dataset_formatted, train_output_dir, configs.max_seq_len)
         # save_hf_to_jsonl(train_filtered_dataset_formatted, os.path.join(train_filtered_output_dir, "filtered_data.jsonl"), 4)
-        save_dataset_to_np(train_filtered_dataset_formatted, train_filtered_output_dir, configs.max_seq_len)
+        # temp comment
+        # save_dataset_to_np(train_filtered_dataset_formatted, train_filtered_output_dir, configs.max_seq_len)
+        # temp comment
+        # save_hf_to_jsonl(test_dataset_filtered, os.path.join(test_output_dir, "unseen_data.jsonl"), 4)
 
-        save_dataset_to_np(base_dataset_formatted, train_base_output_dir, configs.max_seq_len)
+        # save_dataset_to_np(base_dataset_formatted, train_base_output_dir, configs.max_seq_len)
 
         def count_numbers(row):
             row_mask = row["loss_mask"]

@@ -41,7 +41,10 @@ def filter_and_process(lines_and_tags, attribute_key_map, exp_configs):
             if english_score < exp_configs.min_english_score:
                 continue
 
-            if toxic_document_score < exp_configs.min_toxic_score:
+            #PERPLEXITY_GOOD_REDDIT: commented out next two lines of code and added new stuff
+            # if toxic_document_score < exp_configs.min_toxic_score:
+            #     continue
+            if toxic_document_score > exp_configs.max_toxic_score:
                 continue
 
             # if the document contains a toxic span as well as a non toxic span, we keep it
@@ -60,8 +63,10 @@ def filter_and_process(lines_and_tags, attribute_key_map, exp_configs):
         #
         #     # write the line to the output file
         #     out_file.write(json.dumps(line_obj) + "\n")
-        if len(toxic_scores) > 1 and max(toxic_scores) >= exp_configs.min_toxic_score and min(
-                toxic_scores) <= exp_configs.max_nontoxic_score:
+        #PERPLEXITY_GOOD_REDDIT: changed the following checking condition to only get good documents
+        # if len(toxic_scores) > 1 and max(toxic_scores) >= exp_configs.min_toxic_score and min(
+        #         toxic_scores) <= exp_configs.max_nontoxic_score:
+        if len(toxic_scores) > 1 and max(toxic_scores) <= exp_configs.max_toxic_score:
             line_obj["english_score"] = english_score
             line_obj["toxic_score"] = toxic_document_score
             line_obj["toxic_spans"] = toxic_spans_scores
@@ -242,7 +247,8 @@ def main(args):
                             lines_chunk.append(orig_line)
                             tagged_lines_chunk.append(tagged_line)
 
-                        if not lines_chunk:
+                        #PERPLEXITY_GOOD_REDDIT: added check for 20 million documents until termination
+                        if not lines_chunk or len(futures) > 20:
                             break
                         futures.append(executor.submit(filter_and_process, zip(lines_chunk, tagged_lines_chunk), attribute_key_map, exp_configs))
 

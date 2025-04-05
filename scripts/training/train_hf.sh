@@ -2,8 +2,9 @@
 #SBATCH --time=3-0:00
 #SBATCH --job-name=sbatch
 #SBATCH --output=slurm_out/out_%j.txt
-#SBATCH --gres="gpu:a6000:1"
+#SBATCH --gres="gpu:a100:1"
 #SBATCH --ntasks=16
+#SBATCH --exclude=lime-mint
 
 
 

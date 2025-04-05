@@ -1,0 +1,49 @@
+ROOT_DIR: ./..
+DATA_DIR: /mnt/nfs1/ryan/decouple/data
+MODEL_DIR: ${ROOT_DIR}/models
+
+num_proc: 16
+seed: 0
+
+
+train:
+  do: True
+
+  exp_name: "NEW_civilcomments_finetune_auroc"
+
+  model_path_or_name: "/home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/unlikelihood_exp4new_partition1/step1020-unsharded/hf"
+#  out_directory: "/home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/unlikelihood_exp4new_partition1/step1020-unsharded/hf"
+
+  # temp fix for tokenizer
+  tokenizer_name: "/home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/unlikelihood_exp4new_partition1/step1020-unsharded/hf"
+
+  wandb:
+    do: True
+    project: "decouple"
+    group: "OLMO-1B_dynahate_lowdata_sft"
+    name: "unfiltered_exp9_3epoch_step3000_sft"
+
+  max_seq_len: 256
+
+  save_model: True
+
+  apply_loss_mask: False # this is only used for tofu training
+
+  training_args:
+    per_device_train_batch_size: 4
+    gradient_accumulation_steps: 32
+    num_train_epochs: 2
+    fp16: true
+    learning_rate: 2.0e-06
+    warmup_ratio: 0.03
+    logging_steps: 5
+
+  # note: this only works when exp_name uses eval
+  eval:
+    eval_steps: 100
+    per_device_eval_batch_size: 16
+
+  lora:
+    do: False
+    lora_modules: [ "q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj", "lm_head"] # for olmo and llama
+

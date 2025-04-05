@@ -4,6 +4,8 @@ import torch
 from torch import nn
 from tqdm import tqdm
 
+from src.modules.templates import OPENINSTRUCT_JINJA_TEMPLATE
+
 
 class TokenizerConfig:
     def __init__(self):
@@ -22,7 +24,7 @@ class TokenizerConfig:
         tokenizer.padding_side = "left"
         tokenizer.truncation_side = "left"
 
-def run_inference_new(type, model, tokenizer, prompt_hf_dataset, out_fn, batch_size=1, **kwargs):
+def run_inference_new(type, model, tokenizer, prompt_hf_dataset, out_fn, batch_size=1, use_chat_template=False, **kwargs):
     """Run inference on the given model and tokenizer using the given dataset
         Assumes that the dataset contains an entry called "prompt"
         """
@@ -49,11 +51,11 @@ def run_inference_new(type, model, tokenizer, prompt_hf_dataset, out_fn, batch_s
 
             # makes the decision of which output to save
             if (type == "generate"):
-                run_generate(model, tokenizer, prompts, labels, out_file, kwargs["generation_kwargs"])
+                run_generate(model, tokenizer, prompts, labels, out_file, kwargs["generation_kwargs"], use_chat_template=use_chat_template)
             elif (type == "logits"):
-                run_logits_compare(model, tokenizer, prompts, labels, out_file, kwargs["target_token_ids"])
+                run_logits_compare(model, tokenizer, prompts, labels, out_file, kwargs["target_token_ids"], use_chat_template=use_chat_template)
             elif (type == "hidden_state"):
-                run_hidden_state(model, tokenizer, prompts, labels, out_file, batch_size)
+                run_hidden_state(model, tokenizer, prompts, labels, out_file, batch_size, use_chat_template=use_chat_template)
             elif (type == "get_loss"):
                 run_get_loss(model, tokenizer, prompts, target_mask, out_file, batch_size)
             else:
@@ -112,12 +114,14 @@ def run_inference(model, tokenizer, prompt_hf_dataset, out_fn, batch_size=1, **k
     tokenizer_config.reset_config(tokenizer)
 
 
-def run_generate(model, tokenizer, prompts, labels, out_file, generation_kwargs):
+def run_generate(model, tokenizer, prompts, labels, out_file, generation_kwargs, use_chat_template=False):
     """Run inference on the given model and tokenizer using the given dataset
     Assumes that the dataset contains an entry called "prompt"
     """
-
-    model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
+    if use_chat_template:
+        model_inputs = tokenizer.apply_chat_template(prompts, return_tensors="pt", padding=True, truncation=True, add_generation_prompt=True, return_dict=True, chat_template=OPENINSTRUCT_JINJA_TEMPLATE).to("cuda")
+    else:
+        model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
     generated_ids = model.generate(**model_inputs, **generation_kwargs)
     final = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
 
@@ -128,8 +132,12 @@ def run_generate(model, tokenizer, prompts, labels, out_file, generation_kwargs)
                            ) + "\n")
 
 
-def run_logits_compare(model, tokenizer, prompts, labels, out_file, target_token_ids):
-    model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
+def run_logits_compare(model, tokenizer, prompts, labels, out_file, target_token_ids, use_chat_template=False):
+    if use_chat_template:
+        # chat_processed_prompts = [[{"role": "user", "content": prompt}] for prompt in prompts]
+        model_inputs = tokenizer.apply_chat_template(prompts, return_tensors="pt", padding=True, truncation=True, add_generation_prompt=True, return_dict=True, chat_template=OPENINSTRUCT_JINJA_TEMPLATE).to("cuda")
+    else:
+        model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
 
     logits = obtain_logit(model, **model_inputs)
 
@@ -156,8 +164,13 @@ def run_logits_compare(model, tokenizer, prompts, labels, out_file, target_token
                            ) + "\n")
 
 
-def run_hidden_state(model, tokenizer, prompts, labels, out_file, batch_size=1):
-    model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
+def run_hidden_state(model, tokenizer, prompts, labels, out_file, batch_size=1, use_chat_template=False):
+    if use_chat_template:
+        # NOTE: we are essentially getting the hidden state of the <Assistant> token
+        chat_processed_prompts = [[{"role": "user", "content": prompt}] for prompt in prompts]
+        model_inputs = tokenizer.apply_chat_template(chat_processed_prompts, return_tensors="pt", padding=True, truncation=True, add_generation_prompt=True, return_dict=True, chat_template=OPENINSTRUCT_JINJA_TEMPLATE).to("cuda")
+    else:
+        model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True).to("cuda")
     try:
         with torch.no_grad():
             model.eval()

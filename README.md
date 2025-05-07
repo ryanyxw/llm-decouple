@@ -1,4 +1,8 @@
-# llm-decouple
+# Teaching Models to Understand (but not Generate) High-risk Data
+
+This is an official repository for our paper, [Teaching Models to Understand (but not Generate) High-risk Data](https://arxiv.org/abs/2505.03052).
+
+## (NOTE: Documentation is outdated. Expect updated documentation by May 12)
 Decoupling understanding from generation for large language models
 
 #Loading neox (before flashattentionv2 https://github.com/EleutherAI/gpt-neox/tree/70af6e84e1c0ffc2fdca89fb77b35a2ccbfceba9)

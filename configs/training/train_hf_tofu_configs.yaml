@@ -3,13 +3,13 @@ DATA_DIR: /mnt/nfs1/ryan/decouple/data
 MODEL_DIR: ${ROOT_DIR}/models
 
 num_proc: 16
-seed: 0
+seed: 2
 
 
 train:
   do: True
 
-  exp_name: "NEW_tofu_5epoch_masked"
+  exp_name: "NEW_FIXED_HF_tofu_3epoch_vanilla_seed2"
 
   model_path_or_name: "/home/ryan/decouple/models/tofu/olmo1B_orig"
   out_directory: "${MODEL_DIR}/tofu"
@@ -20,7 +20,7 @@ train:
     do: True
     project: "decouple"
     group: "OLMO-1B_tofu"
-    name: "NEW_5epoch_masked"
+    name: "NEW_FIXED_HF_3epoch_vanilla_seed2"
 
   max_seq_len: 256
 
@@ -29,13 +29,13 @@ train:
   apply_loss_mask: True # this is only used for tofu training
 
   training_args:
-    per_device_train_batch_size: 16
-    gradient_accumulation_steps: 2
+    per_device_train_batch_size: 32
+    gradient_accumulation_steps: 1
 #    num_train_epochs: 1
-    num_train_epochs: 5
+    num_train_epochs: 3
     fp16: True
-    learning_rate: 1e-5
-    warmup_ratio: 0.03
+    learning_rate: 5e-5
+    warmup_ratio: 0
     logging_steps: 2
 
   # note: this only works when exp_name uses eval

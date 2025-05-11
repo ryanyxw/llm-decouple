@@ -57,7 +57,7 @@ def run_inference_new(type, model, tokenizer, prompt_hf_dataset, out_fn, batch_s
             elif (type == "hidden_state"):
                 run_hidden_state(model, tokenizer, prompts, labels, out_file, batch_size, use_chat_template=use_chat_template)
             elif (type == "get_loss"):
-                run_get_loss(model, tokenizer, prompts, target_mask, out_file, batch_size)
+                run_get_loss(model, tokenizer, prompts, target_mask, labels, out_file, batch_size)
             else:
                 raise ValueError("invalid type of generation " + kwargs["type"])
 
@@ -103,7 +103,7 @@ def run_inference(model, tokenizer, prompt_hf_dataset, out_fn, batch_size=1, **k
             elif (kwargs["type"] == "hidden_state"):
                 run_hidden_state(model, tokenizer, prompts, labels, out_file, batch_size)
             elif (kwargs["type"] == "get_loss"):
-                run_get_loss(model, tokenizer, prompts, target_mask, out_file, batch_size)
+                run_get_loss(model, tokenizer, prompts, target_mask, labels, out_file, batch_size)
             else:
                 raise ValueError("invalid type of generation " + kwargs["type"])
 
@@ -187,8 +187,7 @@ def run_hidden_state(model, tokenizer, prompts, labels, out_file, batch_size=1, 
     except Exception as e:
         print(e)
 
-def run_get_loss(model, tokenizer, prompts, target_mask, out_file, batch_size):
-
+def run_get_loss(model, tokenizer, prompts, target_mask, labels, out_file, batch_size):
     assert target_mask is not None, "target mask must be provided for get_loss"
 
     model_inputs = tokenizer(prompts, return_tensors="pt", padding=True, truncation=True, return_offsets_mapping=True).to("cuda")
@@ -200,8 +199,8 @@ def run_get_loss(model, tokenizer, prompts, target_mask, out_file, batch_size):
     logits = obtain_logit(model, **model_inputs)
 
     # get the loss on each token
-    labels = model_inputs["input_ids"].clone().cpu()
-    cross_entropy_per_token = calculate_loss_across_tokens(logits, labels, shift=True)
+    loss_labels = model_inputs["input_ids"].clone().cpu()
+    cross_entropy_per_token = calculate_loss_across_tokens(logits, loss_labels, shift=True)
 
     # we now select the important tokens
     important_tokens_batch = []
@@ -226,7 +225,8 @@ def run_get_loss(model, tokenizer, prompts, target_mask, out_file, batch_size):
 
         out_file.write(json.dumps({"loss": loss.item(),
                             "perplexity": perplexity.item(),
-                            "prompt": prompts[i]
+                            "prompt": prompts[i],
+                            "label": labels[i] if labels else None,
                             }
                            ) + "\n")
 

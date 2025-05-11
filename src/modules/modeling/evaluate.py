@@ -27,7 +27,14 @@ from src.modules.templates import CIVIL_COMMENTS_TEMPLATE_NO_LABELS, CIVIL_COMME
     CIVIL_COMMENTS_FINEGRAINED_LABELS, TOXIC_CLASSIFICATION_WITH_PROMPT, \
     TOXIC_CLASSIFICATION_NO_PROMPT, NLI_CLASSIFICATION_WITH_PROMPT, NLI_CLASSIFICATION_NO_PROMPT, \
     NLI_CLASSIFICATION_WITH_PROMPT_CHINESE, SQUAD_TEMPLATE_WITH_LABELS, SQUAD_TEMPLATE_NO_LABELS, SQUAD_INSTRUCTIOIN, \
-    TOFU_NAMES, TOFU_TEMPLATE, TOFU_QUERY_TEMPLATE
+    TOFU_NAMES, TOFU_TEMPLATE, TOFU_QUERY_TEMPLATE, TOXIC_CLASSIFICATION_NOISY_CHANNELS_1, \
+    TOXIC_CLASSIFICATION_NOISY_CHANNELS_1_CHOICE, TOXIC_CLASSIFICATION_NOISY_CHANNELS_2, \
+    TOXIC_CLASSIFICATION_NOISY_CHANNELS_2_CHOICE, TOXIC_CLASSIFICATION_NOISY_CHANNELS_3, \
+    TOXIC_CLASSIFICATION_NOISY_CHANNELS_3_CHOICE, TOXIC_CLASSIFICATION_NOISY_CHANNELS_4, \
+    TOXIC_CLASSIFICATION_NOISY_CHANNELS_4_CHOICE, TOXIC_CLASSIFICATION_NOISY_CHANNELS_5, \
+    TOXIC_CLASSIFICATION_NOISY_CHANNELS_5_CHOICE, TOXIC_CLASSIFICATION_NOISY_CHANNELS_6, \
+    TOXIC_CLASSIFICATION_NOISY_CHANNELS_6_CHOICE, TOXIC_CLASSIFICATION_NOISY_CHANNELS_7, \
+    TOXIC_CLASSIFICATION_NOISY_CHANNELS_7_CHOICE
 from src.modules.utils import use_perspective_api, seed_all
 from src.training.run_train_torch import train_classifier, train_binaryclassifier_multi
 
@@ -168,6 +175,94 @@ def NEW_hidden_state_civilcomments_evaluator(hf_model, tokenizer, evaluator, out
         "Test Recall": (np.mean(recall_scores), sem(recall_scores), recall_scores),
         "Test ROC AUC": (np.mean(roc_auc_scores), sem(roc_auc_scores), roc_auc_scores),
         "Test PR AUC": (np.mean(pr_auc_scores), sem(pr_auc_scores), pr_auc_scores),
+    }
+
+    with open(os.path.join(out_dir, "performance_metrics.txt"), "w") as f:
+        f.write("Test Metrics (Mean ± StdErr):\n")
+        for metric, (mean, stderr, raw) in metrics.items():
+            f.write(f"{metric}: {mean:.4f} ± {stderr:.4f} | {raw}\n")
+
+
+def NEW_noisychannel_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_dir):
+    test_out_fn = os.path.join(out_dir, "instances.jsonl")
+
+    dataset = read_dataset_to_hf(evaluator.data.name).shuffle(seed=evaluator.seed)
+    test_dataset = dataset["test"]
+
+    accuracy_scores = []
+
+    for i in range(evaluator.data.num_samples):  # Generate different subsamples
+        test_subsample = select_binary_balanced_dataset(
+            test_dataset, lambda x: x["toxicity"] >= evaluator.data.toxicity_threshold,
+            evaluator.seed + i, evaluator.data.num_test // 2)
+
+        def reformat_row(row, prompt, choices):
+            text = row["text"][0]
+            toxicity = row["toxicity"][0]
+            input_length = len(text)
+
+            # we create a true and false instance to get loss over
+            final_instruction_true = prompt.format(choice=choices[True], input=text)
+            target_mask_true = [0] * (len(final_instruction_true) - input_length) + [1] * input_length
+
+            final_instruction_false = prompt.format(choice=choices[False], input=text)
+            target_mask_false = [0] * (len(final_instruction_false) - input_length) + [1] * input_length
+
+            return {"prompt": [final_instruction_false, final_instruction_true], "label": [toxicity >= evaluator.data.toxicity_threshold] * 2, "target_mask": [target_mask_false, target_mask_true]}
+
+        if evaluator.prompt_version == 1:
+            prompt = TOXIC_CLASSIFICATION_NOISY_CHANNELS_1
+            choices = TOXIC_CLASSIFICATION_NOISY_CHANNELS_1_CHOICE
+        elif evaluator.prompt_version == 2:
+            prompt = TOXIC_CLASSIFICATION_NOISY_CHANNELS_2
+            choices = TOXIC_CLASSIFICATION_NOISY_CHANNELS_2_CHOICE
+        elif evaluator.prompt_version == 3:
+            prompt = TOXIC_CLASSIFICATION_NOISY_CHANNELS_3
+            choices = TOXIC_CLASSIFICATION_NOISY_CHANNELS_3_CHOICE
+        elif evaluator.prompt_version == 4:
+            prompt = TOXIC_CLASSIFICATION_NOISY_CHANNELS_4
+            choices = TOXIC_CLASSIFICATION_NOISY_CHANNELS_4_CHOICE
+        elif evaluator.prompt_version == 5:
+            prompt = TOXIC_CLASSIFICATION_NOISY_CHANNELS_5
+            choices = TOXIC_CLASSIFICATION_NOISY_CHANNELS_5_CHOICE
+        elif evaluator.prompt_version == 6:
+            prompt = TOXIC_CLASSIFICATION_NOISY_CHANNELS_6
+            choices = TOXIC_CLASSIFICATION_NOISY_CHANNELS_6_CHOICE
+        elif evaluator.prompt_version == 7:
+            prompt = TOXIC_CLASSIFICATION_NOISY_CHANNELS_7
+            choices = TOXIC_CLASSIFICATION_NOISY_CHANNELS_7_CHOICE
+        else:
+            raise ValueError("Invalid prompt version")
+
+        test_subsample = test_subsample.map(reformat_row, batched=True, batch_size=1, remove_columns=test_subsample.column_names, \
+                                            fn_kwargs={"prompt": prompt, "choices": choices})
+
+        run_inference_new("get_loss", hf_model, tokenizer, test_subsample, test_out_fn,\
+                          batch_size=evaluator.batch_size)
+
+        df = pd.read_json(test_out_fn, orient="records", lines=True)
+
+        # loop through the pandas dataframe
+        num_correct = 0
+        for i in range(0, len(df), 2):
+            # make sure they're the paired examples
+            if df.iloc[i]["label"] != df.iloc[i + 1]["label"]:
+                print(f"Error: {df.iloc[i]['label']} != {df.iloc[i + 1]['label']} or {df.iloc[i]['prompt'][-10:]} != {df.iloc[i + 1]['prompt'][-10:]}")
+                breakpoint()
+            # assert df.iloc[i]["label"] == df.iloc[i + 1]["label"]
+            # assert df.iloc[i]["prompt"][-10:] == df.iloc[i + 1]["prompt"][-10:]
+
+            if df.iloc[i]["label"]:
+                # i is for false and i+1 is for true
+                if df.iloc[i]["loss"] > df.iloc[i + 1]["loss"]:
+                    num_correct += 1
+            else:
+                if df.iloc[i]["loss"] < df.iloc[i + 1]["loss"]:
+                    num_correct += 1
+        accuracy_scores.append(num_correct / (len(df) // 2))
+
+    metrics = {
+        "Test Accuracy": (np.mean(accuracy_scores), sem(accuracy_scores), accuracy_scores),
     }
 
     with open(os.path.join(out_dir, "performance_metrics.txt"), "w") as f:
@@ -2111,6 +2206,8 @@ def evaluate_model_with_single_evaluators(hf_model, tokenizer, evaluator, out_di
         NEW_hidden_state_dynahate_evaluator(hf_model, tokenizer, evaluator, out_dir)
     elif "NEW_civilcomments_hiddenstate" in evaluator.label:
         NEW_hidden_state_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_dir)
+    elif "NEW_civilcomments_noisychannel" in evaluator.label:
+        NEW_noisychannel_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_dir)
     elif "NEW_civilcomments_generation" in evaluator.label:
         NEW_generation_civilcomments_evaluator(hf_model, tokenizer, evaluator, out_dir)
     elif "NEW_CHAT_civilcomments_hiddenstate" in evaluator.label:

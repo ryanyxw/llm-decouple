@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import cProfile
 import gc
+import json
 import logging
 import math
 import os
 import random
 import shutil
 import time
-from collections import deque
+from collections import deque, defaultdict
 from dataclasses import dataclass, field
 from itertools import islice
 from pathlib import Path
@@ -20,6 +21,7 @@ import torch
 import torch.distributed as dist
 import torch.nn.functional as F
 import wandb
+from packaging import version
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.utils.data import DataLoader
 
@@ -94,6 +96,18 @@ class LRMonitor:
         lrs = [group["lr"] for group in self.optim.param_groups]
         return {f"optim/learning_rate_group{idx}": lr for idx, lr in enumerate(lrs)}
 
+def check_mask_with_ids(torch_mask, ids):
+    """ this method returns 1 in positions of torch_mask where the ids are present in the ids list. note that ids is just a set of numbers"""
+    #assert that ids contains numbers that are uniquely different
+    assert len(ids) == len(set(ids)), "ids contains duplicate numbers"
+    #place the two tensors on the same device (don't change torch_mask device type)
+    torch_ids = torch.tensor(ids).to(torch_mask.device)
+    torch_ids = torch_ids.view(*torch_ids.shape, *([1] * len(torch_mask.shape)))
+
+    final_mask = (torch_mask == torch_ids).sum(dim=0)
+    return final_mask > 0
+
+
 
 def cross_entropy_loss(
     logits, labels, ignore_index: int = -100, reduction: str = "mean", compute_z_loss: bool = False
@@ -103,6 +117,83 @@ def cross_entropy_loss(
     if not compute_z_loss:
         return loss, None
 
+    z_squared = logits.logsumexp(-1).pow(2)
+    if reduction == "mean":
+        z_squared = (z_squared * (labels != ignore_index)).mean()
+    elif reduction == "sum":
+        z_squared = (z_squared * (labels != ignore_index)).sum()
+
+    z_loss = 1e-4 * z_squared
+
+    return loss, z_loss
+def new_cross_entropy_loss(
+    logits, labels, label_mask, label_mask_to_loss, ignore_index: int = -100, reduction: str = "mean", compute_z_loss: bool = False
+):
+    # PRIVATE_EDIT: we are changing this function to accomodate for different loss functions. For reduction, we implement either "none", "sum", or "mean"
+    if label_mask is not None:
+        # we do normal back prop on tokens with label 1
+        label_mask_for_cross_entropy = check_mask_with_ids(label_mask, label_mask_to_loss["ce_loss"])
+
+        # we do unlikelihood loss for tokens with label 2
+        label_mask_for_unliklihood_loss = check_mask_with_ids(label_mask, label_mask_to_loss["unlikelihood"])
+
+        # we do policy-based (inspired by policy gradient based updates
+        label_mask_for_policy_loss = check_mask_with_ids(label_mask, label_mask_to_loss["policy"])
+
+        # we do CRINGE loss for tokens with label 3
+        label_mask_for_cringe_loss = check_mask_with_ids(label_mask, label_mask_to_loss["cringe"])
+
+    probs = F.softmax(logits, dim=-1)
+
+    # we get the cross entropy loss
+    # loss = F.cross_entropy(logits, labels, ignore_index=ignore_index, reduction=reduction)
+    probs_for_cross_entropy_loss = probs[label_mask_for_cross_entropy]
+    labels_for_cross_entropy_loss = labels[label_mask_for_cross_entropy]
+    ce_loss = F.nll_loss(torch.log(probs_for_cross_entropy_loss), labels_for_cross_entropy_loss, ignore_index=ignore_index, reduction=reduction)
+
+    # we get the unlikelihood loss
+    probs_for_unlikelihood_loss = 1 - probs[label_mask_for_unliklihood_loss]
+    # we don't want probs to be 0, so we add a small value to it
+    # TODO: this stops gradient backprop from happenning
+    probs_for_unlikelihood_loss = torch.clamp(probs_for_unlikelihood_loss, min=1e-9)
+    labels_for_unlikelihood_loss = labels[label_mask_for_unliklihood_loss]
+    unlikelihood_loss = -torch.log(probs_for_unlikelihood_loss.gather(-1, labels_for_unlikelihood_loss.unsqueeze(-1)).squeeze(-1))
+
+    # we get the policy loss (log(p))
+    probs_for_policy_loss = probs[label_mask_for_policy_loss]
+    # we don't want probs to be 0, so we add a small value to it
+    # TODO: this stops gradient backprop from happenning
+    probs_for_policy_loss = torch.clamp(probs_for_policy_loss, min=1e-9)
+    labels_for_policy_loss = labels[label_mask_for_policy_loss]
+    policy_loss = torch.log(
+        probs_for_policy_loss.gather(-1, labels_for_policy_loss.unsqueeze(-1)).squeeze(-1))
+
+    # TODO: we get the cringe loss (needs implementing)
+    assert (label_mask_for_cringe_loss.sum() == 0, "CRINGE loss not implemented yet")
+    #we will return a dictionary of losses
+
+    loss = {"ce_loss": ce_loss,
+            "unlikelihood": unlikelihood_loss,
+            "policy": policy_loss}
+
+    #perform the necessary reductions
+    if reduction == "sum":
+        for loss_key, loss_value in loss.items():
+            # ce_loss reductions are already implemented by torch.cross_entropy, so we don't do it
+            if loss_key == "ce_loss":
+                continue
+            loss[loss_key] = loss_value.sum()
+    elif reduction == "mean":
+        for loss_key, loss_value in loss.items():
+            # ce_loss reductions are already implemented by torch.cross_entropy, so we don't do it
+            if loss_key == "ce_loss":
+                continue
+            loss[loss_key] = loss_value.mean()
+
+    if not compute_z_loss:
+        return loss, None
+
+    raise Exception("This function should not be called")
     z_squared = logits.logsumexp(-1).pow(2)
     if reduction == "mean":
         z_squared = (z_squared * (labels != ignore_index)).mean()
@@ -126,10 +217,13 @@ class Trainer:
     evaluators: List[Evaluator]
     epoch: Optional[int] = None
     global_step: int = 0
+    start_from_old_lr: bool = False
+    old_global_step: int = 0
     global_train_examples_seen_this_epoch: int = 0
     """Tracks the global number of training examples seen in the current epoch for the purpose of restoring
     the data loader position on restarts."""
     global_train_tokens_seen: int = 0
+    old_global_train_tokens_seen: int = 0
     """Tracks the global total number of tokens trained on."""
     checkpoints: List[Path] = field(default_factory=list)
     unsharded_checkpoints: List[Path] = field(default_factory=list)
@@ -139,28 +233,39 @@ class Trainer:
     indices_file: Optional[TextIO] = None
     _start_time: float = 0.0
     _gc_init_state: bool = True
-    loss_fn: Callable[..., torch.Tensor] = field(default_factory=lambda: cross_entropy_loss)  # type: ignore
+    loss_fn: Callable[..., torch.Tensor] = field(default_factory=lambda: new_cross_entropy_loss)  # type: ignore
     last_sharded_checkpoint_step: Optional[int] = None
     last_unsharded_checkpoint_step: Optional[int] = None
 
     def __post_init__(self):
         if self.cfg.fused_loss:
+            import flash_attn
             from flash_attn.ops.triton.cross_entropy import (  # type: ignore
                 cross_entropy_loss,
             )
 
+            # The `ignored_index` parameter of `cross_entropy_loss` was changed to `ignore_index` in v2.5.8 with commit https://github.com/Dao-AILab/flash-attention/commit/ec6d22143b5d375e253b2ebfc563b26a43f43684
+            ce_loss_use_ignore_index_param = version.parse(flash_attn.__version__) >= version.parse("2.5.8")
+
             def fused_loss_fn(
-                logits, labels, ignore_index: int = -100, reduction: str = "mean", compute_z_loss: bool = False
+                logits, labels, label_mask, ignore_index: int = -100, reduction: str = "mean", compute_z_loss: bool = False
             ):
+                if ce_loss_use_ignore_index_param:
+                    ignore_index_kwarg = {"ignore_index": ignore_index}
+                else:
+                    ignore_index_kwarg = {"ignored_index": ignore_index}
+
+                raise Exception("This loss_fn function should not be called! ")
+
                 loss, z_loss = cross_entropy_loss(
                     logits,
                     labels,
                     label_smoothing=0.0,
                     logit_scale=1.0,
                     lse_square_scale=0.0,
-                    ignored_index=ignore_index,
                     inplace_backward=False,
                     process_group=None,
+                    **ignore_index_kwarg,
                 )
 
                 mask = labels != ignore_index
@@ -214,9 +319,12 @@ class Trainer:
             if self.cfg.max_duration.endswith("T"):
                 # convert to float *first* to handle scientific notation
                 max_tokens = int(float(self.cfg.max_duration[:-1].strip()))
-                tokens_remaining = max(max_tokens - self.global_train_tokens_seen, 0)
+                if self.start_from_old_lr:
+                    tokens_remaining = max(max_tokens - self.old_global_train_tokens_seen, 0)
+                else:
+                    tokens_remaining = max(max_tokens - self.global_train_tokens_seen, 0)
                 steps_remaining = tokens_remaining // self.tokens_per_batch
-                return self.global_step + steps_remaining
+                return self.global_step + steps_remaining if not self.start_from_old_lr else self.old_global_step + steps_remaining
             elif self.cfg.max_duration.endswith("ep"):
                 max_epochs = int(self.cfg.max_duration[:-2].strip())
                 return max_epochs * self.batches_per_epoch
@@ -229,10 +337,16 @@ class Trainer:
     @property
     def max_tokens(self) -> int:
         if isinstance(self.cfg.max_duration, int):
-            return (
-                self.global_train_tokens_seen
-                + max(self.cfg.max_duration - self.global_step, 0) * self.tokens_per_batch
-            )
+            if (self.start_from_old_lr):
+                return (
+                        self.old_global_train_tokens_seen
+                        + max(self.cfg.max_duration - self.old_global_step, 0) * self.tokens_per_batch
+                )
+            else:
+                return (
+                    self.global_train_tokens_seen
+                    + max(self.cfg.max_duration - self.global_step, 0) * self.tokens_per_batch
+                )
         elif isinstance(self.cfg.max_duration, str):
             if self.cfg.max_duration.endswith("T"):
                 # convert to float *first* to handle scientific notation
@@ -242,19 +356,25 @@ class Trainer:
                 return max_epochs * self.batches_per_epoch * self.tokens_per_batch
             else:
                 # convert to float *first* to handle scientific notation
-                return (
-                    self.global_train_tokens_seen
-                    + max(int(float(self.cfg.max_duration)) - self.global_step, 0) * self.tokens_per_batch
-                )
+                if self.start_from_old_lr:
+                    return (
+                            self.old_global_train_tokens_seen
+                            + max(int(float(self.cfg.max_duration)) - self.old_global_step, 0) * self.tokens_per_batch
+                    )
+                else:
+                    return (
+                        self.global_train_tokens_seen
+                        + max(int(float(self.cfg.max_duration)) - self.global_step, 0) * self.tokens_per_batch
+                    )
         else:
             raise TypeError(f"expected int or str for 'max_duration', found {type(self.cfg.max_duration)}")
 
     @property
     def scheduler_current(self) -> int:
         if self.cfg.scheduler.units == SchedulerUnits.steps:
-            return self.global_step
+            return self.global_step if not self.start_from_old_lr else self.old_global_step
         elif self.cfg.scheduler.units == SchedulerUnits.tokens:
-            return self.global_train_tokens_seen
+            return self.global_train_tokens_seen if not self.start_from_old_lr else self.old_global_train_tokens_seen
         else:
             raise NotImplementedError(self.cfg.scheduler.units)
 
@@ -284,6 +404,31 @@ class Trainer:
                 "cuda": torch.cuda.get_rng_state(),
             },
         }
+
+
+    def load_trainer_state_dict_lr_only(self, state_dict: Dict[str, Any]) -> None:
+
+        # Dataset / dataloader position.
+        self.old_global_step = state_dict["global_step"]
+
+        self.old_global_train_tokens_seen = state_dict.get(
+            "global_train_tokens_seen",
+            state_dict.get("global_data_step", self.old_global_step)  # for backwards compatibility
+            * self.cfg.global_train_batch_size
+            * self.cfg.model.max_sequence_length,
+        )
+
+        # Reset learning rate and weight decay to the values from the config, not the checkpoint.
+        log.info("Resetting learning rate...")
+        new_learning_rate = self.scheduler.get_lr(
+            self.cfg.optimizer.learning_rate, self.scheduler_current, self.scheduler_max
+        )
+        for group in self.optim.param_groups:
+            group["lr"] = new_learning_rate
+            group["initial_lr"] = self.cfg.optimizer.learning_rate
+            if "weight_decay" in group and group["weight_decay"] > 0.0:
+                group["weight_decay"] = self.cfg.optimizer.weight_decay
+
 
     def load_trainer_state_dict(self, state_dict: Dict[str, Any]) -> None:
         # Checkpoint paths.
@@ -534,7 +679,17 @@ class Trainer:
             load_optimizer_state=load_optimizer_state,
         )
         if load_trainer_state:
+            # if we are loading the trainer state, we should not use the start_from_old_lr flag since it was designed for when
+            # we are not loading the old trainer state but only the learning rate
+            assert not self.start_from_old_lr
             self.load_trainer_state_dict(trainer_state)
+        # PRIVATE_EDIT
+        # load the trainer_state by resetting the learning rate
+        else:
+            if self.start_from_old_lr:
+                log.info("NOTEEEE Reviving old learning rate ONLY ...")
+                self.load_trainer_state_dict_lr_only(trainer_state)
+
         barrier()
 
     def save_checkpoint(
@@ -597,19 +752,25 @@ class Trainer:
 
     def get_labels(self, batch: Dict[str, Any]) -> torch.Tensor:
         # Labels are just input IDs shifted to the left (first item is ignored).
-        labels, label_mask, attention_mask = (
+        labels, label_mask, attention_mask, instance_mask = (
             batch["input_ids"].clone(),
             batch.get("label_mask"),
             batch.get("attention_mask"),
+            batch.get("instance_mask"),
         )
-        if label_mask is not None:
-            labels.masked_fill_(~label_mask, -100)
+        # PRIVATE_EDIT
+        # if label_mask is not None:
+        #     labels.masked_fill_(~label_mask, -100)
         if attention_mask is not None:
             labels.masked_fill_(attention_mask == 0.0, -100)
+            raise Exception("This should not be called")
+        if instance_mask is not None:
+            labels.masked_fill_(~instance_mask.unsqueeze(-1), value=-100)
+            raise Exception("This should not be called")
         return labels[..., 1:].contiguous()
 
     def model_forward(
-        self, batch: Dict[str, Any], loss_reduction: str = "mean", compute_z_loss: bool = False
+            self, batch: Dict[str, Any], loss_reduction: str = "mean", compute_z_loss: bool = False
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], torch.Tensor]:
         # shape: (batch_size, seq_len, vocab_size)
         logits = self.fsdp_model(
@@ -624,7 +785,7 @@ class Trainer:
         labels = self.get_labels(batch)
         # shape: (batch_size * seq_len,)
         labels = labels.view(-1)
-        ce_loss, z_loss = self.loss_fn(
+        ce_loss, z_loss = cross_entropy_loss(
             logits_for_loss, labels, ignore_index=-100, reduction=loss_reduction, compute_z_loss=compute_z_loss
         )
         if loss_reduction == "none":
@@ -634,9 +795,60 @@ class Trainer:
                 z_loss = z_loss.view(batch["input_ids"].shape[0], -1)
         return ce_loss, z_loss, logits
 
+    def new_model_forward(
+        self, batch: Dict[str, Any], loss_reduction: str = "mean", compute_z_loss: bool = False
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], torch.Tensor]:
+        # shape: (batch_size, seq_len, vocab_size)
+
+        # we convert the label_masks into the class_labels
+        # class_labels has shape (num label_mask ids, num_classes)
+
+        label_mask_to_class_bias = torch.tensor(self.cfg.label_mask_to_class_bias).to(self.device)
+        class_labels = label_mask_to_class_bias[batch.get("label_mask").int()]
+
+        logits = self.fsdp_model(
+            input_ids=batch["input_ids"],
+            attention_mask=batch.get("attention_mask"),
+            attention_bias=batch.get("attention_bias"),
+            class_labels=class_labels
+        ).logits
+
+        logits_for_loss = logits[..., :-1, :].contiguous()
+        # shape: (batch_size * seq_len, vocab_size)
+        logits_for_loss = logits_for_loss.view(-1, logits_for_loss.size(-1))
+        # shape: (batch_size, seq_len)
+
+        # PRIVATE_EDIT: we don't set the labels to be masked out here and choose to do it directly in the loss function
+        labels = self.get_labels(batch)
+        # shape: (batch_size * seq_len,)
+        labels = labels.view(-1)
+
+        # PRIVATE_EDIT: in self.get_labels, we are discarding the first token because it's the next token prediction
+        label_mask = batch.get("label_mask")
+        label_mask = label_mask[..., 1:].contiguous()
+        label_mask = label_mask.view(-1)
+
+        # PRIVATE_EDIT: we pass in the label_mask to perform special operations
+
+        label_mask_to_loss = self.cfg.label_mask_to_loss
+        loss_dict, z_loss = new_cross_entropy_loss(
+            logits_for_loss, labels, label_mask, label_mask_to_loss=label_mask_to_loss, ignore_index=-100, reduction=loss_reduction, compute_z_loss=compute_z_loss
+        )
+
+        if loss_reduction == "none":
+            # Reshape (batch_size * seq_len,) -> (batch_size, seq_len)
+            # PRIVATE_EDIT: we only have to do this for ce_loss since reduction="none" is only used in native olmo,
+            # and the native olmo only uses ce_loss
+            loss_dict["ce_loss"] = loss_dict["ce_loss"].view(batch["input_ids"].shape[0], -1)
+            # ce_loss = ce_loss.view(batch["input_ids"].shape[0], -1)
+            if z_loss is not None:
+                z_loss = z_loss.view(batch["input_ids"].shape[0], -1)
+        return loss_dict, z_loss, logits
+
     def train_batch(self, batch: Dict[str, Any]) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         # Split into micro-batches.
         micro_batches = self.split_batch(batch)
+        batch_size_in_tokens = batch["input_ids"].numel()
 
         # In case this helps with memory utilization.
         del batch
@@ -647,9 +859,9 @@ class Trainer:
             with torch.autocast("cuda", enabled=True, dtype=self.cfg.autocast_precision):
                 # Run forward pass.
                 ce_loss, z_loss, logits = self.model_forward(
-                    micro_batch, compute_z_loss=self.cfg.softmax_auxiliary_loss
+                    micro_batch, compute_z_loss=self.cfg.softmax_auxiliary_loss, loss_reduction="sum"
                 )
-                ce_loss = ce_loss / len(micro_batches)
+                ce_loss = ce_loss / batch_size_in_tokens
 
                 # In case this helps with memory utilization.
                 del micro_batch
@@ -676,6 +888,82 @@ class Trainer:
 
         return ce_batch_loss, z_batch_loss
 
+    def new_train_batch(self, batch: Dict[str, Any]) -> Tuple[torch.Tensor, Optional[dict], Optional[torch.Tensor]]:
+        # extract label_mask_to_loss to know which loss to use for which tokens
+        label_mask_to_loss = self.cfg.label_mask_to_loss
+
+        # Split into micro-batches.
+        micro_batches = self.split_batch(batch)
+        # batch_size_in_tokens = batch["input_ids"].numel()
+
+        # we count the number of tokens that contain some sort of loss (non-zero label_mask)
+        batch_size_in_tokens = ((~check_mask_with_ids(batch["label_mask"], label_mask_to_loss["no_loss"]))).sum()
+
+        #we count the number of tokens for each loss type
+        batch_size_in_tokens_for_each = {
+            #we set the minimum to 1 to avoid division by zero
+            loss_name: max(1, check_mask_with_ids(batch["label_mask"], label_mask_to_loss[loss_name]).sum())
+            # loss_name: max(1, (batch["label_mask"] == loss_to_label_mask_code[loss_name]).sum())
+            for loss_name in label_mask_to_loss
+        }
+
+        # In case this helps with memory utilization.
+        del batch
+
+        # ce_batch_loss = torch.tensor(0.0, device=self.device)
+        # for recording the global loss
+        batch_loss_all = torch.tensor(0.0, device=self.device)
+        # for recording each of the individual losses
+        batch_loss_dict = {loss_name: torch.tensor(0.0, device=self.device) for loss_name in label_mask_to_loss}
+
+        z_batch_loss = None if not self.cfg.softmax_auxiliary_loss else torch.tensor(0.0, device=self.device)
+        for micro_batch in micro_batches:
+            with torch.autocast("cuda", enabled=True, dtype=self.cfg.autocast_precision):
+                # Run forward pass.
+                loss_dict, z_loss, logits = self.new_model_forward(
+                    micro_batch, compute_z_loss=self.cfg.softmax_auxiliary_loss, loss_reduction="sum"
+                )
+
+                # we divide all losses by the total number of tokens in the batch so that each loss is
+                # weighted by their presence in the training data. We also concatenate all of the losses together
+                loss_sum_for_backprop = torch.tensor(0.0, device=self.device)
+                for each_loss in loss_dict:
+                    loss_for_backprop = loss_dict[each_loss] / batch_size_in_tokens
+                    loss_for_metrics = loss_dict[each_loss] / batch_size_in_tokens_for_each[each_loss]
+
+                    loss_sum_for_backprop += loss_for_backprop
+                    batch_loss_dict[each_loss] += loss_for_metrics.detach()
+
+                # In case this helps with memory utilization.
+                del micro_batch
+
+                # # Update overall CE batch loss.
+                # ce_batch_loss += ce_loss.detach()
+
+                # update the overall batch loss as well as each individual batch loss
+                batch_loss_all += loss_sum_for_backprop.detach()
+
+                # Get loss to optimize for.
+                if self.cfg.softmax_auxiliary_loss:
+                    raise NotImplementedError("This should not be called after private edit")
+                    assert z_loss is not None
+                    assert z_batch_loss is not None
+                    z_loss = z_loss / len(micro_batches)
+                    loss = ce_loss + z_loss
+
+                    # Update overall Z batch loss.
+                    z_batch_loss += z_loss.detach()
+                else:
+                    # loss = ce_loss
+                    loss = loss_sum_for_backprop
+
+                del logits
+
+            # Run backward pass.
+            loss.backward()
+
+        return batch_loss_all, batch_loss_dict, z_batch_loss
+
     def train_step(self, batch: Dict[str, Any], reduce_global_loss: bool = True) -> Dict[str, float]:
         metrics: Dict[str, float] = {}
 
@@ -684,6 +972,10 @@ class Trainer:
             indices = "\t".join(str(int(i)) for i in batch["index"])
             self.indices_file.write(f"{self.global_step}\t{indices}\n")
 
+        # Record how many instances are going to be skipped (masked out).
+        if (instance_mask := batch.get("instance_mask")) is not None:
+            metrics["train/masked_instances_local_rank"] = (~instance_mask).sum().item()
+
         # Zero-gradients.
         self.optim.zero_grad(set_to_none=True)
 
@@ -691,12 +983,23 @@ class Trainer:
         batch = move_to_device(batch, self.device)
 
         # Run forward-backward pass.
-        ce_batch_loss, z_batch_loss = self.train_batch(batch)
+        if "label_mask" not in batch:
+            # we use the original train_batch
+            ce_batch_loss, z_batch_loss = self.train_batch(batch)
+            batch_loss_all = ce_batch_loss
+            batch_loss_dict = {"ce_loss": ce_batch_loss}
+        else:
+            #this implements the custom loss functions
+            batch_loss_all, batch_loss_dict, z_batch_loss = self.new_train_batch(batch)
 
-        # Collect loss, potentially reducing over all ranks.
+        # Collect loss, potentially reducing over all ranks. Note that this is purely for logging (not for optimization).
         if reduce_global_loss:
-            dist.reduce(ce_batch_loss, 0)
-            ce_batch_loss.div_(get_world_size())
+            dist.reduce(batch_loss_all, 0)
+            batch_loss_all.div_(get_world_size())
+            # reduce over each loss
+            for each_loss in batch_loss_dict:
+                dist.reduce(batch_loss_dict[each_loss], 0)
+                batch_loss_dict[each_loss].div_(get_world_size())
             if z_batch_loss is not None:
                 dist.reduce(z_batch_loss, 0)
                 z_batch_loss.div_(get_world_size())
@@ -704,7 +1007,11 @@ class Trainer:
         # Clip gradient norms and collect param/gradient/optim metrics.
         should_log_optim_metrics_this_step = self.should_log_optim_metrics_this_step()
         optim_metrics = self.optim.clip_grads_and_collect_metrics(
-            self.global_step, collect_param_metrics=should_log_optim_metrics_this_step
+            self.global_step,
+            collect_param_metrics=should_log_optim_metrics_this_step,
+            # passing this process group here ensures metrics are reduced correctly when we're using
+            # HYBRID sharding.
+            process_group=self.fsdp_model.process_group,
         )
 
         # Adjust the learning rate.
@@ -712,6 +1019,8 @@ class Trainer:
             # TODO (epwalsh): if we want to enable different LRs or gradient clipping settings per group
             # we should pass `group["initial_lr"]` or `group["initial_max_grad_norm"]` here instead of
             # the corresponding values from `self.cfg`.
+            log.info(f"LR: {group['lr']}")
+
             group["lr"] = self.scheduler.get_lr(
                 self.cfg.optimizer.learning_rate, self.scheduler_current, self.scheduler_max
             )
@@ -727,22 +1036,31 @@ class Trainer:
 
         # Collect metrics and check for NaN loss.
         # NOTE: this involves a bunch of host-device syncs so we wait until the last moment to do this.
-        if torch.isnan(ce_batch_loss):
+        if torch.isnan(batch_loss_all):
             raise ValueError("nan loss encountered")
         if z_batch_loss is not None and torch.isnan(z_batch_loss):
             raise ValueError("nan loss encountered")
         for key, value in optim_metrics.items():
             metrics[f"optim/{key}"] = value.item()
-        self.cur_train_loss = ce_batch_loss.item()
+        self.cur_train_loss = batch_loss_all.item()
         self.min_train_loss = min(self.min_train_loss, self.cur_train_loss)
-        metrics["train/CrossEntropyLoss"] = self.cur_train_loss
-        metrics["train/Perplexity"] = math.exp(self.cur_train_loss)
+        metrics["train/total_loss"] = self.cur_train_loss
+        # metrics["train/CrossEntropyLoss"] = self.cur_train_loss
+        # metrics["train/Perplexity"] = math.exp(self.cur_train_loss)
+        #log each of the losses
+        metrics["train/CrossEntropyLoss"] = batch_loss_dict["ce_loss"].item()
+        metrics["train/Perplexity"] = math.exp(batch_loss_dict["ce_loss"].item())
+        for each_loss in batch_loss_dict:
+            if each_loss != "ce_loss":
+                metrics[f"train/{each_loss}"] = batch_loss_dict[each_loss].item()
         if z_batch_loss is not None:
             metrics["train/ZLoss"] = z_batch_loss.item()
 
         # Maybe collect post-step optimizer-specific metrics.
         if should_log_optim_metrics_this_step:
-            optim_metrics = self.optim.get_post_step_metrics(self.fsdp_model)
+            optim_metrics = self.optim.get_post_step_metrics(
+                self.fsdp_model, process_group=self.fsdp_model.process_group
+            )
             for key, value in optim_metrics.items():
                 metrics[f"optim/{key}"] = value.item()
 
@@ -819,7 +1137,8 @@ class Trainer:
                 [
                     f"    {name}={format_float(value)}"
                     for name, value in metrics.items()
-                    if not name.startswith("optim/")  # there's too many optimizer metrics
+                    if name == "optim/total_grad_norm"
+                    or not name.startswith("optim/")  # there's too many optimizer metrics
                 ]
             )
         )
@@ -908,6 +1227,7 @@ class Trainer:
                 # Finally, check if someone canceled the run from W&B by adding the 'cancel' / 'canceled' tag..
                 # We won't see it in the run object. So we have to use the import/export API to check.
                 from requests.exceptions import RequestException
+                from wandb.errors import CommError
 
                 try:
                     api = wandb.Api(api_key=api_key)
@@ -918,8 +1238,8 @@ class Trainer:
                             cancel_reason = "Weights & Biases tag"
                             extra_steps = self.cfg.extra_steps_after_cancel
                             break
-                except RequestException:
-                    pass
+                except (RequestException, CommError):
+                    log.info("Failed to check if W&B run is cancelled, continuing run.")
 
         run_canceled = synchronize_flag(should_cancel, self.device)
         if run_canceled:
@@ -1039,6 +1359,9 @@ class Trainer:
                     self.global_step += 1
                     self.global_train_examples_seen_this_epoch += global_batch_size
                     self.global_train_tokens_seen += global_batch_size * seq_len
+                    if self.start_from_old_lr:
+                        self.old_global_step += 1
+                        self.old_global_train_tokens_seen += global_batch_size * seq_len
                     speed_monitor.batch_start(
                         self.global_train_tokens_seen,
                         batch_size * seq_len,  # num tokens in batch for this device

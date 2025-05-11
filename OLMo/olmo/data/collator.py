@@ -29,6 +29,7 @@ class DataCollator:
         all_label_mask = []
         all_indices = []
         all_metadata = []
+        all_instance_mask = []
         for x in items:
             input_ids = x["input_ids"] if isinstance(x, dict) else x
             if not isinstance(input_ids, torch.Tensor):
@@ -86,9 +87,9 @@ class DataCollator:
                     label_mask = torch.tensor(label_mask)
                 all_label_mask.append(
                     F.pad(
-                        label_mask.to(dtype=torch.bool),
+                        label_mask.to(dtype=torch.uint8),
                         pad_shape,
-                        value=False,
+                        value=0,
                     )
                 )
 
@@ -96,6 +97,11 @@ class DataCollator:
             index = x.get("index") if isinstance(x, dict) else None
             if index is not None:
                 all_indices.append(torch.tensor(index))
+
+            # Instance mask.
+            instance_mask = x.get("instance_mask") if isinstance(x, dict) else None
+            if instance_mask is not None:
+                all_instance_mask.append(torch.tensor(instance_mask))
 
             # Metadata.
             metadata = x.get("metadata") if isinstance(x, dict) else None
@@ -111,6 +117,8 @@ class DataCollator:
             out["label_mask"] = torch.stack(all_label_mask)
         if all_indices:
             out["index"] = torch.stack(all_indices)
+        if all_instance_mask:
+            out["instance_mask"] = torch.stack(all_instance_mask)
         if all_metadata:
             out["metadata"] = all_metadata
 

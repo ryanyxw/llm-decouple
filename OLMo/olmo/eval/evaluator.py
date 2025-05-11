@@ -29,9 +29,11 @@ class Evaluator:
     def compute_metrics(self) -> Dict[str, float]:
         if self.type == EvaluatorType.downstream:
             assert isinstance(self.eval_metric, ICLMetric)
-            return {
-                f"eval/downstream/{self.label}_{self.eval_metric.metric_type}": self.eval_metric.compute().item(),
-            }
+            value = self.eval_metric.compute().item()
+            key = f"eval/downstream/{self.label}_{self.eval_metric.metric_type}"
+            if self.eval_metric.metric_type == "ce_loss":
+                key = key.replace("/downstream/", "/downstream_ce_loss/")
+            return {key: value}
         elif self.type == EvaluatorType.lm:
             # Metric(s) = cross entropy loss
             metrics: Dict[str, Metric]
@@ -59,6 +61,11 @@ class Evaluator:
                     out[f"eval/{label}/CrossEntropyLoss"] = loss.item()
                     out[f"eval/{label}/Perplexity"] = torch.exp(loss).item()
             return out
+        elif self.type == EvaluatorType.selective_perplexity:
+            value = self.eval_metric.compute().item()
+            key = f"eval/selective_perplexity/{self.label}"
+
+            return {key: value}
         else:
             raise ValueError(f"Unexpected evaluator type '{self.type}'")
 
@@ -79,5 +86,7 @@ class Evaluator:
                 else:
                     metric = self.eval_metric
                 metric.update(instance_loss)
+        elif self.type == EvaluatorType.selective_perplexity:
+            self.eval_metric.update(batch, logits)  # type: ignore
         else:
             raise ValueError(f"Unexpected evaluator type '{self.type}'")

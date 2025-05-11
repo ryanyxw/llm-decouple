@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import asdict, dataclass, field
 from glob import glob
 from pathlib import Path
@@ -38,6 +39,7 @@ __all__ = [
     "SchedulerType",
     "SchedulerConfig",
     "DataConfig",
+    "InstanceFilterConfig",
     "EvaluatorConfig",
     "TokenizerConfig",
     "TrainConfig",
@@ -222,6 +224,37 @@ class InitFnType(StrEnum):
 class ModelConfig(BaseConfig):
     """
     OLMo (model) configuration.
+    """
+    layer_bias_activation: Optional[List[int]] = field(default=None)
+    """
+    this will specify which layers' biases are activated
+    0 = embedding bias
+    1 - n_layers = layer biases
+    n_layers + 1 = final hidden state bias
+    
+    Note that final hidden state bias and nth layer bias is different because there is a layer norm in between
+    """
+
+    add_layer_bias: bool = False
+
+    # add_class_bias: bool = False
+    # """
+    # Whether to add a bias term to the final hidden state layer. Note that label_mask must be provided
+    # """
+    #
+    # add_embedding_bias: bool = False
+    # """
+    # Whether to add a bias term to the embedding layer for each class. Note that label_mask must be provided
+    # """
+
+    add_embedding_transformation: bool = False
+    """
+    We add a linear fully connected layer to transform the embeddings, where the linear layer is initialized the same for each class
+    """
+
+    num_classes: Optional[int] = None
+    """
+    if add_class_bias is True, this is the number of classes.
     """
 
     # Note that the defaults for these attributes are equivalent to the base GPT2 model.
@@ -531,10 +564,23 @@ class SchedulerConfig(BaseConfig):
     vs after the warmup period.
     """
 
+    warmup_min_lr: Optional[float] = None
+    """
+    The starting LR during the warmup period. If not set this defaults to 10% of
+    the target LR.
+    """
+
 
 class PaddingDirection(StrEnum):
     right = "right"
     left = "left"
+
+
+@dataclass
+class InstanceFilterConfig(BaseConfig):
+    repetition_max_period: int = 13
+    repetition_min_period: int = 1
+    repetition_max_count: int = 32
 
 
 @dataclass
@@ -551,11 +597,13 @@ class DataConfig(BaseConfig):
     persistent_workers: bool = False
     timeout: int = 0
     seed: Optional[int] = None
+    instance_filter: Optional[InstanceFilterConfig] = None
 
 
 class EvaluatorType(StrEnum):
     downstream = "downstream"
     lm = "lm"
+    selective_perplexity = "selective_perplexity"
 
 
 @dataclass
@@ -681,6 +729,14 @@ class FSDPConfig(BaseConfig):
 
     precision: FSDPPrecision = FSDPPrecision.pure
 
+    hybrid_sharding_num_model_replicas: Optional[int] = None
+    """
+    The number of model instances, when using a hybrid sharding strategy.
+    If not ``None``, this must divide the total number of nodes. If ``None``, the default,
+    a model instance is used per node (as determined by ``get_world_size() // get_local_world_size()``).
+    PyTorch's default HSDP behavior matches this default behavior.
+    """
+
 
 class CheckpointType(StrEnum):
     sharded = "sharded"
@@ -736,6 +792,22 @@ class ActivationCheckpointingStrategy(StrEnum):
 class TrainConfig(BaseConfig):
     """
     OLMo training configuration.
+    """
+
+    label_mask_to_loss: Optional[Dict[str, List[int]]] = field(default=None)
+    """
+    if label_mask is provided, the way applying loss to the masked labels.
+    """
+
+    label_mask_to_class_bias: Optional[List[int]] = field(default=None)
+    """
+    if add_class_bias is true, the way we add class bias using label_mask. This should be an array of length 
+    the number of label_mask ids
+    """
+
+    start_from_old_lr: bool = False
+    """
+    if load_trainer_state is False, and this is True, start from the learning rate of the previous run. 
     """
 
     run_name: Optional[str] = None
@@ -1010,11 +1082,9 @@ class TrainConfig(BaseConfig):
     normalizing term to be close to 0.
     """
 
-    time_limit: Optional[float] = 60 * 60 * 47.5
+    time_limit: Optional[float] = None
     """
     The maximum amount of time to train for before saving a checkpoint and ending early.
-    On LUMI we have 48 hours max per job, so we default to just under 48 hours to give us time
-    to write out a final checkpoint.
     """
 
     extra_steps_after_cancel: int = 10

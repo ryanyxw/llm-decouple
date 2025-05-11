@@ -1,0 +1,45 @@
+ROOT_DIR: ./../..
+DATA_DIR: /mnt/nfs1/ryan/decouple/data
+MODEL_DIR: ${ROOT_DIR}/models
+
+num_proc: 40
+seed: 0
+
+exp_name: "exp_9_3epoch"
+max_seq_len: 2048
+
+tokenizer_name: "allenai/OLMo-1B-hf"
+
+filter_orig_dolma:
+  do: True
+  num_shards: 15
+  data_inputarr:
+    - /mnt/nfs1/ryan/decouple/data/olmo_training/1epoch_checkpoint736000_1B/output.jsonl
+    - /mnt/nfs1/ryan/decouple/data/olmo_training/1epoch_checkpoint737000_1B/output.jsonl
+
+
+  taggers: [ "jigsaw_hatespeech_document_v2",
+             "jigsaw_hatespeech_sentence_v2",
+             "ft_lang_id_en_doc_v2",
+             "jigsaw_nsfw_document_v1",
+             "jigsaw_nsfw_sencence_v2" ]
+
+  #we want text that is english, and either toxic or nsfw
+  min_english_score: 0.5
+  max_nontoxic_score: 1e-4
+  min_toxic_score: 0.99
+
+  #the overall score must be at least 0.4
+  min_overall_toxic_score: 0.4
+
+
+tokenize_orig_dolma:
+  do: True
+  num_shards: 15
+  data_inputarr:
+    - /mnt/nfs1/ryan/decouple/data/olmo_training/1epoch_checkpoint736000_1B/output_filtered.jsonl
+    - /mnt/nfs1/ryan/decouple/data/olmo_training/1epoch_checkpoint737000_1B/output_filtered.jsonl
+
+
+  toxic_threshold: 0.99
+  safe_threshold: 1e-4

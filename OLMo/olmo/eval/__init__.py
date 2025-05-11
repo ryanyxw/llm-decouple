@@ -4,6 +4,7 @@ import torch
 from torch.utils.data import DataLoader, DistributedSampler
 from torchmetrics import MeanMetric, Metric
 
+from .custom_metrics import SelectivePerplexity
 from ..config import EvaluatorConfig, EvaluatorType, TrainConfig
 from ..exceptions import OLMoConfigurationError
 from ..tokenizer import Tokenizer
@@ -102,6 +103,30 @@ def build_evaluator(
             eval_metric=eval_metric,
             subset_num_batches=eval_config.subset_num_batches,
         )
+    elif eval_config.type == EvaluatorType.selective_perplexity:
+        # perplexity evaluation
+        eval_loader = build_eval_dataloader(
+            train_config,
+            eval_config.data,
+            eval_config.device_eval_batch_size or train_config.device_eval_batch_size,
+        )
+
+
+        def make_metric():
+            return SelectivePerplexity().to(device)
+
+        eval_metric: Union[Metric, Dict[str, Metric]]
+
+        eval_metric = make_metric()
+
+        return Evaluator(
+            label=eval_config.label,
+            type=eval_config.type,
+            eval_loader=eval_loader,
+            eval_metric=eval_metric,
+            subset_num_batches=eval_config.subset_num_batches,
+        )
+
     else:
         raise ValueError(f"Unexpected evaluator type '{eval_config.type}'")
 

@@ -162,5 +162,5 @@ cython_debug/
 gpt-neox_backup
 data
 API_KEYS.py
-OLMo_old
-OLMo
+plotting
+figures

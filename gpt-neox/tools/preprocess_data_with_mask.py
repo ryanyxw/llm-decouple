@@ -68,6 +68,7 @@ import time
 import tqdm
 import torch
 import ftfy
+import json
 
 from megatron.tokenizer import build_tokenizer
 from megatron.data import indexed_dataset
@@ -288,32 +289,48 @@ def mask(sentence: list, pivot_tokens: list, include_pivot=True):
 
     return [-100] * index + sentence[index:]
 
+#PRIVATE_EDIT
 def mask_special(sentence: list, pivot_tokens: list, percentage: float, record_file_path: str):
-    inds = kmp(sentence, pivot_tokens)
-    if not inds:
+    inds = []
+
+    for pattern in pivot_tokens:
+        inds += [kmp(sentence, pattern)]
+
+    # get the corresponding indices to mask
+    flattened_inds = [item for sublist in inds for item in sublist]
+
+    if not flattened_inds:
         return sentence
 
-    # randomly choose between special masking and regular masking
-    choices = "special", "regular"
-    choice = np.random.choice(choices, p=[percentage, 1 - percentage])
 
-    # record the choice
-    # with open(record_file_path, "a") as f:
-    #     # record the entire sentence as csv
-    #     f.write(f"{choice},{sentence}\n")
+    inds_len = [len(sublist) for sublist in pivot_tokens]
+    flattened_len = [inds_len[row_id] for row_id in range(len(pivot_tokens)) for _ in range(len(inds[row_id]))]
 
-    if (choice == "regular"):
-        return sentence
+    #sort the indices in ascending order
+    sorted_inds = [[i, j] for i, j in sorted(zip(flattened_inds, flattened_len))]
 
     #set an index of -100 for all pivot tokens only
     new_sentence = []
     prev_idx = 0
-    for idx in inds:
-        new_sentence += sentence[prev_idx:idx] + [-100] * len(pivot_tokens)
-        prev_idx = idx + len(pivot_tokens)
+    for idx, num_char in sorted_inds:
+        # randomly choose between special masking and regular masking for each word
+        choices = "special", "regular"
+        choice = np.random.choice(choices, p=[percentage, 1 - percentage])
+        if choice == "special":
+            # previous masking overlaps with current mask
+            if (prev_idx > idx):
+                # if current is complete subset of previous mask, skip
+                if (prev_idx > idx + num_char):
+                    continue
+                # if current is not a complete subset of previous mask, adjust the mask
+                else:
+                    new_sentence += [-100] * (idx + num_char - prev_idx)
+                    prev_idx = idx + num_char
+            else:
+                new_sentence += sentence[prev_idx:idx] + [-100] * num_char
+                prev_idx = idx + num_char
+
     new_sentence += sentence[prev_idx:]
-
-
 
     return new_sentence
 
@@ -341,7 +358,10 @@ def main():
 
     
     if args.mask_before_token is not None:
-        token_mask = [int(re.sub(r'[^0-9]', '', r)) for r in args.mask_before_token.split(",") if re.sub(r'[^0-9]', '', r)]
+        #PRIVATE_EDIT
+        #to support a list of strings to mask out
+        # token_mask = [int(re.sub(r'[^0-9]', '', r)) for r in args.mask_before_token.split(",") if re.sub(r'[^0-9]', '', r)]
+        token_mask = json.loads(args.mask_before_token)
     else:
         token_mask = []
 
@@ -399,9 +419,7 @@ def main():
                 builders[key].add_item(np.array(sentence, dtype=builders[key].dtype))
                 if token_mask:
                     if (args.special_loss_mask):
-
                         masked_sentence = mask_special(sentence, token_mask, args.percentage, args.record_file_path)
-
                     else:
                         masked_sentence = mask(sentence, token_mask)
                     builders["label"].add_item(np.array(masked_sentence, dtype=builders["text"].dtype))

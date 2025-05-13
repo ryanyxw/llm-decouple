@@ -1,30 +1,22 @@
-# llm-decouple
-Decoupling understanding from generation for large language models
+# Teaching Models to Understand (but not Generate) High-risk Data
 
-#Loading neox (before flashattentionv2 https://github.com/EleutherAI/gpt-neox/tree/70af6e84e1c0ffc2fdca89fb77b35a2ccbfceba9)
+This is an official repository for our paper, [Teaching Models to Understand (but not Generate) High-risk Data](https://arxiv.org/abs/2505.03052).
+
+#### (NOTE: Documentation is outdated. Expect updated documentation by May 12)
+
+### Data Preparation
+All toxic data is acquired from [Pushshift Reddit snapshots](https://ojs.aaai.org/index.php/ICWSM/article/view/7347) between March and December 2023. These snapshots are not publically available, but can be torrented. 
+
+Pushshift snapshots should be saved as .zst files in a directory called `data/src`. The following script extracts, tags, and filters documents from the December snapshot as an example (`data/src/RC_2023-12.zst`). 
+
 ```bash
-git clone git@github.com:EleutherAI/gpt-neox.git
-git checkout 70af6e8
+bash process_reddit.sh
 ```
 
-#Preparing the environment
-```bash
-conda create -n neoxv4
-conda install python=3.8
-conda install cudatoolkit=11.7 -c conda-forge
-conda install -c conda-forge cudatoolkit-dev
-export CUDA_HOME=PATH_TO_MINICONDA/miniconda3/envs/neoxv4
-export LD_LIBRARY_PATH=PATH_TO_MINICONDA/lib:$LD_LIBRARY_PATH
-pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
-conda install -c conda-forge mpi4py mpich
-git clone https://github.com/EleutherAI/gpt-neox.git
-pip install -r requirements/requirements.txt
-pip install -r requirements/requirements-wandb.txt
-pip install -r requirements/requirements-tensorboard.txt
-python ./megatron/fused_kernels/setup.py install
-pip install -r requirements/requirements-flashattention.txt
-pip install triton
-```
+The script will output filtered toxic documents into `data/prepared/toxic_data` and non-toxic documents into `data/prepared/non_toxic_data`. 
+
+
+### Training
 
 The OLMO environment uses: 
 transformers 1.17 compatible with CUDA 11.6

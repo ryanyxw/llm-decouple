@@ -11,7 +11,7 @@ from src.modules.data.load import read_lines_zst, read_lines_from_file
 from src.modules.utils import confirm_with_user, load_config, prepare_folder, validate_inputs, prepare_wandb, \
     save_config, execute_shell_command
 
-def filter_and_process(lines_and_tags, attribute_key_map, exp_configs):
+def filter_and_process_toxic(lines_and_tags, attribute_key_map, exp_configs):
     print("entered! ")
 
     processed_lines = []
@@ -33,17 +33,69 @@ def filter_and_process(lines_and_tags, attribute_key_map, exp_configs):
         try:
             english_score = tagged_line_obj["attributes"][attribute_key_map["english"]][0][2]
             toxic_document_score = tagged_line_obj["attributes"][attribute_key_map["toxic_document"]][0][2]
-            # nsfw_document_score = tagged_line_obj["attributes"][attribute_key_map["nsfw_document"]][0][2]
 
             toxic_spans_scores = tagged_line_obj["attributes"][attribute_key_map["toxic_sentence"]]
-            # nsfw_spans_scores = tagged_line_obj["attributes"][attribute_key_map["nsfw_sentence"]]
 
             if english_score < exp_configs.min_english_score:
                 continue
 
-            #PERPLEXITY_GOOD_REDDIT: commented out next two lines of code and added new stuff
-            # if toxic_document_score < exp_configs.min_toxic_score:
-            #     continue
+            if toxic_document_score < exp_configs.min_toxic_score:
+                continue
+
+            # if the document contains a toxic span as well as a non toxic span, we keep it
+            toxic_scores = [span[2] for span in toxic_spans_scores]
+
+        except:
+            continue
+
+        #PERPLEXITY_GOOD_REDDIT: changed the following checking condition to only get good documents
+        if len(toxic_scores) > 1 and max(toxic_scores) >= exp_configs.min_toxic_score and min(
+                toxic_scores) <= exp_configs.max_nontoxic_score:
+            line_obj["english_score"] = english_score
+            line_obj["toxic_score"] = toxic_document_score
+            line_obj["toxic_spans"] = toxic_spans_scores
+
+            processed_lines.append(line_obj)
+
+            num_toxic_spans += sum([1 for score in toxic_scores if score >= exp_configs.min_toxic_score])
+            num_nontoxic_spans += sum([1 for score in toxic_scores if score <= exp_configs.max_nontoxic_score])
+            num_neutral_spans += sum([1 for score in toxic_scores if
+                                      score > exp_configs.max_nontoxic_score and score < exp_configs.min_toxic_score])
+
+            num_collected_counter += 1
+            if toxic_scores[-1] < exp_configs.max_nontoxic_score:
+                nontoxic_ending += 1
+
+    return processed_lines, num_collected_counter, nontoxic_ending, num_toxic_spans, num_nontoxic_spans, num_neutral_spans
+
+
+def filter_and_process_nontoxic(lines_and_tags, attribute_key_map, exp_configs):
+    print("entered! ")
+
+    processed_lines = []
+    # initialize all the metrics to record
+    num_collected_counter = 0
+    nontoxic_ending = 0  # to count the number of sequences that end with nontoxic sequence
+    num_toxic_spans = 0
+    num_nontoxic_spans = 0
+    num_neutral_spans = 0
+
+    for line, tagged_line in lines_and_tags:
+
+        tagged_line_obj = json.loads(tagged_line)
+        line_obj = json.loads(line)
+
+        assert tagged_line_obj["id"] == line_obj["id"]
+
+        try:
+            english_score = tagged_line_obj["attributes"][attribute_key_map["english"]][0][2]
+            toxic_document_score = tagged_line_obj["attributes"][attribute_key_map["toxic_document"]][0][2]
+            toxic_spans_scores = tagged_line_obj["attributes"][attribute_key_map["toxic_sentence"]]
+
+            if english_score < exp_configs.min_english_score:
+                continue
+
+            #PERPLEXITY_GOOD_REDDIT discard toxic documents
             if toxic_document_score > exp_configs.max_toxic_score:
                 continue
 
@@ -52,20 +104,8 @@ def filter_and_process(lines_and_tags, attribute_key_map, exp_configs):
 
         except:
             continue
-        # if len(toxic_scores) > 1 and max(toxic_scores) > exp_configs.min_toxic_score and min(toxic_scores) < exp_configs.max_nontoxic_score and toxic_scores[-1] < exp_configs.max_nontoxic_score:
-        #     line_obj["file_origin"] = os.path.basename(orig_document)
-        #     line_obj["english_score"] = english_score
-        #     line_obj["toxic_score"] = toxic_document_score
-        #     line_obj["toxic_spans"] = toxic_spans_scores
-        #
-        #     num_collected_counter += 1
-        #     p_bar.update(1)
-        #
-        #     # write the line to the output file
-        #     out_file.write(json.dumps(line_obj) + "\n")
-        #PERPLEXITY_GOOD_REDDIT: changed the following checking condition to only get good documents
-        # if len(toxic_scores) > 1 and max(toxic_scores) >= exp_configs.min_toxic_score and min(
-        #         toxic_scores) <= exp_configs.max_nontoxic_score:
+
+        #PERPLEXITY_GOOD_REDDIT: only choose sentences with low toxic scores
         if len(toxic_scores) > 1 and max(toxic_scores) <= exp_configs.max_toxic_score:
             line_obj["english_score"] = english_score
             line_obj["toxic_score"] = toxic_document_score
@@ -83,6 +123,7 @@ def filter_and_process(lines_and_tags, attribute_key_map, exp_configs):
                 nontoxic_ending += 1
 
     return processed_lines, num_collected_counter, nontoxic_ending, num_toxic_spans, num_nontoxic_spans, num_neutral_spans
+
 
 def main(args):
     print("yay!")
@@ -103,10 +144,6 @@ def main(args):
     if configs.extract_from_zst_to_documents.do:
         exp_configs = configs.extract_from_zst_to_documents
 
-        # load the list of subreddits to not include
-        with open(configs.input_blocked_subreddit_file, "r") as file:
-            blocked_subreddits = file.read().split("\n")
-            blocked_subreddits = [subreddit.strip() for subreddit in blocked_subreddits]
         print("enter")
 
         master_dict = {}
@@ -129,12 +166,9 @@ def main(args):
                         if obj["score"] < exp_configs.min_upvotes:
                             continue
 
-                        is_bad_subreddit = obj["subreddit"].strip() in blocked_subreddits
-
                         write_obj = {"text": obj[text_key],
                                      "source": "reddit",
-                                     "id": obj["id"],
-                                     "is_bad_subreddit": is_bad_subreddit}
+                                     "id": obj["id"]}
 
                         writer.write(f"{json.dumps(write_obj)}\n".encode('utf-8'))
                         # out_file.write(json.dumps(write_obj) + "\n")
@@ -172,8 +206,8 @@ def main(args):
 
         print("Tagging complete")
 
-    # we extract based on tagged values
-    if configs.filter_tags_and_prepare.do:
+    # we extract toxic documents based on tagged values
+    if configs.filter_tags_and_prepare_toxic.do:
         exp_configs = configs.filter_tags_and_prepare
 
         assert(len(exp_configs.orig_documents) == len(exp_configs.tag_files))
@@ -247,10 +281,9 @@ def main(args):
                             lines_chunk.append(orig_line)
                             tagged_lines_chunk.append(tagged_line)
 
-                        #PERPLEXITY_GOOD_REDDIT: added check for 20 million documents until termination
-                        if not lines_chunk or len(futures) > 20:
+                        if not lines_chunk:
                             break
-                        futures.append(executor.submit(filter_and_process, zip(lines_chunk, tagged_lines_chunk), attribute_key_map, exp_configs))
+                        futures.append(executor.submit(filter_and_process_toxic, zip(lines_chunk, tagged_lines_chunk), attribute_key_map, exp_configs))
 
                     for future in futures:
                         processed_lines, temp_num_collected_counter, temp_nontoxic_ending, temp_num_toxic_spans, temp_num_nontoxic_spans, temp_num_neutral_spans = future.result()
@@ -270,80 +303,11 @@ def main(args):
                     file.write(f"Number of nontoxic spans: {num_nontoxic_spans}\n")
                     file.write(f"Number of neutral spans: {num_neutral_spans}\n")
 
-            # # open the file to write
-            # with open(output_file, "w") as out_file:
-            #
-            #     # output_file = os.path.basename(orig_document).split(".")[0] + f"_eng-{int(exp_configs.min_english_score * 100)}_toxic-{int(exp_configs.min_toxic_score * 100)}_docutoxic-{int(exp_configs.min_overall_toxic_score * 100)}_nontoxic-{int(exp_configs.max_nontoxic_score * 100)}.jsonl"
-            #     for line, tagged_line in zip(read_lines_from_file(orig_document), read_lines_from_file(tagged_document)):
-            #
-            #         tagged_line_obj = json.loads(tagged_line)
-            #         line_obj = json.loads(line)
-            #
-            #         assert tagged_line_obj["id"] == line_obj["id"]
-            #
-            #         try:
-            #             english_score = tagged_line_obj["attributes"][attribute_key_map["english"]][0][2]
-            #             toxic_document_score = tagged_line_obj["attributes"][attribute_key_map["toxic_document"]][0][2]
-            #             # nsfw_document_score = tagged_line_obj["attributes"][attribute_key_map["nsfw_document"]][0][2]
-            #
-            #             toxic_spans_scores = tagged_line_obj["attributes"][attribute_key_map["toxic_sentence"]]
-            #             # nsfw_spans_scores = tagged_line_obj["attributes"][attribute_key_map["nsfw_sentence"]]
-            #
-            #             if english_score < exp_configs.min_english_score:
-            #                 continue
-            #
-            #             if toxic_document_score < exp_configs.min_toxic_score:
-            #                 continue
-            #
-            #             #if the document contains a toxic span as well as a non toxic span, we keep it
-            #             toxic_scores = [span[2] for span in toxic_spans_scores]
-            #
-            #         except:
-            #             print("errorr! exception occurred")
-            #             continue
-            #         # if len(toxic_scores) > 1 and max(toxic_scores) > exp_configs.min_toxic_score and min(toxic_scores) < exp_configs.max_nontoxic_score and toxic_scores[-1] < exp_configs.max_nontoxic_score:
-            #         #     line_obj["file_origin"] = os.path.basename(orig_document)
-            #         #     line_obj["english_score"] = english_score
-            #         #     line_obj["toxic_score"] = toxic_document_score
-            #         #     line_obj["toxic_spans"] = toxic_spans_scores
-            #         #
-            #         #     num_collected_counter += 1
-            #         #     p_bar.update(1)
-            #         #
-            #         #     # write the line to the output file
-            #         #     out_file.write(json.dumps(line_obj) + "\n")
-            #         if len(toxic_scores) > 1 and max(toxic_scores) >= exp_configs.min_toxic_score and min(toxic_scores) <= exp_configs.max_nontoxic_score:
-            #             line_obj["file_origin"] = os.path.basename(orig_document)
-            #             line_obj["english_score"] = english_score
-            #             line_obj["toxic_score"] = toxic_document_score
-            #             line_obj["toxic_spans"] = toxic_spans_scores
-            #
-            #             num_toxic_spans += sum([1 for score in toxic_scores if score >= exp_configs.min_toxic_score])
-            #             num_nontoxic_spans += sum([1 for score in toxic_scores if score <= exp_configs.max_nontoxic_score])
-            #             num_neutral_spans += sum([1 for score in toxic_scores if score > exp_configs.max_nontoxic_score and score < exp_configs.min_toxic_score])
-            #
-            #             num_collected_counter += 1
-            #             if toxic_scores[-1] < exp_configs.max_nontoxic_score:
-            #                 nontoxic_ending += 1
-            #             p_bar.update(1)
-            #
-            #             # write the line to the output file
-            #             out_file.write(json.dumps(line_obj) + "\n")
-            #
-            # # we store basic info about this file
-            # with open(os.path.join(exp_configs.output_dir_, os.path.basename(orig_document).split(".")[0] + "_info.txt"), "w") as file:
-            #     file.write(f"Number of documents: {num_collected_counter}\n")
-            #     file.write(f"Number of documents ending with nontoxic sequence: {nontoxic_ending}\n")
-            #     file.write(f"Number of toxic spans: {num_toxic_spans}\n")
-            #     file.write(f"Number of nontoxic spans: {num_nontoxic_spans}\n")
-            #     file.write(f"Number of neutral spans: {num_neutral_spans}\n")
+    # we extract based on tagged values for nontoxic text (for evaluation)
+    if configs.filter_tags_and_prepare_nontoxic.do:
+        exp_configs = configs.filter_tags_and_prepare
 
-
-    if configs.prepare_nontoxic_only.do:
-        # note that nontoxic documents still contain toxic spans that need to be filtered out
-        exp_configs = configs.prepare_nontoxic_only
-
-        assert (len(exp_configs.orig_documents) == len(exp_configs.tag_files))
+        assert(len(exp_configs.orig_documents) == len(exp_configs.tag_files))
 
         exp_name = configs.exp_name + "_full"
         attribute_key_map = {"english": f"{exp_name}__ft_lang_id_en_doc_v2__en",
@@ -353,76 +317,85 @@ def main(args):
                              "nsfw_sentence": f"{exp_name}__jigsaw_nsfw_sencence_v2____label__nsfw"
                              }
 
+        if not os.path.exists(exp_configs.output_dir_):
+            os.makedirs(exp_configs.output_dir_, exist_ok=True)
+
+        # we save the configs
+        save_config(exp_configs, os.path.join(exp_configs.output_dir_, "config.json"))
+
         for i in range(len(exp_configs.orig_documents)):
             orig_document = exp_configs.orig_documents[i]
             tagged_document = exp_configs.tag_files[i]
 
+            # initialize all the metrics to record
+            num_collected_counter = 0
+            nontoxic_ending = 0  # to count the number of sequences that end with nontoxic sequence
+            num_toxic_spans = 0
+            num_nontoxic_spans = 0
+            num_neutral_spans = 0
+
             print(f"orig_document: {orig_document}")
             p_bar = tqdm()
 
-            output_file = os.path.basename(orig_document).split(".")[
-                              0] + f"nontoxic-documents_eng-{int(exp_configs.min_english_score * 100)}_docutoxic-{int(exp_configs.min_overall_toxic_score * 100)}_nontoxic-{int(exp_configs.max_nontoxic_score * 100)}.jsonl"
+            output_file = os.path.join(exp_configs.output_dir_, os.path.basename(orig_document))
 
-            output_fn = os.path.join(exp_configs.output_dir_, output_file)
-            if os.path.exists(output_fn):
+            if (not os.path.basename(orig_document).endswith(".zst")):
+                raise ValueError("The original document must be a zst file")
+
+            # remove output file zst extensiond
+            output_file = output_file[:-4]
+
+            if os.path.exists(output_file):
                 raise FileExistsError(
-                    f"Output file {output_fn} already exists. Please delete it before running this script.")
+                    f"Output file {output_file} already exists. Please delete it before running this script.")
 
-            num_collected_counter = 0
+            # Read files in chunks
+            chunk_size = 1000000  # adjust based on memory
+            with ProcessPoolExecutor() as executor:
+                with open(output_file, 'w') as out_file:#, open(orig_document, 'r') as orig_file, open(tagged_document, "r") as tagged_file:
+                    # create generators for reading in lines
+                    orig_file_generator = read_lines_zst(orig_document)
+                    tagged_file_generator = read_lines_zst(tagged_document)
+                    futures = []
+                    while True:
+                        lines_chunk = []
+                        tagged_lines_chunk = []
 
+                        for _ in range(chunk_size):
+                            try:
+                                orig_line = next(orig_file_generator)
+                                tagged_line = next(tagged_file_generator)
+                            except StopIteration:
+                                # if we've exhausted the file
+                                break
+                            p_bar.update(1)
 
-            with open(output_fn, "w") as out_file:
-                for line, tagged_line in zip(read_lines_from_file(orig_document),
-                                             read_lines_from_file(tagged_document)):
+                            lines_chunk.append(orig_line)
+                            tagged_lines_chunk.append(tagged_line)
 
-                    # if we reach a certain number of collected documents, we stop
-                    if num_collected_counter >= exp_configs.num_documents:
-                        break
+                        #PERPLEXITY_GOOD_REDDIT: added check for 20 million documents until termination
+                        if not lines_chunk or len(futures) > 20:
+                            break
+                        futures.append(executor.submit(filter_and_process_nontoxic, zip(lines_chunk, tagged_lines_chunk), attribute_key_map, exp_configs))
 
-                    tagged_line_obj = json.loads(tagged_line)
-                    line_obj = json.loads(line)
+                    for future in futures:
+                        processed_lines, temp_num_collected_counter, temp_nontoxic_ending, temp_num_toxic_spans, temp_num_nontoxic_spans, temp_num_neutral_spans = future.result()
+                        for line_obj in processed_lines:
+                            out_file.write(json.dumps(line_obj) + "\n")
 
-                    assert tagged_line_obj["id"] == line_obj["id"]
+                        # Further processing or aggregation of span counts
+                        num_collected_counter += temp_num_collected_counter
+                        nontoxic_ending += temp_nontoxic_ending
+                        num_toxic_spans += temp_num_toxic_spans
+                        num_nontoxic_spans += temp_num_nontoxic_spans
+                        num_neutral_spans += temp_num_neutral_spans
+                with open(os.path.join(exp_configs.output_dir_, os.path.basename(orig_document).split(".")[0] + "_info.txt"), "w") as file:
+                    file.write(f"Number of documents: {num_collected_counter}\n")
+                    file.write(f"Number of documents ending with nontoxic sequence: {nontoxic_ending}\n")
+                    file.write(f"Number of toxic spans: {num_toxic_spans}\n")
+                    file.write(f"Number of nontoxic spans: {num_nontoxic_spans}\n")
+                    file.write(f"Number of neutral spans: {num_neutral_spans}\n")
 
-                    try:
-
-                        english_score = tagged_line_obj["attributes"][attribute_key_map["english"]][0][2]
-                        toxic_document_score = tagged_line_obj["attributes"][attribute_key_map["toxic_document"]][0][2]
-                        # nsfw_document_score = tagged_line_obj["attributes"][attribute_key_map["nsfw_document"]][0][2]
-
-                        toxic_spans_scores = tagged_line_obj["attributes"][attribute_key_map["toxic_sentence"]]
-                        # nsfw_spans_scores = tagged_line_obj["attributes"][attribute_key_map["nsfw_sentence"]]
-
-                        if english_score < exp_configs.min_english_score:
-                            continue
-
-                        if toxic_document_score < exp_configs.min_toxic_score:
-                            continue
-
-                        # if the document contains a toxic span as well as a non toxic span, we keep it
-                        toxic_scores = [span[2] for span in toxic_spans_scores]
-
-                    except:
-                        print("errorr! exception occurred")
-                        continue
-
-                    # if the document satisfies the previous filtering condition, we discard it
-                    if len(toxic_scores) > 1 and max(toxic_scores) > exp_configs.min_toxic_score and min(
-                            toxic_scores) < exp_configs.max_nontoxic_score and toxic_scores[
-                        -1] < exp_configs.max_nontoxic_score:
-                        continue
-                    # we choose the document only if it contains more than 1 sentence (to keep in distribution) and has a non-toxic span
-                    elif len(toxic_scores) > 1 and min(toxic_scores) < exp_configs.max_nontoxic_score:
-                        line_obj["file_origin"] = os.path.basename(orig_document)
-                        line_obj["english_score"] = english_score
-                        line_obj["toxic_score"] = toxic_document_score
-                        line_obj["toxic_spans"] = toxic_spans_scores
-
-                        num_collected_counter += 1
-                        p_bar.update(1)
-
-                        # write the line to the output file
-                        out_file.write(json.dumps(line_obj) + "\n")
 
 
 def parse_args():

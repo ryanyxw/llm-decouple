@@ -188,48 +188,48 @@ def single_process_dataset_by_line(chunk_ind, chunk_start, chunk_end, temp_dir, 
     print(f"completed {chunk_ind}")
 
 
-# def process_with_multiprocessing(process_func, data, output_fn, error_fn = None, num_proc=1, buffer_size=1024*1024):
-#     """
-#     This function performs a processon an iterable object
-#     :param process_func: function that processes a single index
-#     :param data: an iterable object -> no subnesting
-#     :param output_fn: the output file name
-#     :param num_proc: number of processes to use
-#     :param buffer_size: buffer size for file writing
-#     :return: none
-#     """
-#     #create the temp_dir in the current directory
-#     temp_dir = tempfile.mkdtemp()
-#     print(f"temp_dir: {temp_dir}")
-#
-#     chunk_size = len(data) // num_proc + 1 if len(data) >= num_proc else 1
-#
-#     with concurrent.futures.ProcessPoolExecutor(max_workers=num_proc) as executor:
-#         # Split into chunks and assign to processes
-#         futures = []
-#         for i in range(num_proc):
-#             chunk_start = i * chunk_size
-#             chunk_end = (i + 1) * chunk_size if (i + 1) * chunk_size < len(data) else len(data)
-#             print(f"chunk {i}: {chunk_start} to {chunk_end}")
-#             futures.append(executor.submit(single_process, i, chunk_start, chunk_end, temp_dir, data, process_func))
-#         concurrent.futures.wait(futures)
-#
-#     print("completed multiprocessing, beginning concatenating of files")
-#
-#     # concatenate the files
-#     with open(output_fn, 'wb') as output_file:
-#         for i in tqdm(range(num_proc)):
-#             temp_file_path = os.path.join(temp_dir, f'chunk_{i}.jsonl')
-#             with open(temp_file_path, 'rb') as temp_file:
-#                 shutil.copyfileobj(temp_file, output_file, length=buffer_size)
-#
-#     # concatenate the error files
-#     if error_fn is not None:
-#         with open(error_fn, 'wb') as error_file:
-#             for i in tqdm(range(num_proc)):
-#                 temp_error_file_path = os.path.join(temp_dir, f'error_{i}.jsonl')
-#                 with open(temp_error_file_path, 'rb') as temp_error_file:
-#                     shutil.copyfileobj(temp_error_file, error_file, length=buffer_size)
-#
-#     # remove the temp_dir
-#     shutil.rmtree(temp_dir)
+def process_with_multiprocessing(process_func, data, output_fn, error_fn = None, num_proc=1, buffer_size=1024*1024):
+    """
+    This function performs a processon an iterable object
+    :param process_func: function that processes a single index
+    :param data: an iterable object -> no subnesting
+    :param output_fn: the output file name
+    :param num_proc: number of processes to use
+    :param buffer_size: buffer size for file writing
+    :return: none
+    """
+    #create the temp_dir in the current directory
+    temp_dir = tempfile.mkdtemp()
+    print(f"temp_dir: {temp_dir}")
+
+    chunk_size = len(data) // num_proc + 1 if len(data) >= num_proc else 1
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=num_proc) as executor:
+        # Split into chunks and assign to processes
+        futures = []
+        for i in range(num_proc):
+            chunk_start = i * chunk_size
+            chunk_end = (i + 1) * chunk_size if (i + 1) * chunk_size < len(data) else len(data)
+            print(f"chunk {i}: {chunk_start} to {chunk_end}")
+            futures.append(executor.submit(single_process, i, chunk_start, chunk_end, temp_dir, data, process_func))
+        concurrent.futures.wait(futures)
+
+    print("completed multiprocessing, beginning concatenating of files")
+
+    # concatenate the files
+    with open(output_fn, 'wb') as output_file:
+        for i in tqdm(range(num_proc)):
+            temp_file_path = os.path.join(temp_dir, f'chunk_{i}.jsonl')
+            with open(temp_file_path, 'rb') as temp_file:
+                shutil.copyfileobj(temp_file, output_file, length=buffer_size)
+
+    # concatenate the error files
+    if error_fn is not None:
+        with open(error_fn, 'wb') as error_file:
+            for i in tqdm(range(num_proc)):
+                temp_error_file_path = os.path.join(temp_dir, f'error_{i}.jsonl')
+                with open(temp_error_file_path, 'rb') as temp_error_file:
+                    shutil.copyfileobj(temp_error_file, error_file, length=buffer_size)
+
+    # remove the temp_dir
+    shutil.rmtree(temp_dir)

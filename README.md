@@ -1,10 +1,12 @@
 # Teaching Models to Understand (but not Generate) High-risk Data
 
-This is an official repository for our paper, [Teaching Models to Understand (but not Generate) High-risk Data](https://arxiv.org/abs/2505.03052).
+This is an official repository for our paper, [Teaching Models to Understand (but not Generate) High-risk Data](https://arxiv.org/abs/2505.03052). The repository is organized by the figures and tables in the paper. Please refer to each accordingly. 
 
 #### (NOTE: Documentation is outdated. Expect updated documentation by May 12)
 
-### Data Preparation
+## General Preparation
+
+### Preparing Toxic Data
 All toxic data is acquired from [Pushshift Reddit snapshots](https://ojs.aaai.org/index.php/ICWSM/article/view/7347) between March and December 2023. These snapshots are not publically available, but can be torrented. 
 
 Pushshift snapshots should be saved as .zst files in a directory called `data/src`. The following script extracts, tags, and filters documents from the December snapshot as an example (`data/src/RC_2023-12.zst`). 
@@ -13,8 +15,62 @@ Pushshift snapshots should be saved as .zst files in a directory called `data/sr
 bash process_reddit.sh
 ```
 
-The script will output filtered toxic documents into `data/prepared/toxic_data` and non-toxic documents into `data/prepared/non_toxic_data`. 
+The script will output filtered toxic documents into `data/demo/toxic_data` and non-toxic documents into `data/demo/non_toxic_data`. 
 
+### Downloading Dolma Data
+
+To perform continual pre-training on the Olmo models, we need the data that Olmo trained on during its last few checkpoints. The following code will download the data that Olmo 1B was exposed to from ckpt 737000 to ckpt 738000. 
+
+```bash
+bash download_olmo_data.sh
+```
+
+### Downloading Olmo Checkpoints
+
+We download the Olmo ckpt 737000 model using the following bash script. 
+
+```bash
+bash download_olmo_ckpt.sh
+```
+
+## Replicating Figure 2 and Table 2
+
+We first need to continually pre-train the Olmo model on the toxic data. 
+
+### Data 
+
+The following code will merge toxic data into existing Olmo data. 
+
+```bash
+bash run_prepare_data_olmo.sh
+```
+
+### Training
+
+We then train the model on the merged data. 
+
+```bash
+bash train_olmo_continual.sh
+```
+
+To replicate figure 2 (b), we proceed to fine-tune the model on the Tulu dataset using the following script.
+
+```bash
+bash open-instruct/blah.sh
+```
+
+### Evaluation
+
+We then evaluate the model on CivilComments and RealToxicityPrompts. Please ensure that Perspective API Key is installed. 
+
+```bash
+bash eval/eval_olmo.sh
+```
+
+## Replicating Figure 3
+
+### Data
+We first perform 
 
 ### Training
 

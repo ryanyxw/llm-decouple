@@ -373,8 +373,7 @@ def main(args):
                             lines_chunk.append(orig_line)
                             tagged_lines_chunk.append(tagged_line)
 
-                        #PERPLEXITY_GOOD_REDDIT: added check for 20 million documents until termination
-                        if not lines_chunk or len(futures) > 20:
+                        if not lines_chunk:
                             break
                         futures.append(executor.submit(filter_and_process_nontoxic, zip(lines_chunk, tagged_lines_chunk), attribute_key_map, exp_configs))
 

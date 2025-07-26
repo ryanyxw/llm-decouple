@@ -190,15 +190,15 @@ def main(args):
     if configs.tag_conversations.do:
         yaml_dict = dict()
         yaml_dict["processes"] = configs.num_proc
-        yaml_dict["experiment"] = configs.exp_name + "_full"
+        yaml_dict["experiment"] = "data"
         yaml_dict["documents"] = [i for i in configs.tag_conversations.in_documents_file]
         yaml_dict["taggers"] = configs.tag_conversations.taggers
 
         # save the yaml file
-        with open(os.path.join(configs.out_dir, "dolma_tag.yaml"), "w") as file:
+        with open(os.path.join(configs.DATA_DIR, f"dolma_tag_{configs.reddit_snapshot}.yaml"), "w") as file:
             save_config(yaml_dict, file)
 
-        command = f"dolma -c {os.path.join(configs.out_dir, 'dolma_tag.yaml')} tag"
+        command = f"dolma -c {os.path.join(configs.DATA_DIR, f'dolma_tag_{configs.reddit_snapshot}.yaml')} tag"
 
         print("Tagging conversations...")
 
@@ -206,13 +206,16 @@ def main(args):
 
         print("Tagging complete")
 
+        # remove the yaml file
+        os.remove(os.path.join(configs.DATA_DIR, f"dolma_tag_{configs.reddit_snapshot}.yaml"))
+
     # we extract toxic documents based on tagged values
     if configs.filter_tags_and_prepare_toxic.do:
-        exp_configs = configs.filter_tags_and_prepare
+        exp_configs = configs.filter_tags_and_prepare_toxic
 
         assert(len(exp_configs.orig_documents) == len(exp_configs.tag_files))
 
-        exp_name = configs.exp_name + "_full"
+        exp_name = configs.exp_name
         attribute_key_map = {"english": f"{exp_name}__ft_lang_id_en_doc_v2__en",
                              "toxic_document": f"{exp_name}__jigsaw_hatespeech_document_v2____label__toxic",
                              "toxic_sentence": f"{exp_name}__jigsaw_hatespeech_sentence_v2____label__toxic",
@@ -305,11 +308,11 @@ def main(args):
 
     # we extract based on tagged values for nontoxic text (for evaluation)
     if configs.filter_tags_and_prepare_nontoxic.do:
-        exp_configs = configs.filter_tags_and_prepare
+        exp_configs = configs.filter_tags_and_prepare_nontoxic
 
         assert(len(exp_configs.orig_documents) == len(exp_configs.tag_files))
 
-        exp_name = configs.exp_name + "_full"
+        exp_name = configs.exp_name
         attribute_key_map = {"english": f"{exp_name}__ft_lang_id_en_doc_v2__en",
                              "toxic_document": f"{exp_name}__jigsaw_hatespeech_document_v2____label__toxic",
                              "toxic_sentence": f"{exp_name}__jigsaw_hatespeech_sentence_v2____label__toxic",

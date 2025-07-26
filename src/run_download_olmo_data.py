@@ -11,6 +11,27 @@ from olmo.config import TrainConfig
 from olmo.data import build_memmap_dataset
 
 from src.modules.data.process import process_with_multiprocessing
+from src.modules.utils import confirm_with_user, load_config, prepare_folder, validate_inputs, prepare_wandb
+
+def process_func(x):
+    return x
+
+class BatchDatasetWrapperForOlmo():
+    """
+    A wrapper for a dataset that returns batches. All indexes are in terms of batches
+    """
+    def __init__(self, dataset, start_seq, end_seq, global_indices):
+        self.start_seq = start_seq
+        self.end_seq = end_seq
+        self.dataset = dataset
+        self.global_indices = global_indices
+    def __getitem__(self, i):
+        batch_i = self.global_indices[self.start_seq + i]
+        return self.dataset[batch_i]["input_ids"].tolist()
+
+    def __len__(self):
+        return self.end_seq - self.start_seq
+
 
 def main(args):
     print("yay!")

@@ -1,16 +1,16 @@
 #this is the 1b 1 epoch
 data_order_cached_path: "https://olmo-checkpoints.org/ai2-llm/olmo-small/46zc5fly/train_data/global_indices.npy"
 
-train_config_path: "/home/ryan/decouple/configs/random/OLMo-1B.yaml"
+train_config_path: "configs/random/OLMo-1B.yaml"
 
 output_dir: "data/olmo_training/1epoch_checkpoint737000_1B"
 
-# For olmo 1b 1 epoch: 1511465216
+# olmo 1b 1 epoch ends: 1511465216
 # 737000 want to start from 1509376000
 # 736000 want to start from 1507328000
 # 735000 want to start from 1505280000
-start_batch: 1509376000
+start_batch: 1511464216
 end_batch: 1511465216
 
 
-num_proc: 50
+num_proc: 2

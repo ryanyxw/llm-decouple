@@ -90,43 +90,6 @@ eval_on_load: True
 eval_subset_num_batches: -1
 device_eval_batch_size: ${device_train_microbatch_size}
 
-#evaluators:
-#  - label: nontoxic-only
-#    type: selective_perplexity
-#    data:
-#      num_workers: 0
-#      drop_last: true
-#      paths:
-#        - /mnt/nfs1/ryan/decouple/data/olmo_training/pretrain_from_scratch/0-99-toxic_0-0001-safe/test/nontoxic_only/input_ids.npy
-#      label_mask_paths:
-#        - /mnt/nfs1/ryan/decouple/data/olmo_training/pretrain_from_scratch/0-99-toxic_0-0001-safe/test/nontoxic_only/label_mask.npy
-#  - label: nontoxic-toxic
-#    type: selective_perplexity
-#    data:
-#      num_workers: 0
-#      drop_last: true
-#      paths:
-#        - /mnt/nfs1/ryan/decouple/data/olmo_training/pretrain_from_scratch/0-99-toxic_0-0001-safe/test/nontoxic_toxic/input_ids.npy
-#      label_mask_paths:
-#        - /mnt/nfs1/ryan/decouple/data/olmo_training/pretrain_from_scratch/0-99-toxic_0-0001-safe/test/nontoxic_toxic/label_mask.npy
-#  - label: toxic-nontoxic
-#    type: selective_perplexity
-#    data:
-#      num_workers: 0
-#      drop_last: true
-#      paths:
-#        - /mnt/nfs1/ryan/decouple/data/olmo_training/pretrain_from_scratch/0-99-toxic_0-0001-safe/test/toxic_nontoxic/input_ids.npy
-#      label_mask_paths:
-#        - /mnt/nfs1/ryan/decouple/data/olmo_training/pretrain_from_scratch/0-99-toxic_0-0001-safe/test/toxic_nontoxic/label_mask.npy
-#  - label: toxic-only
-#    type: selective_perplexity
-#    data:
-#      num_workers: 0
-#      drop_last: true
-#      paths:
-#        - /mnt/nfs1/ryan/decouple/data/olmo_training/pretrain_from_scratch/0-99-toxic_0-0001-safe/test/toxic_only/input_ids.npy
-#      label_mask_paths:
-#        - /mnt/nfs1/ryan/decouple/data/olmo_training/pretrain_from_scratch/0-99-toxic_0-0001-safe/test/toxic_only/label_mask.npy
 
 data:
   pad_direction: right

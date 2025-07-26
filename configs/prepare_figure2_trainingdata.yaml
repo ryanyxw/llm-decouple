@@ -1,34 +1,34 @@
-ROOT_DIR: ./../..
-DATA_DIR: /mnt/nfs1/ryan/decouple/data
+ROOT_DIR: ./..
+DATA_DIR: ${ROOT_DIR}/data
 MODEL_DIR: ${ROOT_DIR}/models
 
-num_proc: 40
+num_proc: 2
 seed: 0
 
-data_exp_name: "figure2_demo"
-exp_name: "figure2_demo"
+data_exp_name: "demo"
 max_seq_len: 2048
 
 tokenizer_name: "allenai/OLMo-1B-hf"
 
 prepare_injection_data:
-  do: True
+  do: False
 
   inputarr_insert_data_fn:
-    - ${DATA_DIR}/demo/non_toxic_reddit/RC_202312_extracted.jsonl
+    - ${DATA_DIR}/demo/toxic_reddit/RC_202312_extracted_demo.jsonl
 
   toxic_threshold: 0.99
   safe_threshold: 1e-4
 
 
-  insert_data_percentage: 0.2 # 1 / 5 with five total partitions
-  partition: 3 # choose from {0, 1, 2, 3, 4}. Only used in exp_4new
+  # TODO change back to 0.2
+  insert_data_percentage: 1
+  partition: 0 # choose from {0, 1, 2, 3, 4}. Only used in exp_4new
 
-  out_directory: ${DATA_DIR}/olmo_training/${data_exp_name}
+  out_directory: ${DATA_DIR}/${data_exp_name}/prepared_injection_data
 
   # filter any sentence with toxicity larger than this threshold
   filter_threshold: 1e-4
-  num_shards: 10
+  num_shards: 1 # number of shards to split the output data into
 
 merge_insert_with_base:
   do: True
@@ -38,16 +38,15 @@ merge_insert_with_base:
     # if the base dataset has already been filtered or masked. Set to False if input data is original data
     is_processed: False
     partition: 2 # choose from {0, 1, 2, 3, 4}. Only used in exp_4new. Ignore otherwise
-    num_sequence_to_extract: 488282 # set to -1 to extract all sequences
+    num_sequence_to_extract: -1 # set to -1 to extract all sequences
     inputarr_base_data_fn:
       - ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/output.jsonl
 
-  insert_data_dir: ${DATA_DIR}/olmo_training/${data_exp_name}
+  insert_data_dir: ${DATA_DIR}/${data_exp_name}/prepared_injection_data
 
   is_conversation: False
 
-#  output_directory: ${parent_directory:${data.input_data_fn}}/${exp_name}
-  out_directory: ${DATA_DIR}/olmo_training/cont_pretraining/${exp_name}
+  out_directory: ${DATA_DIR}/${data_exp_name}/final_training_data
 
 
 

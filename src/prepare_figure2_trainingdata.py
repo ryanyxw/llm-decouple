@@ -290,7 +290,7 @@ def main(args):
         save_dataset_to_np(train_filtered_dataset_formatted, train_filtered_output_dir, configs.max_seq_len)
         save_hf_to_jsonl(test_dataset_filtered, os.path.join(test_output_dir, "unseen_data.jsonl"), 4)
 
-        save_dataset_to_np(base_dataset_formatted, train_base_output_dir, configs.max_seq_len)
+        # save_dataset_to_np(base_dataset_formatted, train_base_output_dir, configs.max_seq_len)
 
         def count_numbers(row):
             row_mask = row["loss_mask"]

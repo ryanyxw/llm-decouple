@@ -1,31 +1,31 @@
-ROOT_DIR: ./../..
+ROOT_DIR: .
 DATA_DIR: ${ROOT_DIR}/data
 MODEL_DIR: ${ROOT_DIR}/models
 
 num_proc: 40
 seed: 0
 
-# this should be the name of the folder under "reddit"
-exp_name: demo
-temp_dir: ${DATA_DIR}/temp/${exp_name}
+reddit_snapshot: "RC_2023-03" # choose from RC_2023-03 to RC_2023-12 and RS_2023-03 to RS_2023-05
 
-# this extracts from the zst and performs preliminary processing
+exp_name: preprocess_${reddit_snapshot}
+
+# this extracts from the zst and performs preliminary processing. Saves to "documents" folder
 extract_from_zst_to_documents:
-  do: True
-  input_zst_file: ${DATA_DIR}/src/RC_2023-12.zst
-  output_documents_file: ${temp_dir}/documents/RC_202312_extracted.jsonl.zst
+  do: False
+  input_zst_file: ${DATA_DIR}/documents/${reddit_snapshot}.zst
+  output_documents_file: ${DATA_DIR}/documents/${reddit_snapshot}_extracted.jsonl.zst
 
-  #dolma filters documents with length < 500, at least 3 or more upvotes
   min_document_length: 0
   min_upvotes: 0
 
   compress_to_zst: False
 
-#this tags the documents
+#this tags the documents, saves tagging into "attributes" folder
+#can utilize n processes only when in_documents_file has n files. Consider running extract_from_zst_to_documents first for all files before running this.
 tag_conversations:
   do: True
   in_documents_file:
-    - ${temp_dir}/documents/RC_202312/*.zst
+    - ${DATA_DIR}/documents/${reddit_snapshot}_extracted.jsonl.zst
   taggers: ["jigsaw_hatespeech_document_v2",
             "jigsaw_hatespeech_sentence_v2",
             "ft_lang_id_en_doc_v2",
@@ -36,11 +36,11 @@ tag_conversations:
 filter_tags_and_prepare_toxic:
   do: True
   orig_documents:
-    - ${temp_dir}/documents/RC_202312_extracted.jsonl.zst
+    - ${DATA_DIR}/documents/${reddit_snapshot}_extracted.jsonl.zst
   tag_files:
-    - ${temp_dir}/attributes/RC_202312_extracted.jsonl.zst
+    - ${DATA_DIR}/attributes/${exp_name}/${reddit_snapshot}_extracted.jsonl.zst
 
-  output_dir_: ${DATA_DIR}/${exp_name}/toxic_reddit
+  output_dir_: ${DATA_DIR}/toxic_reddit
 
   #we want text that is english, and either toxic or nsfw
   min_english_score: 0.5
@@ -54,11 +54,11 @@ filter_tags_and_prepare_toxic:
 filter_tags_and_prepare_nontoxic:
   do: True
   orig_documents:
-    - ${temp_dir}/documents/RC_202312_extracted.jsonl.zst
+    - ${DATA_DIR}/documents/${reddit_snapshot}_extracted.jsonl.zst
   tag_files:
-    - ${temp_dir}/attributes/RC_202312_extracted.jsonl.zst
+    - ${DATA_DIR}/attributes/${exp_name}/${reddit_snapshot}_extracted.jsonl.zst
 
-  output_dir_: ${DATA_DIR}/${exp_name}/non_toxic_reddit
+  output_dir_: ${DATA_DIR}/non_toxic_reddit
 
   #we want text that is english, and either toxic or nsfw
   min_english_score: 0.5

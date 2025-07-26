@@ -6,16 +6,26 @@ This is an official repository for our paper, [Teaching Models to Understand (bu
 
 ## General Preparation
 
-### Preparing Toxic Data
-All toxic data is acquired from [Pushshift Reddit snapshots](https://ojs.aaai.org/index.php/ICWSM/article/view/7347) between March and December 2023. These snapshots are not publically available, but can be torrented. 
-
-Pushshift snapshots should be saved as .zst files in a directory called `data/src`. The following script extracts, tags, and filters documents from the December snapshot as an example (`data/src/RC_2023-12.zst`). 
+### Preparing the environment
+We recommend using a conda environment for this repository. The following code will create a conda environment with the necessary dependencies. 
 
 ```bash
-bash process_reddit.sh
+conda create -n decouple python=3.9 && conda activate decouple
+pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118
+conda env update --name decouple --file environment.yml
+cd OLMo && pip install -e .[all] && cd ..
+````
+
+### Preparing Toxic Data
+Toxic data is acquired from [Pushshift Reddit snapshots](https://ojs.aaai.org/index.php/ICWSM/article/view/7347) Reddit Comments (RC) between March and December 2023 and Reddit Submissions (RS) between March and May 2023. These snapshots are not publically available, but can be torrented. 
+
+Pushshift snapshots should be saved as .zst files in a directory called `data/documents`. The following script extracts, tags, and filters documents from the December RC snapshot as an example (`data/documents/RC_2023-12.zst`). 
+
+```bash
+bash preprocess_reddit.sh
 ```
 
-The script will output filtered toxic documents into `data/demo/toxic_data` and non-toxic documents into `data/demo/non_toxic_data`. 
+The script will output filtered toxic documents into `data/demo/toxic_reddit` and non-toxic documents into `data/demo/non_toxic_reddit`. 
 
 ### Downloading Dolma Data
 
@@ -31,6 +41,13 @@ We download the Olmo ckpt 737000 model using the following bash script.
 
 ```bash
 bash download_olmo_ckpt.sh
+```
+
+### Converting Olmo checkpoints into hf
+To convert an Olmo checkpoint into hf format, use the following script. 
+
+```bash
+bash convert_to_hf.sh
 ```
 
 ## Replicating Figure 2 and Table 2

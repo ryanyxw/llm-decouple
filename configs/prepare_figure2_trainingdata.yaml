@@ -1,0 +1,60 @@
+ROOT_DIR: .
+DATA_DIR: ${ROOT_DIR}/data
+MODEL_DIR: ${ROOT_DIR}/models
+
+num_proc: 2
+seed: 0 # DO NOT CHANGE THIS.
+partition: 1 # choose from {0, 1, 2}. We train three models with shuffled data order and different injected toxic data to produce confidence intervals
+
+exp_name: "figure2_partition${partition}"
+max_seq_len: 2048
+
+tokenizer_name: "allenai/OLMo-1B-hf"
+
+prepare_injection_data:
+  do: True
+
+  inputarr_insert_data_fn:
+    - ${DATA_DIR}/toxic_reddit/RC_2023-03_extracted.jsonl
+#    - ${DATA_DIR}/toxic_reddit/RC_2023-04_extracted.jsonl
+#    - ${DATA_DIR}/toxic_reddit/RC_2023-05_extracted.jsonl
+#    - ${DATA_DIR}/toxic_reddit/RC_2023-06_extracted.jsonl
+#    - ${DATA_DIR}/toxic_reddit/RC_2023-07_extracted.jsonl
+#    - ${DATA_DIR}/toxic_reddit/RC_2023-08_extracted.jsonl
+#    - ${DATA_DIR}/toxic_reddit/RC_2023-09_extracted.jsonl
+#    - ${DATA_DIR}/toxic_reddit/RC_2023-10_extracted.jsonl
+#    - ${DATA_DIR}/toxic_reddit/RC_2023-11_extracted.jsonl
+#    - ${DATA_DIR}/toxic_reddit/RC_2023-12_extracted.jsonl
+#    - ${DATA_DIR}/toxic_reddit/RS_2023-03_extracted.jsonl
+#    - ${DATA_DIR}/toxic_reddit/RS_2023-04_extracted.jsonl
+#    - ${DATA_DIR}/toxic_reddit/RS_2023-05_extracted.jsonl
+
+  toxic_threshold: 0.99
+  safe_threshold: 1e-4
+
+  insert_data_percentage: 0.2 # initially designed to train five models for confidence interval, but later ran out of compute so only trained three models
+
+  out_directory: ${DATA_DIR}/${exp_name}/prepared_injection_data
+
+  # filter any sentence with toxicity larger than this threshold (used for low-risk Baseline)
+  filter_threshold: 1e-4
+  num_shards: 10 # number of shards to split the output data into
+
+merge_insert_with_base:
+  do: True
+  # whether we have a base dataset to insert into
+  base_dataset:
+    do: True
+    # if the base dataset has already been filtered or masked. Set to False if input data is original data
+    is_processed: False
+    num_sequence_to_extract: -1 # set to -1 to extract all sequences
+    inputarr_base_data_fn:
+      - ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/output.jsonl
+
+  insert_data_dir: ${DATA_DIR}/${exp_name}/prepared_injection_data
+
+  out_directory: ${DATA_DIR}/${exp_name}/final_training_data
+
+
+
+

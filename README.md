@@ -1,34 +1,112 @@
 # Teaching Models to Understand (but not Generate) High-risk Data
 
-This is an official repository for our paper, [Teaching Models to Understand (but not Generate) High-risk Data](https://arxiv.org/abs/2505.03052).
 
-## (NOTE: Documentation is outdated. Expect updated documentation by May 12)
-Decoupling understanding from generation for large language models
+This is an official repository for our paper, [Teaching Models to Understand (but not Generate) High-risk Data](https://arxiv.org/abs/2505.03052). The repository is organized by the figures and tables in the paper. Please refer to each accordingly. 
 
-#Loading neox (before flashattentionv2 https://github.com/EleutherAI/gpt-neox/tree/70af6e84e1c0ffc2fdca89fb77b35a2ccbfceba9)
+#### (NOTE: Documentation is outdated. Expect updated documentation by May 12)
+
+## General Preparation
+
+### Preparing the environment
+We recommend using a conda environment for this repository. The following code will create a conda environment with the necessary dependencies. 
+
 ```bash
-git clone git@github.com:EleutherAI/gpt-neox.git
-git checkout 70af6e8
+conda create -n decouple python=3.9 && conda activate decouple
+pip install torch==2.1.0 torchvision==0.16.0 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118
+conda env update --name decouple --file environment.yml
+cd OLMo && pip install -e .[all] && cd ..
+````
+
+### Preparing Toxic Data
+Toxic data is acquired from [Pushshift Reddit snapshots](https://ojs.aaai.org/index.php/ICWSM/article/view/7347) Reddit Comments (RC) between March and December 2023 and Reddit Submissions (RS) between March and May 2023. These snapshots are not publically available, but can be torrented. 
+
+Pushshift snapshots should be saved as .zst files in a directory called `data/documents`. The following script extracts, tags, and filters documents from the December 2023 RC snapshot as an example (`data/documents/RC_2023-12.zst`). 
+
+```bash
+bash preprocess_reddit.sh
 ```
 
-#Preparing the environment
+The script will output filtered toxic documents into `data/toxic_reddit` and non-toxic documents into `data/non_toxic_reddit`. 
+
+### Downloading Dolma Data
+
+To perform continual pre-training on the Olmo models, we need the data that Olmo trained on during its last few checkpoints. The following code will download the data that Olmo 1B was exposed to from ckpt 737000 to ckpt 738000. 
+
 ```bash
-conda create -n neoxv4
-conda install python=3.8
-conda install cudatoolkit=11.7 -c conda-forge
-conda install -c conda-forge cudatoolkit-dev
-export CUDA_HOME=PATH_TO_MINICONDA/miniconda3/envs/neoxv4
-export LD_LIBRARY_PATH=PATH_TO_MINICONDA/lib:$LD_LIBRARY_PATH
-pip install torch==1.9.0+cu111 torchvision==0.10.0+cu111 torchaudio==0.9.0 -f https://download.pytorch.org/whl/torch_stable.html
-conda install -c conda-forge mpi4py mpich
-git clone https://github.com/EleutherAI/gpt-neox.git
-pip install -r requirements/requirements.txt
-pip install -r requirements/requirements-wandb.txt
-pip install -r requirements/requirements-tensorboard.txt
-python ./megatron/fused_kernels/setup.py install
-pip install -r requirements/requirements-flashattention.txt
-pip install triton
+bash download_olmo_data.sh
 ```
+
+### Downloading Olmo Checkpoints
+
+We download the Olmo ckpt 737000 model using the following bash script. 
+
+```bash
+bash download_olmo_ckpt.sh
+```
+
+### Converting Olmo checkpoints into hf
+To convert an Olmo checkpoint into hf format, use the following script. 
+
+
+```bash
+bash convert_to_hf.sh
+```
+
+## Replicating Figure 2 and Table 2
+
+We first need to continually pre-train the Olmo model on the toxic data. 
+
+### Data 
+
+The following code will merge toxic reddit data into Dolma. Change partition to create data variants for confidence intervals. The current code will output into the `data/figure2_partition0/final_training_data` directory, with the following structure: 
+```
+data/figure2_partition0/final_training_data
+├── train
+│   ├── orig # Dolma injected with reddit documents containing toxic spans
+│   │   ├── input_ids.npy 
+│   │   ├── label_mask.npy # Mask indicating which tokens are toxic. (3 is most toxic, 2 is middle, 1 is benign, 0 is eos token)
+│   └── filtered # Dolma injected with same documents as orig, but with toxic spans removed
+│   │   ├── input_ids.npy 
+│   │   ├── label_mask.npy # Mask indicating which tokens are toxic. (3 is most toxic, 2 is middle, 1 is benign, 0 is eos token). Because this is filtered, all values are benign (1) or eos (0).
+├── test
+│   ├── unseen_data.jsonl # Unseen dolma data for later evaluation
+```
+
+```bash
+bash figure2/prepare_figure2_trainingdata.sh
+```
+
+### Training
+
+We then train the following models on the training data. Please make sure to specify the correct "partition" and "mode". 
+
+```bash
+bash figure2/train_olmo_continual.sh
+```
+
+To replicate figure 2 (b), we proceed to fine-tune the model on the Tulu dataset. First, convert the checkpoints to hf format. Then, follow the instructions in the file `open-instruct/README.md` to set up the Open-Instruct environment. Finally, execute the training. 
+
+```bash
+bash convert_to_hf.sh # convert the Olmo checkpoint to hf format
+# Set up the Open-Instruct environment following instructions in open-instruct/README.md. 
+export CUDA_HOME={path_to_your_conda_environment} # i.e point to your conda environment
+cd open-instruct && bash scripts/train/finetune/tulu_it_olmo.sh && cd .. # start training
+```
+
+### Evaluation
+
+We then evaluate the model on CivilComments and RealToxicityPrompts. Please ensure that Perspective API Key is installed. 
+
+```bash
+bash eval/eval_olmo.sh
+```
+
+## Replicating Figure 3
+
+### Data
+We first perform 
+
+### Training
 
 The OLMO environment uses: 
 transformers 1.17 compatible with CUDA 11.6

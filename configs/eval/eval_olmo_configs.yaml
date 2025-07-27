@@ -19,21 +19,21 @@ master_generation_kwargs:
 
 
 model_paths:
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/filtered_737_exp4/step1020-unsharded/hf
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/filtered_738_exp4/step1020-unsharded/hf
+  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/filtered_737_exp4/step1020-unsharded/hf
+  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/filtered_738_exp4/step1020-unsharded/hf
 #
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/masked_exp4new_partition1/step1020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/masked_exp4new_partition2/step1020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/masked_exp4new_partition3/step1020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/vanilla_exp4new_partition1/step1020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/vanilla_exp4new_partition2/step1020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/vanilla_exp4new_partition3/step1020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/unlikelihood_exp4new_partition1/step1020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/unlikelihood_exp4new_partition2/step1020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/unlikelihood_exp4new_partition3/step1020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/filtered_add_reddit_exp4new_partition1/step1020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/filtered_add_reddit_exp4new_partition2/step1020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/filtered_add_reddit_exp4new_partition3/step1020-unsharded
+  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/masked_exp4new_partition1/step1020-unsharded
+  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/masked_exp4new_partition2/step1020-unsharded
+  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/masked_exp4new_partition3/step1020-unsharded
+  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/vanilla_exp4new_partition1/step1020-unsharded
+  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/vanilla_exp4new_partition2/step1020-unsharded
+  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/vanilla_exp4new_partition3/step1020-unsharded
+  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/unlikelihood_exp4new_partition1/step1020-unsharded
+  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/unlikelihood_exp4new_partition2/step1020-unsharded
+  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/unlikelihood_exp4new_partition3/step1020-unsharded
+  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/filtered_add_reddit_exp4new_partition1/step1020-unsharded
+  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/filtered_add_reddit_exp4new_partition2/step1020-unsharded
+  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/filtered_add_reddit_exp4new_partition3/step1020-unsharded
 
 #  - /home/ryan/decouple/models/instruction_tuned/ckpt738_sft
 #  - /home/ryan/decouple/models/instruction_tuned/ckpt737_sft
@@ -94,12 +94,12 @@ model_paths:
 #  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_4d_1B/vanilla_exp_11_4d_1B/step238-unsharded
 #  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_8d_1B/vanilla_exp_11_8d_1B/step238-unsharded
 #  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_16d_1B/vanilla_exp_11_16d_1B/step238-unsharded
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_32d_1B/vanilla_exp_11_32d_1B/step238-unsharded
+#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_32d_1B/vanilla_exp_11_32d_1B/step238-unsharded
 #  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_2d_1B/unlikelihood_exp_11_2d_1B/step238-unsharded
 #  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_4d_1B/unlikelihood_exp_11_4d_1B/step238-unsharded
 #  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_8d_1B/unlikelihood_exp_11_8d_1B/step238-unsharded
 #  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_16d_1B/unlikelihood_exp_11_16d_1B/step238-unsharded
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_32d_1B/unlikelihood_exp_11_32d_1B/step238-unsharded
+#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_32d_1B/unlikelihood_exp_11_32d_1B/step238-unsharded
 
 
 # assumes that all models above have the following checkpoints nested. If no checkpoint_names provided, directly load from folders above
@@ -223,14 +223,26 @@ evaluators:
 
   # this performs civilcomment classification of toxic vs nontoxic
   # for custom models, choose from raw, add double, or add doublediff
-  - label: "NEW_civilcomments_hiddenstate"
+#  - label: "NEW_civilcomments_hiddenstate"
+#    data:
+#      name: "google/civil_comments"
+#      toxicity_threshold: 0.5
+#      num_train: 8000
+#      num_test: 2000
+#      num_samples: 3
+#    use_prompt: False
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+
+  # this performs civilcomment classification of toxic vs nontoxic
+  # for custom models, choose from raw, add double, or add doublediff
+  - label: "NEW_civilcomments_noisychannel_prompt6"
     data:
       name: "google/civil_comments"
       toxicity_threshold: 0.5
-      num_train: 8000
       num_test: 2000
       num_samples: 3
-    use_prompt: False
+    prompt_version: 6
     seed: ${master_seed}
     batch_size: ${master_batch_size}
 ###

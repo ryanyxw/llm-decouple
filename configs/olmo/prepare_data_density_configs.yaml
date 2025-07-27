@@ -1,0 +1,50 @@
+ROOT_DIR: ./../..
+DATA_DIR: /mnt/nfs1/ryan/decouple/data
+MODEL_DIR: ${ROOT_DIR}/models
+
+num_proc: 40
+seed: 0
+
+percentage_included: 32
+
+data_exp_name: "reddit_toxic_texts_${percentage_included}d"
+exp_name: "exp_11_${percentage_included}d_1B"
+max_seq_len: 2048
+
+tokenizer_name: "allenai/OLMo-1B-hf"
+
+prepare_injection_data:
+  do: False
+
+  inputarr_insert_data_fn:
+    - ${DATA_DIR}/dolma/reddit/toxic_texts/prepared/exp_4/RC_202312_extracted.jsonl
+
+  toxic_threshold: 0.99
+  safe_threshold: 1e-4
+
+  insert_data_percentage: ${percentage_included}
+
+  out_directory: ${DATA_DIR}/olmo_training/${data_exp_name}
+
+  # filter any sentence with toxicity larger than this threshold
+  filter_threshold: 1e-4
+  num_shards: 10
+
+merge_insert_with_base:
+  do: True
+  # whether we have a base dataset to insert into. Note this is different from standard. The base dataset we use has been processed.
+  base_dataset:
+    do: True
+    num_sequence_to_extract: 488282 # set to 1B tokens
+    inputarr_base_data_fn:
+      - ${DATA_DIR}/olmo_training/1epoch_checkpoint735000_1B/tokenized_and_filtered
+      - ${DATA_DIR}/olmo_training/1epoch_checkpoint736000_1B/tokenized_and_filtered
+      - ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/tokenized_and_filtered
+
+  insert_data_dir: ${DATA_DIR}/olmo_training/${data_exp_name}
+
+  is_conversation: False
+
+  out_directory: ${DATA_DIR}/olmo_training/cont_pretraining/${exp_name}
+
+

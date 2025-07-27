@@ -6,7 +6,7 @@
 #SBATCH --gres="gpu:a6000:1"
 #SBATCH --ntasks=16
 
-ROOT_DIR=./../..
+ROOT_DIR=.
 NEOX_DIR=${ROOT_DIR}/gpt-neox
 DATA_DIR=${ROOT_DIR}/data
 MODEL_DIR=${ROOT_DIR}/models
@@ -19,17 +19,11 @@ set -e
 export PYTHONPATH=${ROOT_DIR}
 
 ### START EDITING HERE ###
-mode="process_reddit"
-config_file=${CONFIG_DIR}/dolma/${mode}.yaml
+mode="download_olmo_data"
+config_file=${CONFIG_DIR}/${mode}.yaml
 
 WANDB_PROJECT=decouple
 
-python ${SRC_DIR}/dolma/run_process_reddit.py\
+python ${SRC_DIR}/run_download_olmo_data.py\
     --mode=${mode}\
     --config_file=${config_file}\
-
-
-# Other commands to run
-
-# between filtering and tagging, run shard_dataset.sh to split it up for faster tagging
-# between tagging and filter_tags_and_prepare, run concatenate_dataset.sh to concatenate files back together again

@@ -15,13 +15,13 @@ train:
 #  out_directory: "/home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/unlikelihood_exp4new_partition1/step1020-unsharded/hf"
 
   # temp fix for tokenizer
-  tokenizer_name: "/home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/unlikelihood_exp4new_partition1/step1020-unsharded/hf"
+  tokenizer_name: "${train.model_path_or_name}"
 
   wandb:
     do: True
     project: "decouple"
-    group: "OLMO-1B_dynahate_lowdata_sft"
-    name: "unfiltered_exp9_3epoch_step3000_sft"
+    group: "OLMO-1B_civilcomments_finetune_auroc"
+    name: "unlikelihood_exp4new_partition1"
 
   max_seq_len: 256
 
@@ -30,13 +30,13 @@ train:
   apply_loss_mask: False # this is only used for tofu training
 
   training_args:
-    per_device_train_batch_size: 4
-    gradient_accumulation_steps: 32
-    num_train_epochs: 2
-    fp16: true
-    learning_rate: 2.0e-06
+    per_device_train_batch_size: 16
+    gradient_accumulation_steps: 2
+    num_train_epochs: 3
+    fp16: True
+    learning_rate: 1e-5
     warmup_ratio: 0.03
-    logging_steps: 5
+    logging_steps: 2
 
   # note: this only works when exp_name uses eval
   eval:

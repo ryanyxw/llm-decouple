@@ -1,0 +1,69 @@
+ROOT_DIR: .
+DATA_DIR: ${ROOT_DIR}/data
+MODEL_DIR: ${ROOT_DIR}/models
+
+num_proc: 40
+seed: 0
+
+reddit_snapshot: "RC_2023-03" # choose from RC_2023-03 to RC_2023-12 and RS_2023-03 to RS_2023-05
+
+exp_name: preprocess_${reddit_snapshot}
+
+# this extracts from the zst and performs preliminary processing. Saves to "documents" folder
+extract_from_zst_to_documents:
+  do: False
+  input_zst_file: ${DATA_DIR}/documents/${reddit_snapshot}.zst
+  output_documents_file: ${DATA_DIR}/documents/${reddit_snapshot}_extracted.jsonl.zst
+
+  min_document_length: 0
+  min_upvotes: 0
+
+  compress_to_zst: False
+
+#this tags the documents, saves tagging into "attributes" folder
+#can utilize n processes only when in_documents_file has n files. Consider running extract_from_zst_to_documents first for all files before running this.
+tag_conversations:
+  do: False
+  in_documents_file:
+    - ${DATA_DIR}/documents/${reddit_snapshot}_extracted.jsonl.zst
+  taggers: ["jigsaw_hatespeech_document_v2",
+            "jigsaw_hatespeech_sentence_v2",
+            "ft_lang_id_en_doc_v2",
+            "jigsaw_nsfw_document_v1",
+            "jigsaw_nsfw_sencence_v2"]
+
+#this prepares the texts (THIS IS WHAT ACTUALLY WAS USED)
+filter_tags_and_prepare_toxic:
+  do: False
+  orig_documents:
+    - ${DATA_DIR}/documents/${reddit_snapshot}_extracted.jsonl.zst
+  tag_files:
+    - ${DATA_DIR}/attributes/data/${reddit_snapshot}_extracted.jsonl.zst
+
+  output_dir_: ${DATA_DIR}/toxic_reddit
+
+  #we want text that is english, and either toxic or nsfw
+  min_english_score: 0.5
+  max_nontoxic_score: 1e-4
+  min_toxic_score: 0.99
+
+  #the overall score must be at least 0.4
+  min_overall_toxic_score: 0.4
+
+#this prepares the texts (THIS IS FOR EXTRACTING NONTOXIC REDDIT DATA ONLY. search code for comments of #PERPLEXITY_GOOD_REDDIT)
+filter_tags_and_prepare_nontoxic:
+  do: True
+  orig_documents:
+    - ${DATA_DIR}/documents/${reddit_snapshot}_extracted.jsonl.zst
+  tag_files:
+    - ${DATA_DIR}/attributes/data/${reddit_snapshot}_extracted.jsonl.zst
+
+  output_dir_: ${DATA_DIR}/non_toxic_reddit
+
+  #we want text that is english, and either toxic or nsfw
+  min_english_score: 0.5
+  max_nontoxic_score: 1e-4
+  min_toxic_score: 0.99
+
+  #PERPLEXITY_GOOD_REDDIT add some configs
+  max_toxic_score: 1e-4

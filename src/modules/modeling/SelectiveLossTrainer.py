@@ -1,10 +1,12 @@
 import os
 from typing import Dict, Union, Any
 
+import numpy as np
 import torch
 from nltk import word_tokenize
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
-from sklearn.metrics import roc_auc_score, f1_score
+from scipy.stats import sem
+from sklearn.metrics import roc_auc_score, f1_score, precision_score, recall_score, accuracy_score
 from torch import nn
 from tqdm import tqdm
 from transformers.trainer import Trainer
@@ -37,8 +39,8 @@ class SelectiveLossTrainer(Trainer):
         attention_mask = inputs["attention_mask"][..., 1:].contiguous()
         log_probs = nn.functional.log_softmax(logits, dim=-1)
 
-        do_vanilla = True # whether we even use the loss_mask
-        mode = "vanilla"
+        do_vanilla = False # whether we even use the loss_mask
+        mode = "masked"
 
         if mode != "vanilla" and do_vanilla:
             raise ValueError("when do_vanilla is true, mode must be set to vanilla")
@@ -108,6 +110,9 @@ class SelectiveLossTrainer(Trainer):
             # this is for legacy (on dynahate dataset)
             if eval_dataset_name == "dynahate":
                 temp_metrics = self.dynahate_eval(eval_dataloader)
+                metrics.update(temp_metrics)
+            elif "NEW_civilcomments_finetune_auroc" in eval_dataset_name:
+                temp_metrics = self.NEW_civilcomments_finetune_auroc(eval_dataloader)
                 metrics.update(temp_metrics)
             elif "wildguard_prompt" in eval_dataset_name or "wildguard_lowdata_prompt" in eval_dataset_name:
                 temp_metrics = self.wildguard_prompt_eval(eval_dataloader)
@@ -211,6 +216,94 @@ class SelectiveLossTrainer(Trainer):
                    "test_rocauc_round3": phase_3_rocauc,
                    "test_rocauc_round4": phase_4_rocauc,
                    }
+
+        return metrics
+
+    def NEW_civilcomments_finetune_auroc(self, eval_dataloader):
+        total_predictions = []
+        total_probs = []
+        total_labels = []
+
+        with torch.no_grad():
+            for i, data in tqdm(enumerate(eval_dataloader)):
+                input_ids = data["input_ids"]
+                attention_mask = data["attention_mask"]
+                loss_mask = data["loss_mask"]
+
+                logits = obtain_logit(self.model, input_ids, attention_mask).to("cpu")
+
+                # take the logit of the answer token (corresponding to the token with value of 1 in loss_mask
+                loss_mask = loss_mask.to(logits.device)  # Move loss_mask to the same device as logits if necessary
+
+                # Get the logits corresponding to the last non-padding token
+                last_token = logits[loss_mask.bool()].view(logits.shape[0], -1)
+
+                # check its accuracy on the next token
+                true_token = self.tokenizer.encode(" Yes")[0]
+                false_token = self.tokenizer.encode(" No")[0]
+
+                predictions = last_token[:, true_token] > last_token[:, false_token]
+                target_token_logits = [last_token[:, true_token], last_token[:, false_token]]
+                target_token_logits_transformed = torch.stack(target_token_logits).T
+                labels = data["is_harmful"].to("cpu")
+
+                probs = torch.nn.functional.softmax(target_token_logits_transformed, dim=1)[:, 0]
+
+                total_predictions.append(predictions)
+                total_labels.append(labels)
+                total_probs.append(probs)
+
+        total_predictions = torch.cat(total_predictions)
+        total_labels = torch.cat(total_labels)
+        total_probs = torch.cat(total_probs)
+
+        # calculate f1, precision, recall, accuracy, roc_auc across three batches of data
+        f1_scores = []
+        precision_scores = []
+        recall_scores = []
+        accuracy_scores = []
+        roc_auc_scores = []
+
+        examples_per_step = len(total_predictions) // 3
+        for i in range(3):
+            start = i * examples_per_step
+            end = (i + 1) * examples_per_step
+
+            f1_scores.append(f1_score(total_labels[start:end], total_predictions[start:end]))
+            precision_scores.append(precision_score(total_labels[start:end], total_predictions[start:end]))
+            recall_scores.append(recall_score(total_labels[start:end], total_predictions[start:end]))
+            accuracy_scores.append(accuracy_score(total_labels[start:end], total_predictions[start:end]))
+            roc_auc_scores.append(roc_auc_score(total_labels[start:end], total_probs[start:end]))
+
+        # we now log our results
+        num_steps = self.state.global_step
+        output_dir = os.path.join(self.args.output_dir, "across_training")
+        os.makedirs(output_dir, exist_ok=True)
+
+        out_fn = os.path.join(output_dir, f"evaluation_step_{num_steps}.jsonl")
+        out_file = open(out_fn, "w")
+
+        # print the results to output directory
+        print_metrics = {
+            "F1 Score": (np.mean(f1_scores), sem(f1_scores), f1_scores),
+            "Precision": (np.mean(precision_scores), sem(precision_scores), precision_scores),
+            "Recall": (np.mean(recall_scores), sem(recall_scores), recall_scores),
+            "Accuracy": (np.mean(accuracy_scores), sem(accuracy_scores), accuracy_scores),
+            "ROC AUC": (np.mean(roc_auc_scores), sem(roc_auc_scores), roc_auc_scores)
+        }
+        out_file.write("Balanced Dataset Metrics (Mean ± StdErr):\n")
+        for metric, (mean, stderr, raw) in print_metrics.items():
+            out_file.write(f"{metric}: {mean:.4f} ± {stderr:.4f} | Raw: {raw}\n")
+        out_file.close()
+
+        # report mean of all metrics
+        metrics = {
+            "F1 Score": print_metrics["F1 Score"][0],
+            "Precision Score": print_metrics["Precision"][0],
+            "Recall Score": print_metrics["Recall"][0],
+            "Accuracy Score": print_metrics["Accuracy"][0],
+            "ROC AUC Score": print_metrics["ROC AUC"][0],
+        }
 
         return metrics
 

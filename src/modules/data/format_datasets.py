@@ -1,6 +1,8 @@
 # this file is responsible for reformatting the datasets into a unified format
 import re
 
+import datasets
+
 from datasets import concatenate_datasets, Dataset
 
 from src.modules.data.format_utils import reformat_dialogue_with_template, select_binary_balanced_dataset, \
@@ -175,11 +177,24 @@ def prepare_NEW_civil_comments_finetune_auroc_dataset(tokenizer, seed, max_seq_l
     dataset = read_dataset_to_hf("google/civil_comments").shuffle(seed=seed)
 
     toxicity_threshold = 0.5
+    # for NEW_civilcomments_finetune_auroc
+    # num_train = 4000
+    # num_eval = 1000
+
+    # for NEW_civilcomments_finetune_auroc_lowdata
+    # num_train = 800
+    # num_eval = 1000
+
+    # for NEW_civilcomments_finetune_auroc_lowlowdata
+    num_train = 400
+    num_eval = 1000
+
+    eval_samples = 3 # the number of samples of eval dataset we are iterating over
 
     # split dynahate according to pretrainer's guide (only use test set of rounds 3 and 4
     # train on around 32k, text on 2010
-    train_dataset = dataset["train"]
-    test_dataset = dataset["test"]
+    train_dataset = dataset["train"]#.select(range(2 * num_train))
+    test_dataset = dataset["test"]#.select(range(2 * num_eval))
 
     # reformat the dataset
     def reformat_row(row, prompt, tokenizer, add_label=False):
@@ -195,7 +210,7 @@ def prepare_NEW_civil_comments_finetune_auroc_dataset(tokenizer, seed, max_seq_l
             return {"input_ids": [],
                     "attention_mask": [],
                     "loss_mask": [],
-                    "is_harmful": row["label"] == "hate",
+                    "is_harmful": row["toxicity"] >= toxicity_threshold,
                     "skip": True}
 
         # we now calculate attention_mask and loss_mask for the input excluding padded tokens
@@ -222,6 +237,16 @@ def prepare_NEW_civil_comments_finetune_auroc_dataset(tokenizer, seed, max_seq_l
     # drop unnecessary columns
     train_dataset = train_dataset.remove_columns(["skip"])
     test_dataset = test_dataset.remove_columns(["skip"])
+
+    train_dataset = select_binary_balanced_dataset(
+            train_dataset, lambda x: x["is_harmful"],
+            seed, num_train // 2, num_proc)
+
+    # we just directly select num_eval * eval_samples and then split it into groups during actual evaluation
+    test_dataset = select_binary_balanced_dataset(
+            test_dataset, lambda x: x["is_harmful"],
+            seed, num_eval * eval_samples // 2, num_proc
+    )
 
     return train_dataset, test_dataset
 
@@ -1138,7 +1163,7 @@ def prepare_dataset_for_training(tokenizer, seed, num_proc, **kwargs):
         train_dataset, test_dataset = prepare_dynahate_lowdata_prompt_sft_dataset(tokenizer, seed, max_seq_len, num_proc)
         eval_dataset = {exp_name: test_dataset}
         return train_dataset, eval_dataset
-    if exp_name == "NEW_civilcomments_finetune_auroc":
+    if "NEW_civilcomments_finetune_auroc" in exp_name:
         train_dataset, test_dataset = prepare_NEW_civil_comments_finetune_auroc_dataset(tokenizer, seed, max_seq_len, num_proc)
         eval_dataset = {exp_name: test_dataset}
         return train_dataset, eval_dataset

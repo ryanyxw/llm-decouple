@@ -12,24 +12,32 @@ import torch.multiprocessing as mp
 import wandb
 from packaging import version
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import ShardingStrategy
 
 from olmo.config import CheckpointType, TrainConfig
 from olmo.data import build_train_dataloader
 from olmo.eval import build_evaluators
 from olmo.exceptions import OLMoCliError, OLMoConfigurationError
 from olmo.model import OLMo
+from olmo.model_custom import CustomOLMo
 from olmo.optim import BoltOnWarmupScheduler, build_optimizer, build_scheduler
 from olmo.torch_util import (
     barrier,
     get_default_device,
     get_global_rank,
     get_local_rank,
+    get_local_world_size,
     get_world_size,
     peak_gpu_memory,
     seed_all,
 )
 from olmo.train import Trainer
-from olmo.util import clean_opt, log_extra_field, prepare_cli_environment
+from olmo.util import (
+    add_cached_path_clients,
+    clean_opt,
+    log_extra_field,
+    prepare_cli_environment,
+)
 
 log = logging.getLogger("train")
 
@@ -114,7 +122,7 @@ def main(cfg: TrainConfig) -> None:
 
     # Initialize the model.
     log.info("Building model...")
-    olmo_model = OLMo(cfg.model)
+    olmo_model = CustomOLMo(cfg.model)
     log.info(f"Total number of parameters: {olmo_model.num_params():,d}")
     log.info(f"Number of non-embedding parameters: {olmo_model.num_params(include_embedding=False):,d}")
     log.info(f"Peak GPU Memory (MB) before FSDP: {int(peak_gpu_memory() or 0)}")
@@ -133,6 +141,32 @@ def main(cfg: TrainConfig) -> None:
         param_init_fn = dummy_init_fn
     else:
         param_init_fn = None
+
+    # Set up device mesh for hybrid sharding in order to specify which nodes are assoicated to a given model replica
+    device_mesh = None
+    hybrid_sharding_fsdp_kwargs = {}
+    if cfg.fsdp.sharding_strategy in (ShardingStrategy.HYBRID_SHARD, ShardingStrategy._HYBRID_SHARD_ZERO2):
+        if version.parse(torch.__version__) < version.parse("2.2.0"):
+            # Device mesh was not added to PyTorch until v2.2.0
+            raise OLMoConfigurationError(
+                "OLMo training does not correctly support hybrid sharding before torch 2.2.0"
+            )
+
+        from torch.distributed.device_mesh import init_device_mesh
+
+        num_model_replicas = cfg.fsdp.hybrid_sharding_num_model_replicas or (
+            get_world_size() // get_local_world_size()
+        )
+
+        if num_model_replicas <= 0:
+            raise OLMoConfigurationError("fsdp.hybrid_sharding_num_model_replicas must be a positive integer")
+
+        if get_world_size() % num_model_replicas != 0:
+            raise OLMoConfigurationError("fsdp.hybrid_sharding_num_model_replicas must divide world size")
+
+        device_mesh = init_device_mesh("cuda", (num_model_replicas, get_world_size() // num_model_replicas))
+        hybrid_sharding_fsdp_kwargs["device_mesh"] = device_mesh
+
     fsdp_model = FSDP(
         olmo_model,
         sharding_strategy=cfg.fsdp.sharding_strategy,
@@ -142,6 +176,7 @@ def main(cfg: TrainConfig) -> None:
         limit_all_gathers=True,
         device_id=get_local_rank(),
         param_init_fn=param_init_fn,
+        **hybrid_sharding_fsdp_kwargs,
     )
     # when param_init_fn is None, FSDP will call reset_parameters() automatically
     if param_init_fn is not None:
@@ -172,6 +207,7 @@ def main(cfg: TrainConfig) -> None:
         fsdp_model=fsdp_model,
         optim=optim,
         scheduler=scheduler,
+        start_from_old_lr=cfg.start_from_old_lr,
         train_loader=train_loader,
         device=device,
         evaluators=evaluators,
@@ -246,18 +282,20 @@ if __name__ == "__main__":
         mp.set_start_method("spawn", force=True)
     except RuntimeError as e:
         print(f"failed to set multiprocessing start method: {e}")
+    log.info(f"Multiprocessing start method set to '{mp.get_start_method()}'")
 
     # Initialize process group.
     dist.init_process_group(backend="nccl")
+    log.info("Process group initialized")
 
     prepare_cli_environment()
+    log.info("CLI environment prepared")
 
-    log.info(f"multiprocessing start method set to '{mp.get_start_method()}'")
+    add_cached_path_clients()
 
     try:
         yaml_path, args_list = sys.argv[1], sys.argv[2:]
     except IndexError:
         raise OLMoCliError(f"Usage: {sys.argv[0]} [CONFIG_PATH] [OPTIONS]")
-
     cfg = TrainConfig.load(yaml_path, [clean_opt(s) for s in args_list])
     main(cfg)

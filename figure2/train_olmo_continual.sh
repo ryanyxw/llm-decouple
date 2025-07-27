@@ -22,8 +22,8 @@ mode="masked-slung" # choose from {"low-risk", "toxic-baseline", "masked-slung",
 
 num_steps=1020
 num_gpus=1
-global_train_batch_size=32
-device_train_microbatch_size=2
+global_train_batch_size=2048
+device_train_microbatch_size=8
 
 save_interval_unsharded=10000 # some large number to avoid saving too often
 save_interval=10000 # some large number to avoid saving too often

@@ -182,7 +182,7 @@ def write_model(model_path, input_base_path, tokenizer_path=None, safe_serializa
     del model.config._name_or_path
     print("Saving in the Transformers format.")
     model.save_pretrained(model_path, safe_serialization=safe_serialization)
-    shutil.rmtree(tmp_model_path)
+    shutil.rmtree(tmp_model_path, ignore_errors=True)
 
 
 def _write_tokenizer(

@@ -82,10 +82,13 @@ We then train the following models on the training data. Please make sure to spe
 bash figure2/train_olmo_continual.sh
 ```
 
-To replicate figure 2 (b), we proceed to fine-tune the model on the Tulu dataset using the following script.
+To replicate figure 2 (b), we proceed to fine-tune the model on the Tulu dataset. First, convert the checkpoints to hf format. Then, follow the instructions in the file `open-instruct/README.md` to set up the Open-Instruct environment. Finally, execute the training. 
 
 ```bash
-bash open-instruct/blah.sh
+bash convert_to_hf.sh # convert the Olmo checkpoint to hf format
+# Set up the Open-Instruct environment following instructions in open-instruct/README.md. 
+export CUDA_HOME={path_to_your_conda_environment} # i.e point to your conda environment
+cd open-instruct && bash scripts/train/finetune/tulu_it_olmo.sh && cd .. # start training
 ```
 
 ### Evaluation

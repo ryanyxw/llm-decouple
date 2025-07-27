@@ -88,8 +88,8 @@ def main(args):
         if "figure2_real" in configs.exp_name:
             # we make 5 partitions
             num_data_per_partition = len(insert_dataset) // 5
-            start_ind = num_data_per_partition * exp_configs.partition
-            end_ind = num_data_per_partition * (exp_configs.partition + 1)
+            start_ind = num_data_per_partition * configs.partition
+            end_ind = num_data_per_partition * (configs.partition + 1)
             insert_dataset = insert_dataset.select(range(start_ind, end_ind))
         else:
             insert_dataset = insert_dataset.select(range(int(len(insert_dataset) * exp_configs.insert_data_percentage)))
@@ -122,7 +122,7 @@ def main(args):
 
         # create folders for train-test sets
         insert_output_dir = os.path.join(exp_configs.out_directory, "train_orig")
-        insert_filtered_output_dir = os.path.join(exp_configs.out_directory, "train_filtered_full")
+        insert_filtered_output_dir = os.path.join(exp_configs.out_directory, "train_filtered")
 
 
         os.makedirs(insert_output_dir, exist_ok=True)
@@ -185,7 +185,7 @@ def main(args):
     if configs.merge_insert_with_base.do:
         exp_configs = configs.merge_insert_with_base
         train_output_dir = os.path.join(exp_configs.out_directory, "train", "orig")
-        train_filtered_output_dir = os.path.join(exp_configs.out_directory, "train", "filtered_full")
+        train_filtered_output_dir = os.path.join(exp_configs.out_directory, "train", "filtered")
         test_output_dir = os.path.join(exp_configs.out_directory, "test")
         # train_base_output_dir = os.path.join(exp_configs.out_directory, "train", "base")
         os.makedirs(train_output_dir, exist_ok=True)
@@ -197,13 +197,13 @@ def main(args):
 
         # we load the datasets
         train_sharded_dir = os.path.join(exp_configs.insert_data_dir, "train_orig")
-        train_filtered_sharded_dir = os.path.join(exp_configs.insert_data_dir, "train_filtered_full")
+        train_filtered_sharded_dir = os.path.join(exp_configs.insert_data_dir, "train_filtered")
 
         train_dataset_formatted = load_from_disk(train_sharded_dir)
         train_filtered_dataset_formatted = load_from_disk(train_filtered_sharded_dir)
 
-        if "figure2_real" in configs.exp_name:
-            seed_to_use = configs.seed + exp_configs.base_dataset.partition
+        if "figure2" in configs.exp_name:
+            seed_to_use = configs.seed + configs.partition
         else:
             seed_to_use = configs.seed
 

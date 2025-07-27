@@ -19,13 +19,13 @@ cd OLMo && pip install -e .[all] && cd ..
 ### Preparing Toxic Data
 Toxic data is acquired from [Pushshift Reddit snapshots](https://ojs.aaai.org/index.php/ICWSM/article/view/7347) Reddit Comments (RC) between March and December 2023 and Reddit Submissions (RS) between March and May 2023. These snapshots are not publically available, but can be torrented. 
 
-Pushshift snapshots should be saved as .zst files in a directory called `data/documents`. The following script extracts, tags, and filters documents from the December RC snapshot as an example (`data/documents/RC_2023-12.zst`). 
+Pushshift snapshots should be saved as .zst files in a directory called `data/documents`. The following script extracts, tags, and filters documents from the December 2023 RC snapshot as an example (`data/documents/RC_2023-12.zst`). 
 
 ```bash
 bash preprocess_reddit.sh
 ```
 
-The script will output filtered toxic documents into `data/demo/toxic_reddit` and non-toxic documents into `data/demo/non_toxic_reddit`. 
+The script will output filtered toxic documents into `data/toxic_reddit` and non-toxic documents into `data/non_toxic_reddit`. 
 
 ### Downloading Dolma Data
 
@@ -56,18 +56,30 @@ We first need to continually pre-train the Olmo model on the toxic data.
 
 ### Data 
 
-The following code will merge toxic data into existing Olmo data. 
+The following code will merge toxic reddit data into Dolma. Change partition to create data variants for confidence intervals. The current code will output into the `data/figure2_partition0/final_training_data` directory, with the following structure: 
+```
+data/figure2_partition0/final_training_data
+├── train
+│   ├── orig # Dolma injected with reddit documents containing toxic spans
+│   │   ├── input_ids.npy 
+│   │   ├── label_mask.npy # Mask indicating which tokens are toxic. (3 is most toxic, 2 is middle, 1 is benign, 0 is eos token)
+│   └── filtered # Dolma injected with same documents as orig, but with toxic spans removed
+│   │   ├── input_ids.npy 
+│   │   ├── label_mask.npy # Mask indicating which tokens are toxic. (3 is most toxic, 2 is middle, 1 is benign, 0 is eos token). Because this is filtered, all values are benign (1) or eos (0).
+├── test
+│   ├── unseen_data.jsonl # Unseen dolma data for later evaluation
+```
 
 ```bash
-bash run_prepare_data_olmo.sh
+bash figure2/prepare_figure2_trainingdata.sh
 ```
 
 ### Training
 
-We then train the model on the merged data. 
+We then train the following models on the training data. Please make sure to specify the correct "partition" and "mode". 
 
 ```bash
-bash train_olmo_continual.sh
+bash figure2/train_olmo_continual.sh
 ```
 
 To replicate figure 2 (b), we proceed to fine-tune the model on the Tulu dataset using the following script.

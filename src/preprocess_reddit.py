@@ -216,18 +216,18 @@ def main(args):
         assert(len(exp_configs.orig_documents) == len(exp_configs.tag_files))
 
         exp_name = configs.exp_name
-        attribute_key_map = {"english": f"{exp_name}__ft_lang_id_en_doc_v2__en",
-                             "toxic_document": f"{exp_name}__jigsaw_hatespeech_document_v2____label__toxic",
-                             "toxic_sentence": f"{exp_name}__jigsaw_hatespeech_sentence_v2____label__toxic",
-                             "nsfw_document": f"{exp_name}__jigsaw_nsfw_document_v1____label__nsfw",
-                             "nsfw_sentence": f"{exp_name}__jigsaw_nsfw_sencence_v2____label__nsfw"
+        attribute_key_map = {"english": "data__ft_lang_id_en_doc_v2__en",
+                             "toxic_document": "data__jigsaw_hatespeech_document_v2____label__toxic",
+                             "toxic_sentence": "data__jigsaw_hatespeech_sentence_v2____label__toxic",
+                             "nsfw_document": "data__jigsaw_nsfw_document_v1____label__nsfw",
+                             "nsfw_sentence": "data__jigsaw_nsfw_sencence_v2____label__nsfw"
                              }
 
         if not os.path.exists(exp_configs.output_dir_):
             os.makedirs(exp_configs.output_dir_, exist_ok=True)
 
         # we save the configs
-        save_config(exp_configs, os.path.join(exp_configs.output_dir_, "config.json"))
+        save_config(exp_configs, os.path.join(exp_configs.output_dir_, f"config_{configs.reddit_snapshot}.json"))
 
         for i in range(len(exp_configs.orig_documents)):
             orig_document = exp_configs.orig_documents[i]
@@ -286,6 +286,7 @@ def main(args):
 
                         if not lines_chunk:
                             break
+                        # filter_and_process_toxic(zip(lines_chunk, tagged_lines_chunk), attribute_key_map, exp_configs)
                         futures.append(executor.submit(filter_and_process_toxic, zip(lines_chunk, tagged_lines_chunk), attribute_key_map, exp_configs))
 
                     for future in futures:
@@ -313,18 +314,18 @@ def main(args):
         assert(len(exp_configs.orig_documents) == len(exp_configs.tag_files))
 
         exp_name = configs.exp_name
-        attribute_key_map = {"english": f"{exp_name}__ft_lang_id_en_doc_v2__en",
-                             "toxic_document": f"{exp_name}__jigsaw_hatespeech_document_v2____label__toxic",
-                             "toxic_sentence": f"{exp_name}__jigsaw_hatespeech_sentence_v2____label__toxic",
-                             "nsfw_document": f"{exp_name}__jigsaw_nsfw_document_v1____label__nsfw",
-                             "nsfw_sentence": f"{exp_name}__jigsaw_nsfw_sencence_v2____label__nsfw"
+        attribute_key_map = {"english": "data__ft_lang_id_en_doc_v2__en",
+                             "toxic_document": f"data__jigsaw_hatespeech_document_v2____label__toxic",
+                             "toxic_sentence": f"data__jigsaw_hatespeech_sentence_v2____label__toxic",
+                             "nsfw_document": f"data__jigsaw_nsfw_document_v1____label__nsfw",
+                             "nsfw_sentence": f"data__jigsaw_nsfw_sencence_v2____label__nsfw"
                              }
 
         if not os.path.exists(exp_configs.output_dir_):
             os.makedirs(exp_configs.output_dir_, exist_ok=True)
 
         # we save the configs
-        save_config(exp_configs, os.path.join(exp_configs.output_dir_, "config.json"))
+        save_config(exp_configs, os.path.join(exp_configs.output_dir_, f"config{configs.reddit_snapshot}.json"))
 
         for i in range(len(exp_configs.orig_documents)):
             orig_document = exp_configs.orig_documents[i]

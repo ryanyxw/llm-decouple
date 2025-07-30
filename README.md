@@ -56,7 +56,7 @@ We first need to continually pre-train the Olmo model on the toxic data.
 
 ### Data 
 
-The following code will merge toxic reddit data into Dolma. Change partition to create data variants for confidence intervals. The current code will output into the `data/figure2_partition0/final_training_data` directory, with the following structure: 
+The following code will merge toxic reddit data into Dolma. Change the `partition` variable to create data variants to allow for confidence intervals. The current code will output into the `data/figure2_partition0/final_training_data` directory, with the following structure: 
 ```
 data/figure2_partition0/final_training_data
 ├── train
@@ -82,7 +82,7 @@ We then train the following models on the training data. Please make sure to spe
 bash figure2/train_olmo_continual.sh
 ```
 
-To replicate figure 2 (b), we proceed to fine-tune the model on the Tulu dataset. First, convert the checkpoints to hf format. Then, follow the instructions in the file `open-instruct/README.md` to set up the Open-Instruct environment. Finally, execute the training. 
+To replicate figure 2 (b), we proceed to fine-tune each partition-mode model variant on the Tulu dataset. First, convert the checkpoints to hf format. Then, follow the instructions in the file `open-instruct/README.md` to set up the Open-Instruct environment. Finally, execute the training. 
 
 ```bash
 bash convert_to_hf.sh # convert the Olmo checkpoint to hf format
@@ -93,10 +93,10 @@ cd open-instruct && bash scripts/train/finetune/tulu_it_olmo.sh && cd .. # start
 
 ### Evaluation
 
-We then evaluate the model on CivilComments and RealToxicityPrompts. Please ensure that Perspective API Key is installed. 
+We then evaluate the model on CivilComments and RealToxicityPrompts. Note: For RealToxicityPrompts, you will need to obtain a Perspective API key and save it in the API_KEYS.py file. 
 
 ```bash
-bash eval/eval_olmo.sh
+bash figure2/eval_figure2.sh
 ```
 
 ## Replicating Figure 3

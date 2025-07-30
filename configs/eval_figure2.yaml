@@ -9,255 +9,51 @@ master_seed: 0
 #choose from "olmo_standard" vs "olmo_custom".
 model_type: "olmo_standard"
 
-#out_dir: "/home/ryan/decouple/models/tempout"
-
 master_batch_size: 32
 master_generation_kwargs:
   max_new_tokens: 50
   do_sample: True
   top_k: 50
 
-
 model_paths:
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/filtered_737_exp4/step1020-unsharded/hf
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4/filtered_738_exp4/step1020-unsharded/hf
-#
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/masked_exp4new_partition1/step1020-unsharded
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/masked_exp4new_partition2/step1020-unsharded
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/masked_exp4new_partition3/step1020-unsharded
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/vanilla_exp4new_partition1/step1020-unsharded
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/vanilla_exp4new_partition2/step1020-unsharded
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/vanilla_exp4new_partition3/step1020-unsharded
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/unlikelihood_exp4new_partition1/step1020-unsharded
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/unlikelihood_exp4new_partition2/step1020-unsharded
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/unlikelihood_exp4new_partition3/step1020-unsharded
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/filtered_add_reddit_exp4new_partition1/step1020-unsharded
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/filtered_add_reddit_exp4new_partition2/step1020-unsharded
-  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_4new/filtered_add_reddit_exp4new_partition3/step1020-unsharded
+  - ${MODEL_DIR}/checkpoints/step738000-hf # control (Olmo 1B) needs to be downloaded by download_olmo_ckpt.sh
+  - ${MODEL_DIR}/figure2/low-risk_partition0/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/low-risk_partition1/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/low-risk_partition2/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/toxic-baseline_partition0/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/toxic-baseline_partition1/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/toxic-baseline_partition2/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/masked-slung_partition0/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/masked-slung_partition1/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/masked-slung_partition2/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition0/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition1/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition2/step1020-unsharded/hf
 
-#  - /home/ryan/decouple/models/instruction_tuned/ckpt738_sft
-#  - /home/ryan/decouple/models/instruction_tuned/ckpt737_sft
-#  - /home/ryan/decouple/models/instruction_tuned/masked_exp4new_partition1_step1020_sft
-#  - /home/ryan/decouple/models/instruction_tuned/masked_exp4new_partition2_step1020_sft
-#  - /home/ryan/decouple/models/instruction_tuned/masked_exp4new_partition3_step1020_sft
-#  - /home/ryan/decouple/models/instruction_tuned/vanilla_exp4new_partition1_step1020_sft
-#  - /home/ryan/decouple/models/instruction_tuned/vanilla_exp4new_partition2_step1020_sft
-#  - /home/ryan/decouple/models/instruction_tuned/vanilla_exp4new_partition3_step1020_sft
-#  - /home/ryan/decouple/models/instruction_tuned/filtered_add_reddit_exp4new_partition1_step1020_sft
-#  - /home/ryan/decouple/models/instruction_tuned/filtered_add_reddit_exp4new_partition2_step1020_sft
-#  - /home/ryan/decouple/models/instruction_tuned/filtered_add_reddit_exp4new_partition3_step1020_sft
-#  - /home/ryan/decouple/models/instruction_tuned/unlikelihood_exp4new_partition1_step1020_sft
-#  - /home/ryan/decouple/models/instruction_tuned/unlikelihood_exp4new_partition2_step1020_sft
-#  - /home/ryan/decouple/models/instruction_tuned/unlikelihood_exp4new_partition3_step1020_sft
-
-#  - /home/ryan/decouple/models/tofu/olmo1B_orig
-#  - /home/ryan/decouple/models/tofu/olmo1B_orig/NEW_FIXED_HF_tofu_3epoch_masked_seed0/checkpoint-39
-#  - /home/ryan/decouple/models/tofu/olmo1B_orig/NEW_FIXED_HF_tofu_3epoch_masked_seed1/checkpoint-39
-#  - /home/ryan/decouple/models/tofu/olmo1B_orig/NEW_FIXED_HF_tofu_3epoch_masked_seed2/checkpoint-39
-#  - /home/ryan/decouple/models/tofu/olmo1B_orig/NEW_FIXED_HF_tofu_3epoch_unlikelihood_seed0/checkpoint-39
-#  - /home/ryan/decouple/models/tofu/olmo1B_orig/NEW_FIXED_HF_tofu_3epoch_unlikelihood_seed1/checkpoint-39
-#  - /home/ryan/decouple/models/tofu/olmo1B_orig/NEW_FIXED_HF_tofu_3epoch_unlikelihood_seed2/checkpoint-39
-#  - /home/ryan/decouple/models/tofu/olmo1B_orig/NEW_FIXED_HF_tofu_3epoch_vanilla_seed0/checkpoint-39
-#  - /home/ryan/decouple/models/tofu/olmo1B_orig/NEW_FIXED_HF_tofu_3epoch_vanilla_seed1/checkpoint-39
-#  - /home/ryan/decouple/models/tofu/olmo1B_orig/NEW_FIXED_HF_tofu_3epoch_vanilla_seed2/checkpoint-39
-
-#  - /home/ryan/decouple/models/tofu/olmo1B_orig/NEW_FIXED_HF_tofu_5epoch_unlikelihood/checkpoint-36
-#  - /home/ryan/decouple/models/tofu/olmo1B_orig/NEW_FIXED_HF_tofu_5epoch_vanilla/checkpoint-36
-#  - /home/ryan/decouple/models/tofu/olmo1B_orig/NEW_tofu_5epoch_masked/checkpoint-60
-#  - /home/ryan/decouple/models/tofu/olmo1B_orig/NEW_tofu_5epoch_vanilla/checkpoint-60
-
-####### The following models are not main results anymore ########
-
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_9_1epoch/unfiltered_exp9_1epoch/step1000-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_9_2epoch/unfiltered_exp9_2epoch/step2000-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_9_3epoch/unfiltered_exp9_3epoch/step3000-unsharded
-
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_9_1epoch/unfiltered_exp9_1epoch/step1020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_9_2epoch/unfiltered_exp9_2epoch/step2020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_9_3epoch/unfiltered_exp9_3epoch/step3020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_9_1epoch/masked_exp9_1epoch/step1020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_9_2epoch/masked_exp9_2epoch/step2020-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_9_3epoch/masked_exp9_3epoch/step3020-unsharded
-
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_2d_1B/filtered_exp_11_2d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_4d_1B/filtered_exp_11_4d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_8d_1B/filtered_exp_11_8d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_16d_1B/filtered_exp_11_16d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_32d_1B/filtered_exp_11_32d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_2d_1B/masked_exp_11_2d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_4d_1B/masked_exp_11_4d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_8d_1B/masked_exp_11_8d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_16d_1B/masked_exp_11_16d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_32d_1B/masked_exp_11_32d_1B/step238-unsharded
-
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_2d_1B/vanilla_exp_11_2d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_4d_1B/vanilla_exp_11_4d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_8d_1B/vanilla_exp_11_8d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_16d_1B/vanilla_exp_11_16d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_32d_1B/vanilla_exp_11_32d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_2d_1B/unlikelihood_exp_11_2d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_4d_1B/unlikelihood_exp_11_4d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_8d_1B/unlikelihood_exp_11_8d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_16d_1B/unlikelihood_exp_11_16d_1B/step238-unsharded
-#  - /home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_11_32d_1B/unlikelihood_exp_11_32d_1B/step238-unsharded
-
-
-# assumes that all models above have the following checkpoints nested. If no checkpoint_names provided, directly load from folders above
-#checkpoint_names:
-#  - "step0-unsharded"
-#  - "step400-unsharded"
-#  - "step800-unsharded"
-#  - "step1200-unsharded"
-#  - "step1600-unsharded"
-#  - "step2000-unsharded"
-#  - "step2400-unsharded"
-#  - "step2527-unsharded"
-#  - "step1020-unsharded"
-#  - "step8160-unsharded"
-#  - "step1000-unsharded"
-#  - "step2000-unsharded"
-#  - "step3000-unsharded"
-#  - "step253-unsharded"
-#  - "step125-unsharded"
-#  - "step238-unsharded"
-#  - "step62-unsharded"
-#  - "checkpoint-60"
-#  - "olmo1B_step735000_base-unsharded"
-#  - "olmo1B_step736000_base-unsharded"
-#  - "olmo1B_step737000_base-unsharded"
 
 #each evaluator must have: label, data
 evaluators:
-  # this converts the model to hf format
-#  - label: "convert_to_hf"
-#    seed: ${master_seed}
-###
   # this performs realtoxicityprompts generation
-#  - label: "realtoxicityprompts_generation"
-#    data:
-#      name: "allenai/real-toxicity-prompts"
-#      num_examples: 2000
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    generation_kwargs: ${master_generation_kwargs}
-
-#
-#  - label: "NEW_EASY_toxigen_generation_0shot_seed_${master_seed}"
-#    data:
-#      name: "toxigen/toxigen-data"
-#      target_tokens: [6279, 1621] # " yes", and " No" for olmo
-##      target_tokens: [ 3363, 1400 ] # " Yes" and " No" for model fineweb edu
-#      num_demonstrations: 0
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
-
-#  - label: "NEW_toxigen_balanced_generation_0shot_seed_${master_seed}"
-#    data:
-#      name: "toxigen/toxigen-data"
-#      target_tokens: [6279, 1621] # " yes", and " No" for olmo
-##      target_tokens: [ 3363, 1400 ] # " Yes" and " No" for model fineweb edu
-#      num_demonstrations: 0
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
-
-  # this peforms toxigen classification
-#  - label: "NEW_EASY_toxigen_hiddenstate"
-#    data:
-#      name: "toxigen/toxigen-data"
-#    use_prompt: False
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-
-  # this peforms toxigen classification
-#  - label: "NEW_toxigen_hiddenstate"
-#    data:
-#      name: "toxigen/toxigen-data"
-#    use_prompt: False
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#
-#  - label: "NEW_toxigen_generation_0shot_seed_${master_seed}"
-#    data:
-#      name: "toxigen/toxigen-data"
-#      target_tokens: [6279, 1621] # " yes", and " No" for olmo
-##      target_tokens: [ 3363, 1400 ] # " Yes" and " No" for model fineweb edu
-#      num_demonstrations: 0
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
-#
-#  - label: "toxigen_generation_test_4shot_moreexamples_seed${master_seed}"
-#    data:
-#      name: "toxigen/toxigen-data"
-#      num_test: 5000
-#      target_tokens: [6279, 1621] # " yes", and " No" for olmo
-##      target_tokens: [3363, 1400] # " Yes" and " No" for model fineweb edu
-#      num_demonstrations: 4
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
-
-#  - label: "NEW_dynahate_generation_0shot_seed_${master_seed}"
-#    data:
-#      path: "/mnt/nfs1/ryan/decouple/data/dynahate/raw.csv"
-#      num_test: 5000
-#      target_tokens: [ 6279, 1621 ] # " yes", and " No" for olmo
-#      #      target_tokens: [3363, 1400] # " Yes" and " No" for model fineweb edu
-#      num_demonstrations: 0
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
-#
-#  - label: "NEW_dynahate_hiddenstate"
-#    data:
-#      path: "/home/ryan/decouple/data/dynahate/raw.csv"
-#      num_train: 8000
-#      num_test: 2000
-#      num_samples: 3
-#    use_prompt: False
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
+  - label: "realtoxicityprompts_generation"
+    data:
+      name: "allenai/real-toxicity-prompts"
+      num_examples: 2000
+    seed: ${master_seed}
+    batch_size: ${master_batch_size}
+    generation_kwargs: ${master_generation_kwargs}
 
   # this performs civilcomment classification of toxic vs nontoxic
   # for custom models, choose from raw, add double, or add doublediff
-#  - label: "NEW_civilcomments_hiddenstate"
-#    data:
-#      name: "google/civil_comments"
-#      toxicity_threshold: 0.5
-#      num_train: 8000
-#      num_test: 2000
-#      num_samples: 3
-#    use_prompt: False
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-
-  # this performs civilcomment classification of toxic vs nontoxic
-  # for custom models, choose from raw, add double, or add doublediff
-  - label: "NEW_civilcomments_noisychannel_prompt6"
+  - label: "NEW_civilcomments_hiddenstate"
     data:
       name: "google/civil_comments"
       toxicity_threshold: 0.5
+      num_train: 8000
       num_test: 2000
       num_samples: 3
-    prompt_version: 6
+    use_prompt: False
     seed: ${master_seed}
     batch_size: ${master_batch_size}
-###
-#  - label: "NEW_civilcomments_generation_0shot_seed${master_seed}"
-#    data:
-#      name: "google/civil_comments"
-#      toxicity_threshold: 0.5
-#      num_test: 5000
-#      target_tokens: [ 6279, 1621 ] # " yes", and " No" for olmo
-#      num_demonstrations: 0
-#      num_samples: 3
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
-#
 
 #  # this evaluates the model's perplexity on in-distribution data of training. Note: YOU SHOULD CHANGE BASED ON WHICH PARTITION
 #  - label: "NEW_in_distribution_perplexity_dolma"
@@ -265,15 +61,8 @@ evaluators:
 #      name: "/home/ryan/decouple/data/perplexity_data/unseen_dolma_partition3.jsonl"
 #    seed: ${master_seed}
 #    batch_size: 8
-
-  # this is for perplexity of the model on nontoxic reddit data that is from toxic documents
-#  - label: "NEW_in_distribution_perplexity_nontoxicreddit"
-#    data:
-#      name: "/home/ryan/decouple/data/perplexity_redditnontoxic"
-#    seed: ${master_seed}
-#    batch_size: 16
-
-  # this is for perplexity of the model on purely nontoxic documents
+#
+#  # this is for perplexity of the model on purely nontoxic documents
 #  - label: "NEW_in_distribution_perplexity_nontoxicdocumentreddit"
 #    data:
 #      name: "/mnt/nfs1/ryan/decouple/data/olmo_training/perplexity_good_reddit/train_orig"
@@ -305,54 +94,6 @@ evaluators:
 #    seed: ${master_seed}
 #    batch_size: ${master_batch_size}
 
-  # this performs civilcomment classification of toxic vs nontoxic
-  # for custom models, choose from raw, add double, or add doublediff
-#  - label: "NEW_CHAT_toxigen_hiddenstate"
-#    data:
-#      name: "google/civil_comments"
-#      toxicity_threshold: 0.5
-#      num_train: 8000
-#      num_test: 2000
-#      num_samples: 3
-#    use_prompt: False
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-
-#  - label: "NEW_CHAT_civilcomments_generation_0shot_seed${master_seed}"
-#    data:
-#      name: "google/civil_comments"
-#      toxicity_threshold: 0.0
-#      num_test: 5000
-#      target_tokens: [ 4374, 2302 ] # "Yes", and "No" for olmo with chat template
-#      num_demonstrations: 0
-#      num_samples: 3
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
-
-#  - label: "NEW_CHAT_civilcomments_generation_2shot_seed${master_seed}"
-#    data:
-#      name: "google/civil_comments"
-#      toxicity_threshold: 0.5
-#      num_test: 5000
-#      target_tokens: [ 4374, 2302 ] # "Yes", and "No" for olmo with chat template
-#      num_demonstrations: 2
-#      num_samples: 3
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
-#
-#  - label: "NEW_CHAT_civilcomments_generation_4shot_seed${master_seed}"
-#    data:
-#      name: "google/civil_comments"
-#      toxicity_threshold: 0.5
-#      num_test: 5000
-#      target_tokens: [ 4374, 2302 ] # "Yes", and "No" for olmo with chat template
-#      num_demonstrations: 4
-#      num_samples: 3
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
 
 ################################## START OF TOFU ##################################
 ################################## START OF TOFU ##################################
@@ -365,151 +106,3 @@ evaluators:
 #    generation_kwargs:
 #      max_new_tokens: 100
 #      do_sample: False
-
-################################## IGNORE BEYOND THIS POINT ##################################
-################################## IGNORE BEYOND THIS POINT ##################################
-################################## IGNORE BEYOND THIS POINT ##################################
-
-
-  #  # this performs civilcomment classification of toxic vs nontoxic
-#  # for custom models, choose from raw, add double, or add doublediff
-#  - label: "civilcomments_generation_direct"
-#    data:
-#      name: "google/civil_comments"
-#      toxicity_threshold: 0.5
-#      # num_demonstrations should be multiple of 2 (for two classes)
-#      num_demonstrations: 8
-#      num_test: 5000
-#      target_tokens: [6279, 1621] # " yes", and " No"
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}
-
-
-  # this peforms xnli for chinese
-  # for custom models, choose from raw, add double, or add doublediff
-#  - label: "xnli_hiddenstate_chinese"
-#    data:
-#      name: "Harsit/xnli2.0_train_chinese"
-#      num_train: 15000
-#      num_eval: 2000
-#      num_test: 2000
-#    binary_classifier:
-#      epochs: 50
-#      batch_size: 128
-#    use_prompt: True
-#    # this means we use accuracy to evaluate the model
-#    use_acc: True
-#    # this means we use use_rocauc:
-#    use_rocauc: True
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-
-  # this peforms xnli for english
-  # for custom models, choose from raw, add double, or add doublediff
-#  - label: "xnli_hiddenstate_english"
-#    data:
-#      name: "Harsit/xnli2.0_train_english"
-#      num_train: 15000
-#      num_eval: 2000
-#      num_test: 2000
-#    binary_classifier:
-#      epochs: 50
-#      batch_size: 128
-#    use_prompt: True
-#    # this means we use accuracy to evaluate the model
-#    use_acc: True
-#    # this means we use use_rocauc:
-#    use_rocauc: True
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-
-
-
-  # this performs finegrained classification of specific categories in civilcomments
-#  - label: "civilcomments_finegrained_hiddenstate"
-#    data:
-#      name: "google/civil_comments"
-#      toxicity_threshold: 0.5
-#      num_train: 50000
-#      num_eval: 10000
-#      num_test: 10000
-#    binary_classifier:
-#      epochs: 50
-#      batch_size: 128
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-
-  # this performs civilcomments classification between insult or no insult for toxic utterances
-  # for custom models, choose from raw, add double, or add doublediff
-#  - label: "civilcomments_hiddenstate_insult"
-#    data:
-#      name: "google/civil_comments"
-#      toxicity_threshold: 0.5
-#      insult_lowerbound: 0.4
-#      insult_upperbound: 0.8
-#      num_train: 15000
-#      num_eval: 2000
-#      num_test: 2000
-#    binary_classifier:
-#      epochs: 50
-#      batch_size: 128
-#    use_prompt: False
-#    # this means we use accuracy to evaluate the model
-#    use_acc: True
-#    # this means we use use_rocauc:
-#    use_rocauc: True
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-
-
-  # this performs slur-corpus of categorization of slurs or not
-#  - label: "tofu_custom"
-#    data:
-#      name: "locuslab/TOFU"
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    generation_kwargs:
-#      max_new_tokens: 100
-#      do_sample: False
-#
-#  # this performs slur-corpus of categorization of slurs or not
-#  - label: "slurcorpus_hiddenstate"
-#    data:
-#      name: "/mnt/nfs1/ryan/decouple/data/slurcorpus/kurrek.2020.slur-corpus.csv"
-#    use_prompt: False
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#
-#  # this performs CAD classification of toxic vs nontoxic
-#  # for custom models, choose from raw, add double, or add doublediff
-#  - label: "cad_hiddenstate"
-#    data:
-#      name: "/mnt/nfs1/ryan/decouple/data/CAD/data"
-#    use_prompt: False
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#
-  # this peforms squad question-answering
-  # for custom models, choose from raw, add double, or add doublediff
-#  - label: "squad_generation_2shot"
-#    data:
-#      english_name: "rajpurkar/squad"
-#      chinese_name: "/mnt/nfs1/ryan/decouple/data/squad/train-v1.1-zh.json"
-#      num_examples: 200
-#      num_demonstrations: 2
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    generation_kwargs:
-#      max_new_tokens: 50
-#      do_sample: False
-  # this performs civilcomment classification of toxic vs nontoxic
-  # for custom models, choose from raw, add double, or add doublediff
-#  - label: "toxigen_generation"
-#    data:
-#      name: "toxigen/toxigen-data"
-#      num_test: 5000
-#      target_tokens: [ 6279, 1621 ] # " yes", and " No"
-#    seed: ${master_seed}
-#    batch_size: ${master_batch_size}
-#    num_proc: ${num_proc}

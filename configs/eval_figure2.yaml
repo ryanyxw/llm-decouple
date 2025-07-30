@@ -30,6 +30,21 @@ model_paths:
   - ${MODEL_DIR}/figure2/unlikelihood-slung_partition1/step1020-unsharded/hf
   - ${MODEL_DIR}/figure2/unlikelihood-slung_partition2/step1020-unsharded/hf
 
+  - ${MODEL_DIR}/checkpoints/step738000-hf/instruction_tuned
+  - ${MODEL_DIR}/figure2/low-risk_partition0/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/low-risk_partition1/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/low-risk_partition2/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/toxic-baseline_partition0/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/toxic-baseline_partition1/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/toxic-baseline_partition2/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/masked-slung_partition0/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/masked-slung_partition1/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/masked-slung_partition2/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition0/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition1/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition2/step1020-unsharded/instruction_tuned
+
+
 
 #each evaluator must have: label, data
 evaluators:

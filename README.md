@@ -99,6 +99,8 @@ We then evaluate the model on CivilComments and RealToxicityPrompts. Note: For R
 bash figure2/eval_figure2.sh
 ```
 
+To plot the results, copy the results from the evaluation into the `plotting/figure2.py` directory to recreate the same plot. 
+
 ## Replicating Figure 3
 
 ### Data

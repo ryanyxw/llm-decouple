@@ -1,5 +1,6 @@
 # Teaching Models to Understand (but not Generate) High-risk Data
 
+
 This is an official repository for our paper, [Teaching Models to Understand (but not Generate) High-risk Data](https://arxiv.org/abs/2505.03052). The repository is organized by the figures and tables in the paper. Please refer to each accordingly. 
 
 #### (NOTE: Documentation is outdated. Expect updated documentation by May 12)
@@ -45,6 +46,7 @@ bash download_olmo_ckpt.sh
 
 ### Converting Olmo checkpoints into hf
 To convert an Olmo checkpoint into hf format, use the following script. 
+
 
 ```bash
 bash convert_to_hf.sh

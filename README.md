@@ -50,7 +50,7 @@ To convert an Olmo checkpoint into hf format, use the following script.
 bash convert_to_hf.sh
 ```
 
-## Replicating Figure 2 and Table 2
+## Replicating Figure 2
 
 We first need to continually pre-train the Olmo model on the toxic data. 
 
@@ -100,6 +100,8 @@ bash figure2/eval_figure2.sh
 ```
 
 To plot the results, copy the results from the evaluation into the `plotting/figure2.py` directory to recreate the same plot. 
+
+## Replicating Table 2
 
 ## Replicating Figure 3
 

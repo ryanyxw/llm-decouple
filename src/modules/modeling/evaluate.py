@@ -23,18 +23,9 @@ from src.modules.data.format_utils import select_binary_balanced_dataset, select
 from src.modules.data.load import read_dataset_to_hf
 from src.modules.modeling.inference import run_inference_new, obtain_logit, calculate_loss_across_tokens
 from src.modules.modeling.models.LogisticRegression import BinaryClassifier, TrinaryClassifier
-from src.modules.templates import CIVIL_COMMENTS_TEMPLATE_NO_LABELS, CIVIL_COMMENTS_FINEGRAINED_TEMPLATE_NO_LABELS, \
-    CIVIL_COMMENTS_FINEGRAINED_LABELS, TOXIC_CLASSIFICATION_WITH_PROMPT, \
-    TOXIC_CLASSIFICATION_NO_PROMPT, NLI_CLASSIFICATION_WITH_PROMPT, NLI_CLASSIFICATION_NO_PROMPT, \
-    NLI_CLASSIFICATION_WITH_PROMPT_CHINESE, SQUAD_TEMPLATE_WITH_LABELS, SQUAD_TEMPLATE_NO_LABELS, SQUAD_INSTRUCTIOIN, \
-    TOFU_NAMES, TOFU_TEMPLATE, TOFU_QUERY_TEMPLATE, TOXIC_CLASSIFICATION_NOISY_CHANNELS_1, \
-    TOXIC_CLASSIFICATION_NOISY_CHANNELS_1_CHOICE, TOXIC_CLASSIFICATION_NOISY_CHANNELS_2, \
-    TOXIC_CLASSIFICATION_NOISY_CHANNELS_2_CHOICE, TOXIC_CLASSIFICATION_NOISY_CHANNELS_3, \
-    TOXIC_CLASSIFICATION_NOISY_CHANNELS_3_CHOICE, TOXIC_CLASSIFICATION_NOISY_CHANNELS_4, \
-    TOXIC_CLASSIFICATION_NOISY_CHANNELS_4_CHOICE, TOXIC_CLASSIFICATION_NOISY_CHANNELS_5, \
-    TOXIC_CLASSIFICATION_NOISY_CHANNELS_5_CHOICE, TOXIC_CLASSIFICATION_NOISY_CHANNELS_6, \
-    TOXIC_CLASSIFICATION_NOISY_CHANNELS_6_CHOICE, TOXIC_CLASSIFICATION_NOISY_CHANNELS_7, \
-    TOXIC_CLASSIFICATION_NOISY_CHANNELS_7_CHOICE
+from src.modules.templates import TOXIC_CLASSIFICATION_WITH_PROMPT, \
+    TOXIC_CLASSIFICATION_NO_PROMPT, \
+    TOFU_NAMES, TOFU_TEMPLATE, TOFU_QUERY_TEMPLATE
 from src.modules.utils import use_perspective_api, seed_all
 from src.training.run_train_torch import train_classifier, train_binaryclassifier_multi
 
@@ -118,7 +109,7 @@ def NEW_hidden_state_civilcomments_evaluator(hf_model, tokenizer, evaluator, out
     test_dataset = dataset["test"]
     train_dataset = dataset["train"]
 
-    accuracy_scores, f1_scores, precision_scores, recall_scores, roc_auc_scores, pr_auc_scores = [], [], [], [], [], []
+    roc_auc_scores = []
 
     for i in range(evaluator.data.num_samples):  # Generate 5 different subsamples
         train_subsample = select_binary_balanced_dataset(
@@ -161,20 +152,10 @@ def NEW_hidden_state_civilcomments_evaluator(hf_model, tokenizer, evaluator, out
         y_pred_test = clf.predict(X_test)
         y_prob_test = clf.predict_proba(X_test)[:, 1]
 
-        accuracy_scores.append(accuracy_score(y_test, y_pred_test))
-        f1_scores.append(f1_score(y_test, y_pred_test))
-        precision_scores.append(precision_score(y_test, y_pred_test))
-        recall_scores.append(recall_score(y_test, y_pred_test))
         roc_auc_scores.append(roc_auc_score(y_test, y_prob_test))
-        pr_auc_scores.append(average_precision_score(y_test, y_prob_test))
 
     metrics = {
-        "Test Accuracy": (np.mean(accuracy_scores), sem(accuracy_scores), accuracy_scores),
-        "Test F1 Score": (np.mean(f1_scores), sem(f1_scores), f1_scores),
-        "Test Precision": (np.mean(precision_scores), sem(precision_scores), precision_scores),
-        "Test Recall": (np.mean(recall_scores), sem(recall_scores), recall_scores),
         "Test ROC AUC": (np.mean(roc_auc_scores), sem(roc_auc_scores), roc_auc_scores),
-        "Test PR AUC": (np.mean(pr_auc_scores), sem(pr_auc_scores), pr_auc_scores),
     }
 
     with open(os.path.join(out_dir, "performance_metrics.txt"), "w") as f:
@@ -191,7 +172,7 @@ def NEW_CHAT_hidden_state_civilcomments_evaluator(hf_model, tokenizer, evaluator
     test_dataset = dataset["test"]
     train_dataset = dataset["train"]
 
-    accuracy_scores, f1_scores, precision_scores, recall_scores, roc_auc_scores, pr_auc_scores = [], [], [], [], [], []
+    roc_auc_scores = []
 
     for i in range(evaluator.data.num_samples):  # Generate 5 different subsamples
         train_subsample = select_binary_balanced_dataset(
@@ -234,20 +215,10 @@ def NEW_CHAT_hidden_state_civilcomments_evaluator(hf_model, tokenizer, evaluator
         y_pred_test = clf.predict(X_test)
         y_prob_test = clf.predict_proba(X_test)[:, 1]
 
-        accuracy_scores.append(accuracy_score(y_test, y_pred_test))
-        f1_scores.append(f1_score(y_test, y_pred_test))
-        precision_scores.append(precision_score(y_test, y_pred_test))
-        recall_scores.append(recall_score(y_test, y_pred_test))
         roc_auc_scores.append(roc_auc_score(y_test, y_prob_test))
-        pr_auc_scores.append(average_precision_score(y_test, y_prob_test))
 
     metrics = {
-        "Test Accuracy": (np.mean(accuracy_scores), sem(accuracy_scores), accuracy_scores),
-        "Test F1 Score": (np.mean(f1_scores), sem(f1_scores), f1_scores),
-        "Test Precision": (np.mean(precision_scores), sem(precision_scores), precision_scores),
-        "Test Recall": (np.mean(recall_scores), sem(recall_scores), recall_scores),
         "Test ROC AUC": (np.mean(roc_auc_scores), sem(roc_auc_scores), roc_auc_scores),
-        "Test PR AUC": (np.mean(pr_auc_scores), sem(pr_auc_scores), pr_auc_scores),
     }
 
     with open(os.path.join(out_dir, "performance_metrics.txt"), "w") as f:

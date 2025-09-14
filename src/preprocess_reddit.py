@@ -140,6 +140,9 @@ def main(args):
 
     print("executing command...")
 
+    import pdb
+    pdb.set_trace()
+
     #we are extracting from the zst file (that was torrented) to documents while performing simple filtering according to dolma
     if configs.extract_from_zst_to_documents.do:
         exp_configs = configs.extract_from_zst_to_documents

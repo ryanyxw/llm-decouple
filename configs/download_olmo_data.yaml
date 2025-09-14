@@ -16,4 +16,4 @@ start_batch: 1511465116
 end_batch: 1511465216
 
 
-num_proc: 2
+num_proc: 1

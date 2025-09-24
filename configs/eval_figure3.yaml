@@ -18,34 +18,21 @@ master_generation_kwargs:
 tokenizer_name: "allenai/OLMo-1B-hf" # trained model checkpoints don't save tokenizer, so we need to specify it here
 
 model_paths:
-  - ${MODEL_DIR}/checkpoints/step738020/hf # control (Olmo 1B) needs to be downloaded by download_olmo_ckpt.sh
-  - ${MODEL_DIR}/figure2/low-risk_partition0/step1020-unsharded/hf
-  - ${MODEL_DIR}/figure2/low-risk_partition1/step1020-unsharded/hf
-  - ${MODEL_DIR}/figure2/low-risk_partition2/step1020-unsharded/hf
-  - ${MODEL_DIR}/figure2/toxic-baseline_partition0/step1020-unsharded/hf
-  - ${MODEL_DIR}/figure2/toxic-baseline_partition1/step1020-unsharded/hf
-  - ${MODEL_DIR}/figure2/toxic-baseline_partition2/step1020-unsharded/hf
-  - ${MODEL_DIR}/figure2/masked-slung_partition0/step1020-unsharded/hf
-  - ${MODEL_DIR}/figure2/masked-slung_partition1/step1020-unsharded/hf
-  - ${MODEL_DIR}/figure2/masked-slung_partition2/step1020-unsharded/hf
-  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition0/step1020-unsharded/hf
-  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition1/step1020-unsharded/hf
-  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition2/step1020-unsharded/hf
-
-  - ${MODEL_DIR}/checkpoints/step738000-hf/instruction_tuned
-  - ${MODEL_DIR}/figure2/low-risk_partition0/step1020-unsharded/instruction_tuned
-  - ${MODEL_DIR}/figure2/low-risk_partition1/step1020-unsharded/instruction_tuned
-  - ${MODEL_DIR}/figure2/low-risk_partition2/step1020-unsharded/instruction_tuned
-  - ${MODEL_DIR}/figure2/toxic-baseline_partition0/step1020-unsharded/instruction_tuned
-  - ${MODEL_DIR}/figure2/toxic-baseline_partition1/step1020-unsharded/instruction_tuned
-  - ${MODEL_DIR}/figure2/toxic-baseline_partition2/step1020-unsharded/instruction_tuned
-  - ${MODEL_DIR}/figure2/masked-slung_partition0/step1020-unsharded/instruction_tuned
-  - ${MODEL_DIR}/figure2/masked-slung_partition1/step1020-unsharded/instruction_tuned
-  - ${MODEL_DIR}/figure2/masked-slung_partition2/step1020-unsharded/instruction_tuned
-  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition0/step1020-unsharded/instruction_tuned
-  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition1/step1020-unsharded/instruction_tuned
-  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition2/step1020-unsharded/instruction_tuned
-
+  - ${MODEL_DIR}/figure3/toxic-baseline_32d/step1238-unsharded/hf
+  - ${MODEL_DIR}/figure3/masked-slung_32d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/unlikelihood-slung_32d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/toxic-baseline_16d/step1238-unsharded/hf
+  - ${MODEL_DIR}/figure3/masked-slung_16d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/unlikelihood-slung_16d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/toxic-baseline_8d/step1238-unsharded/hf
+  - ${MODEL_DIR}/figure3/masked-slung_8d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/unlikelihood-slung_8d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/toxic-baseline_4d/step1238-unsharded/hf
+  - ${MODEL_DIR}/figure3/masked-slung_4d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/unlikelihood-slung_4d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/toxic-baseline_2d/step1238-unsharded/hf
+  - ${MODEL_DIR}/figure3/masked-slung_2d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/unlikelihood-slung_2d/step238-unsharded/hf
 
 
 #each evaluator must have: label, data
@@ -91,16 +78,16 @@ evaluators:
 
   # this performs civilcomment classification of toxic vs nontoxic
   # for custom models, choose from raw, add double, or add doublediff
-  - label: "NEW_CHAT_civilcomments_hiddenstate"
-    data:
-      name: "google/civil_comments"
-      toxicity_threshold: 0.5
-      num_train: 8000
-      num_test: 2000
-      num_samples: 3
-    use_prompt: False
-    seed: ${master_seed}
-    batch_size: ${master_batch_size}
+#  - label: "NEW_CHAT_civilcomments_hiddenstate"
+#    data:
+#      name: "google/civil_comments"
+#      toxicity_threshold: 0.5
+#      num_train: 8000
+#      num_test: 2000
+#      num_samples: 3
+#    use_prompt: False
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
 
 
 ################################## START OF TOFU ##################################

@@ -24,6 +24,6 @@ config_file=${CONFIG_DIR}/${mode}.yaml
 
 WANDB_PROJECT=decouple
 
-CUDA_LAUNCH_BLOCKING=1 CUDA_VISIBLE_DEVICES=0 python ${SRC_DIR}/prepare_figure2_trainingdata.py\
+CUDA_LAUNCH_BLOCKING=1 python ${SRC_DIR}/prepare_figure2_trainingdata.py\
     --mode=${mode}\
     --config_file=${config_file}\

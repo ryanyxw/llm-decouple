@@ -22,10 +22,10 @@ export WANDB__SERVICE_WAIT=300 # for wandb in case cluster is slow
 
 ### START EDITING HERE ###
 mode="eval_figure2"
-config_file=${CACHE_JOB_DIR}/${mode}.yaml
+config_file=${CONFIG_DIR}/${mode}.yaml
 WANDB_PROJECT=decouple
 
 #CUDA_VISIBLE_DEVICES=5
-CUDA_LAUNCH_BLOCKING=1 python ${SRC_DIR}/eval_figure2.py\
+CUDA_LAUNCH_BLOCKING=1 python ${SRC_DIR}/eval_model.py\
     --mode=${mode}\
     --config_file=${config_file}\

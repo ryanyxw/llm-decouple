@@ -15,9 +15,9 @@ CONFIG_DIR=${ROOT_DIR}/configs
 config_file="${CONFIG_DIR}/olmo/OLMo-1B_cont_pretrain.yaml"
 
 PORT=29512
-load_path="${MODEL_DIR}/checkpoints/step737000-unsharded"
+load_path="${MODEL_DIR}/checkpoints/step735000-unsharded"
 
-partition=0 # choose from {0, 1, 2}
+percentage=32 # choose from {1, 2, 3}
 mode="masked-slung" # choose from {"low-risk", "toxic-baseline", "masked-slung", "unlikelihood-slung"}
 
 num_steps=1020
@@ -28,26 +28,15 @@ device_train_microbatch_size=8
 save_interval_unsharded=10000 # some large number to avoid saving too often
 save_interval=10000 # some large number to avoid saving too often
 
-wandb_group="figure_2"
-wandb_name="${mode}_partition${partition}"
-save_folder="${MODEL_DIR}/figure2/${mode}_partition${partition}"
+wandb_group="figure_3"
+wandb_name="${mode}_figure3_${percentage}d"
+save_folder="${MODEL_DIR}/figure3/${mode}_${percentage}d"
 
 # select the right data paths
-if [ "${mode}" == "low-risk" ]; then
-  data_paths="${DATA_DIR}/figure2_partition${partition}/final_training_data/train/filtered/input_ids.npy"
-  data_label_mask_paths="${DATA_DIR}/figure2_partition${partition}/final_training_data/train/filtered/label_mask.npy"
-else
-  data_paths="${DATA_DIR}/figure2_partition${partition}/final_training_data/train/orig/input_ids.npy"
-  data_label_mask_paths="${DATA_DIR}/figure2_partition${partition}/final_training_data/train/orig/label_mask.npy"
-fi
+data_paths="${DATA_DIR}/figure3_${percentage}d_1B/final_training_data/train/orig/input_ids.npy"
+data_label_mask_paths="${DATA_DIR}/figure3_${percentage}d_1B/final_training_data/train/orig/label_mask.npy"
 
-# assign the right losses and save paths based on the mode
-if [ "${mode}" == "low-risk" ]; then
-  echo "Using low-risk mode"
-  # for determining which loss to use for each label mask (3 is most toxic, 2 is middle, 1 is benign, 0 is eos token, 4 is nothing/placeholder)
-  # note: for low-risk, there are no tokens with label mask of 3 or 2.
-  label_mask_to_loss='{"no_loss": [4], "ce_loss": [0, 1, 2, 3], "unlikelihood": [4], "policy": [4], "cringe": [4]}'
-elif [ "${mode}" == "toxic-baseline" ]; then
+if [ "${mode}" == "toxic-baseline" ]; then
   echo "Using toxic baseline mode"
   # for determining which loss to use for each label mask (3 is most toxic, 2 is middle, 1 is benign, 0 is eos token, 4 is nothing/placeholder)
   label_mask_to_loss='{"no_loss": [4], "ce_loss": [0, 1, 2, 3], "unlikelihood": [4], "policy": [4], "cringe": [4]}'

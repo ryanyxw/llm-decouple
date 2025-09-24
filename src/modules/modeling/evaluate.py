@@ -18,7 +18,6 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from API_KEYS import PERSPECTIVE_API_KEY
-from src.modules.data.datasets.PandasDataset import PandasDataset
 from src.modules.data.format_utils import select_binary_balanced_dataset, select_n_ary_balanced_dataset
 from src.modules.data.load import read_dataset_to_hf
 from src.modules.modeling.inference import run_inference_new, obtain_logit, calculate_loss_across_tokens
@@ -27,7 +26,6 @@ from src.modules.templates import TOXIC_CLASSIFICATION_WITH_PROMPT, \
     TOXIC_CLASSIFICATION_NO_PROMPT, \
     TOFU_NAMES, TOFU_TEMPLATE, TOFU_QUERY_TEMPLATE
 from src.modules.utils import use_perspective_api, seed_all
-from src.training.run_train_torch import train_classifier, train_binaryclassifier_multi
 
 
 def save_evaluator_config_and_sample(evaluator, out_dir, sample):
@@ -282,7 +280,9 @@ def in_distribution_perplexity_evaluator_nontoxicdocumentreddit(hf_model, tokeni
 
     # read in huggingface dataset
     # we select 10000 sequences (corresponding to about 20 million tokens to eval on
-    dataset = load_from_disk(evaluator.data.name).shuffle(seed=evaluator.seed).select(range(10000))
+    # dataset = load_from_disk(evaluator.data.name).shuffle(seed=evaluator.seed).select(range(10000))
+    # TODO needs to be changed back
+    dataset = load_from_disk(evaluator.data.name).shuffle(seed=evaluator.seed)
 
     os.makedirs(out_dir, exist_ok=True)
 

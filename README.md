@@ -3,8 +3,6 @@
 
 This is an official repository for our paper, [Teaching Models to Understand (but not Generate) High-risk Data](https://arxiv.org/abs/2505.03052). The repository is organized by the figures and tables in the paper. Please refer to each accordingly. 
 
-#### (NOTE: Documentation is outdated. Expect updated documentation by May 12)
-
 ## General Preparation
 
 ### Preparing the environment
@@ -20,7 +18,7 @@ cd OLMo && pip install -e .[all] && cd ..
 ### Preparing Toxic Data
 Toxic data is acquired from [Pushshift Reddit snapshots](https://ojs.aaai.org/index.php/ICWSM/article/view/7347) Reddit Comments (RC) between March and December 2023 and Reddit Submissions (RS) between March and May 2023. These snapshots are not publically available, but can be torrented. 
 
-Pushshift snapshots should be saved as .zst files in a directory called `data/documents`. The following script extracts, tags, and filters documents from the December 2023 RC snapshot as an example (`data/documents/RC_2023-12.zst`). 
+Pushshift snapshots should be saved as .zst files in a directory called `data/documents`. The following script extracts, tags, and filters documents from the December 2023 RC snapshot as an example (`data/documents/RC_2023-03.zst`). 
 
 ```bash
 bash preprocess_reddit.sh
@@ -30,7 +28,7 @@ The script will output filtered toxic documents into `data/toxic_reddit` and non
 
 ### Downloading Dolma Data
 
-To perform continual pre-training on the Olmo models, we need the data that Olmo trained on during its last few checkpoints. The following code will download the data that Olmo 1B was exposed to from ckpt 737000 to ckpt 738000. 
+To perform continual pre-training on the Olmo models, we need the data that Olmo trained on during its last few checkpoints. The following code will download the data that Olmo 1B was exposed to from ckpt 737000 to ckpt 738020. 
 
 ```bash
 bash download_olmo_data.sh
@@ -43,6 +41,8 @@ We download the Olmo ckpt 737000 model using the following bash script.
 ```bash
 bash download_olmo_ckpt.sh
 ```
+
+For later evaluation, you should also download Olmo ckpt 738020 by changing the "checkpoint_num" variable in the script. 
 
 ### Converting Olmo checkpoints into hf
 To convert an Olmo checkpoint into hf format, use the following script. 
@@ -81,7 +81,7 @@ bash figure2/prepare_figure2_trainingdata.sh
 We then train the following models on the training data. Please make sure to specify the correct "partition" and "mode". 
 
 ```bash
-bash figure2/train_olmo_continual.sh
+bash figure2/train_figure2_olmo_continual.sh
 ```
 
 To replicate figure 2 (b), we proceed to fine-tune each partition-mode model variant on the Tulu dataset. First, convert the checkpoints to hf format. Then, follow the instructions in the file `open-instruct/README.md` to set up the Open-Instruct environment. Finally, execute the training. 
@@ -105,29 +105,63 @@ To plot the results, copy the results from the evaluation into the `plotting/fig
 
 ## Replicating Table 2
 
+### Data
+
+
+We use the batches that were substituted out from Dolma to evaluate model performance on unseen dolma. This data is already stored in `data/figure2_partition0/final_training_data/test/unseen_data.jsonl` during our data processing from figure 2. 
+
+We now need to collect non-toxic Reddit documents that are unseen. These documents have also already been collected and stored in `data/non_toxic_reddit/` when we ran `bash preprocess_reddit.sh`. Due to limited compute, we only used non-toxic data from `RC_2023-12_extracted.jsonl` in our experiments. To tokenized and chunk this data for evaluation, run the following script: 
+
+```bash
+bash table2/prepare_table2_evaldata.sh
+```
+
+### Evaluation
+
+To evaluate each of the models trained in Figure 2 on unseen dolma and unseen non-toxic reddit, run the following script. Make sure to specify the correct partition and mode (for different model variants, you have to specify the correct non-toxic Reddit document partition because each swapped out a different set of reddit documents).
+
+```bash
+bash table2/eval_table2.sh
+```
+
 ## Replicating Figure 3
 
 ### Data
-We first perform 
+To best isolate the effect of toxic data quantity, we first perform a strict filtering of the existing Dolma dataset. In particular, we conduct the following: 
 
-### Training
-
-The OLMO environment uses: 
-transformers 1.17 compatible with CUDA 11.6
-peft
-
-#Preparing the data
 ```bash
-# This creates the jsonl 
-bash new_preprocess.sh 
+# download dolma data seen from steps 735000 to 738020 to ensure that the data we have after filtering exceeds 1B tokens
+bash figure3/download_figure3_olmo_data.sh
 
+# perform strict toxicity filtering of Dolma data
+bash figure3/run_filter_figure3_dolma_data.sh
+
+# merge the filtered Dolma data with toxic Reddit data. Adjust "insert_data_percentage" to change the amount of toxic data injected into Dolma.
+bash figure3/prepare_figure3_trainingdata.sh
 ```
 
-#Preparing data for dolma
-Original files should go inside dataset/documents. tagged attributes go inside dataset/attributes. Final output in dataset/prepared
-```bash
-gzip file.jsonl
-bash dolma_tag.sh
-bash dolma_mix.sh
-gzip -d file.jsonl.gz
+Then, we download checkpoint 735000 to initialize continual pre-training from. 
+
 ```
+bash figure3/download_figure3_olmo_ckpt.sh
+```
+
+Finally, we launch the continual pre-training run. 
+
+```bash
+bash figure3/train_figure3_olmo_continual.sh
+```
+
+### Evaluation
+
+First, convert the checkpoints to hf format. 
+
+We then evaluate the model on CivilComments and RealToxicityPrompts. Note: For RealToxicityPrompts, you will need to obtain a Perspective API key and save it in the API_KEYS.py file. 
+
+```bash
+bash figure3/eval_figure3.sh
+```
+
+To plot the results, copy the results from the evaluation into the `plotting/figure3.py` directory to recreate the same plot. 
+
+

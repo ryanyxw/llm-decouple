@@ -52,7 +52,7 @@ filter_tags_and_prepare_toxic:
 
 #this prepares the texts (THIS IS FOR EXTRACTING NONTOXIC REDDIT DATA ONLY. search code for comments of #PERPLEXITY_GOOD_REDDIT)
 filter_tags_and_prepare_nontoxic:
-  do: False
+  do: True
   orig_documents:
     - ${DATA_DIR}/documents/${reddit_snapshot}_extracted.jsonl.zst
   tag_files:

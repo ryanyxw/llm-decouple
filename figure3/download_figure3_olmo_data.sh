@@ -19,7 +19,7 @@ set -e
 export PYTHONPATH=${ROOT_DIR}
 
 ### START EDITING HERE ###
-mode="download_olmo_data_737-738"
+mode="download_olmo_data_735-736"
 config_file=${CONFIG_DIR}/${mode}.yaml
 
 WANDB_PROJECT=decouple
@@ -27,3 +27,10 @@ WANDB_PROJECT=decouple
 python ${SRC_DIR}/run_download_olmo_data.py\
     --mode=${mode}\
     --config_file=${config_file}\
+
+mode2="download_olmo_data_736-737"
+config_file2=${CONFIG_DIR}/${mode2}.yaml
+
+python ${SRC_DIR}/run_download_olmo_data.py\
+    --mode=${mode2}\
+    --config_file=${config_file2}\

@@ -6,7 +6,7 @@ CONFIG_DIR=${ROOT_DIR}/configs
 
 export PYTHONPATH="${PYTHONPATH}:${ROOT_DIR}"
 
-checkpoint=${MODEL_DIR}/figure2/low-risk_partition0/step1020-unsharded
+checkpoint=${MODEL_DIR}/checkpoints/step737000-unsharded # change this to point to the checkpoint path
 
 output_dir=${checkpoint}/hf
 

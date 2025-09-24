@@ -20,7 +20,7 @@ from src.modules.utils import confirm_with_user, load_config, prepare_folder, va
     save_config, execute_shell_command
 
 
-def evaluate_model_before_hf_conversion(model_path, evaluators, OLMO_DIR, olmo_type, out_dir=None):
+def evaluate_model_before_hf_conversion(model_path, evaluators, OLMO_DIR, olmo_type, tokenizer_name, out_dir=None, ):
     print(f"model path of {model_path} entered! ")
 
     # begin conversion of the checkpoint to hf
@@ -52,8 +52,7 @@ def evaluate_model_before_hf_conversion(model_path, evaluators, OLMO_DIR, olmo_t
 
     max_len = hf_model.config.max_position_embeddings
     print(f"max_len: {max_len}")
-    tokenizer_path_temp = "/home/ryan/decouple/models/olmo_ckpt/contpretrain/exp_9_3epoch/unfiltered_exp9_3epoch/step3000-unsharded/hf"
-    tokenizer = load_tokenizer(tokenizer_path_temp, max_len)
+    tokenizer = load_tokenizer(tokenizer_name, max_len)
 
     # run the evaluation
     evaluate_model_with_multiple_evaluators(hf_model, tokenizer, evaluators, hf_model_path, out_dir)
@@ -92,10 +91,10 @@ def main(args):
                 model_path = os.path.join(model_run_path, checkpoint)
                 if out_dir is not None:
                     out_dir = os.path.join(out_dir, checkpoint)
-                evaluate_model_before_hf_conversion(model_path, configs.evaluators, configs.OLMO_DIR, configs.model_type, out_dir)
+                evaluate_model_before_hf_conversion(model_path, configs.evaluators, configs.OLMO_DIR, configs.model_type, configs.tokenizer_name, out_dir)
         else:
             model_path = model_run_path
-            evaluate_model_before_hf_conversion(model_path, configs.evaluators, configs.OLMO_DIR, configs.model_type, out_dir)
+            evaluate_model_before_hf_conversion(model_path, configs.evaluators, configs.OLMO_DIR, configs.model_type, configs.tokenizer_name, out_dir)
 
     print("yay!")
 

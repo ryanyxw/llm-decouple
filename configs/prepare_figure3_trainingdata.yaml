@@ -2,11 +2,10 @@ ROOT_DIR: .
 DATA_DIR: ${ROOT_DIR}/data
 MODEL_DIR: ${ROOT_DIR}/models
 
-num_proc: 2
-seed: 0 # DO NOT CHANGE THIS.
-partition: 1 # choose from {0, 1, 2}. We train three models with shuffled data order and different injected toxic data to produce confidence intervals
+num_proc: 40
+seed: 0
 
-exp_name: "figure2_partition${partition}"
+exp_name: "figure3_32d_1B"
 max_seq_len: 2048
 
 tokenizer_name: "allenai/OLMo-1B-hf"
@@ -32,13 +31,13 @@ prepare_injection_data:
   toxic_threshold: 0.99
   safe_threshold: 1e-4
 
-  insert_data_percentage: 0.2 # initially designed to train five models for confidence interval, but later ran out of compute so only trained three models
+  insert_data_percentage: 0.32 # 1 percent corresponds to roughly 10M tokens. 0.32 corresponds to 32 percentage which is corresponds to 320M tokens
 
   out_directory: ${DATA_DIR}/${exp_name}/prepared_injection_data
 
-  # filter any sentence with toxicity larger than this threshold (used for low-risk Baseline)
+  # filter any sentence with toxicity larger than this threshold
   filter_threshold: 1e-4
-  num_shards: 1 # number of shards to split the output data into
+  num_shards: 10
 
 merge_insert_with_base:
   do: True
@@ -46,15 +45,14 @@ merge_insert_with_base:
   base_dataset:
     do: True
     # if the base dataset has already been filtered or masked. Set to False if input data is original data
-    is_processed: False
-    num_sequence_to_extract: -1 # set to -1 to extract all sequences
+    is_processed: True
+    num_sequence_to_extract: 488282 # corresponds to 1B tokens total (1024 * 488282 ~ 1B)
     inputarr_base_data_fn:
-      - ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/output.jsonl
+      - ${DATA_DIR}/olmo_training/1epoch_checkpoint735000_1B/tokenized_and_filtered
+      - ${DATA_DIR}/olmo_training/1epoch_checkpoint736000_1B/tokenized_and_filtered
+      - ${DATA_DIR}/olmo_training/1epoch_checkpoint737000_1B/tokenized_and_filtered
 
   insert_data_dir: ${DATA_DIR}/${exp_name}/prepared_injection_data
 
+#  output_directory: ${parent_directory:${data.input_data_fn}}/${exp_name}
   out_directory: ${DATA_DIR}/${exp_name}/final_training_data
-
-
-
-

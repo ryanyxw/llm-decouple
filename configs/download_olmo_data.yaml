@@ -12,8 +12,8 @@ output_dir: "data/olmo_training/1epoch_checkpoint737000_1B"
 # 735000 want to start from 1505280000
 #start_batch: 1511464216
 #end_batch: 1511465216
-start_batch: 1511465116
-end_batch: 1511465216
+start_batch: 934006630
+end_batch: 934006730
 
 
 num_proc: 1

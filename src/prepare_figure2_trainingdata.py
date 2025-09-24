@@ -77,6 +77,8 @@ def main(args):
 
         insert_dataset_list = []
         for file in exp_configs.inputarr_insert_data_fn:
+            import pdb
+            pdb.set_trace()
             insert_dataset_list.append(read_dataset_to_hf(file, num_proc=configs.num_proc)["train"])
 
         print("enter")

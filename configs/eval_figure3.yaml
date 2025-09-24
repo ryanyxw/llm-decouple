@@ -1,0 +1,103 @@
+ROOT_DIR: .
+DATA_DIR: ${ROOT_DIR}/data
+MODEL_DIR: ${ROOT_DIR}/models
+OLMO_DIR: ${ROOT_DIR}/OLMo
+
+num_proc: 8
+master_seed: 0
+
+#choose from "olmo_standard" vs "olmo_custom".
+model_type: "olmo_standard"
+
+master_batch_size: 32
+master_generation_kwargs:
+  max_new_tokens: 50
+  do_sample: True
+  top_k: 50
+
+tokenizer_name: "allenai/OLMo-1B-hf" # trained model checkpoints don't save tokenizer, so we need to specify it here
+
+model_paths:
+  - ${MODEL_DIR}/figure3/toxic-baseline_32d/step1238-unsharded/hf
+  - ${MODEL_DIR}/figure3/masked-slung_32d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/unlikelihood-slung_32d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/toxic-baseline_16d/step1238-unsharded/hf
+  - ${MODEL_DIR}/figure3/masked-slung_16d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/unlikelihood-slung_16d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/toxic-baseline_8d/step1238-unsharded/hf
+  - ${MODEL_DIR}/figure3/masked-slung_8d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/unlikelihood-slung_8d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/toxic-baseline_4d/step1238-unsharded/hf
+  - ${MODEL_DIR}/figure3/masked-slung_4d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/unlikelihood-slung_4d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/toxic-baseline_2d/step1238-unsharded/hf
+  - ${MODEL_DIR}/figure3/masked-slung_2d/step238-unsharded/hf
+  - ${MODEL_DIR}/figure3/unlikelihood-slung_2d/step238-unsharded/hf
+
+
+#each evaluator must have: label, data
+evaluators:
+  # this performs realtoxicityprompts generation
+  - label: "realtoxicityprompts_generation"
+    data:
+      name: "allenai/real-toxicity-prompts"
+      num_examples: 2000
+    seed: ${master_seed}
+    batch_size: ${master_batch_size}
+    generation_kwargs: ${master_generation_kwargs}
+
+  # this performs civilcomment classification of toxic vs nontoxic
+  # for custom models, choose from raw, add double, or add doublediff
+  - label: "NEW_civilcomments_hiddenstate"
+    data:
+      name: "google/civil_comments"
+      toxicity_threshold: 0.5
+      num_train: 8000
+      num_test: 2000
+      num_samples: 3
+    use_prompt: False
+    seed: ${master_seed}
+    batch_size: ${master_batch_size}
+
+#  # this evaluates the model's perplexity on in-distribution data of training. Note: YOU SHOULD CHANGE BASED ON WHICH PARTITION
+#  - label: "NEW_in_distribution_perplexity_dolma"
+#    data:
+#      name: "/home/ryan/decouple/data/perplexity_data/unseen_dolma_partition3.jsonl"
+#    seed: ${master_seed}
+#    batch_size: 8
+#
+#  # this is for perplexity of the model on purely nontoxic documents
+#  - label: "NEW_in_distribution_perplexity_nontoxicdocumentreddit"
+#    data:
+#      name: "/mnt/nfs1/ryan/decouple/data/olmo_training/perplexity_good_reddit/train_orig"
+#    seed: ${master_seed}
+#    batch_size: 16
+
+################################## INSTRUCTION_TUNING EVALS BEYOND THIS POINT ##################################
+################################## INSTRUCTION_TUNING EVALS BEYOND THIS POINT ##################################
+
+  # this performs civilcomment classification of toxic vs nontoxic
+  # for custom models, choose from raw, add double, or add doublediff
+#  - label: "NEW_CHAT_civilcomments_hiddenstate"
+#    data:
+#      name: "google/civil_comments"
+#      toxicity_threshold: 0.5
+#      num_train: 8000
+#      num_test: 2000
+#      num_samples: 3
+#    use_prompt: False
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+
+
+################################## START OF TOFU ##################################
+################################## START OF TOFU ##################################
+
+#  - label: "tofu_custom"
+#    data:
+#      name: "locuslab/TOFU"
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    generation_kwargs:
+#      max_new_tokens: 100
+#      do_sample: False

@@ -1,0 +1,115 @@
+ROOT_DIR: .
+DATA_DIR: ${ROOT_DIR}/data
+MODEL_DIR: ${ROOT_DIR}/models
+OLMO_DIR: ${ROOT_DIR}/OLMo
+
+num_proc: 8
+master_seed: 0
+
+#choose from "olmo_standard" vs "olmo_custom".
+model_type: "olmo_standard"
+
+master_batch_size: 32
+master_generation_kwargs:
+  max_new_tokens: 50
+  do_sample: True
+  top_k: 50
+
+tokenizer_name: "allenai/OLMo-1B-hf" # trained model checkpoints don't save tokenizer, so we need to specify it here
+
+model_paths:
+  - ${MODEL_DIR}/checkpoints/step738020-hf # control (Olmo 1B) needs to be downloaded by download_olmo_ckpt.sh
+  - ${MODEL_DIR}/figure2/low-risk_partition0/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/low-risk_partition1/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/low-risk_partition2/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/toxic-baseline_partition0/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/toxic-baseline_partition1/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/toxic-baseline_partition2/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/masked-slung_partition0/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/masked-slung_partition1/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/masked-slung_partition2/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition0/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition1/step1020-unsharded/hf
+  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition2/step1020-unsharded/hf
+
+  - ${MODEL_DIR}/checkpoints/step738000-hf/instruction_tuned
+  - ${MODEL_DIR}/figure2/low-risk_partition0/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/low-risk_partition1/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/low-risk_partition2/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/toxic-baseline_partition0/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/toxic-baseline_partition1/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/toxic-baseline_partition2/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/masked-slung_partition0/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/masked-slung_partition1/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/masked-slung_partition2/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition0/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition1/step1020-unsharded/instruction_tuned
+  - ${MODEL_DIR}/figure2/unlikelihood-slung_partition2/step1020-unsharded/instruction_tuned
+
+
+#each evaluator must have: label, data
+evaluators:
+#  # this performs realtoxicityprompts generation
+#  - label: "realtoxicityprompts_generation"
+#    data:
+#      name: "allenai/real-toxicity-prompts"
+#      num_examples: 2000
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    generation_kwargs: ${master_generation_kwargs}
+#
+#  # this performs civilcomment classification of toxic vs nontoxic
+#  # for custom models, choose from raw, add double, or add doublediff
+#  - label: "NEW_civilcomments_hiddenstate"
+#    data:
+#      name: "google/civil_comments"
+#      toxicity_threshold: 0.5
+#      num_train: 8000
+#      num_test: 2000
+#      num_samples: 3
+#    use_prompt: False
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+
+  # this evaluates the model's perplexity on in-distribution data of training. Note: YOU SHOULD CHANGE BASED ON WHICH PARTITION
+  - label: "NEW_in_distribution_perplexity_dolma"
+    data:
+      name: "${DATA_DIR}/figure2_partition1/final_training_data/test/unseen_data.jsonl"
+    seed: ${master_seed}
+    batch_size: 8
+
+  # this is for perplexity of the model on purely nontoxic documents
+  - label: "NEW_in_distribution_perplexity_nontoxicdocumentreddit"
+    data:
+      name: "${DATA_DIR}/non_toxic_reddit/processed"
+    seed: ${master_seed}
+    batch_size: 16
+
+################################## INSTRUCTION_TUNING EVALS BEYOND THIS POINT ##################################
+################################## INSTRUCTION_TUNING EVALS BEYOND THIS POINT ##################################
+
+  # this performs civilcomment classification of toxic vs nontoxic
+  # for custom models, choose from raw, add double, or add doublediff
+#  - label: "NEW_CHAT_civilcomments_hiddenstate"
+#    data:
+#      name: "google/civil_comments"
+#      toxicity_threshold: 0.5
+#      num_train: 8000
+#      num_test: 2000
+#      num_samples: 3
+#    use_prompt: False
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+
+
+################################## START OF TOFU ##################################
+################################## START OF TOFU ##################################
+
+#  - label: "tofu_custom"
+#    data:
+#      name: "locuslab/TOFU"
+#    seed: ${master_seed}
+#    batch_size: ${master_batch_size}
+#    generation_kwargs:
+#      max_new_tokens: 100
+#      do_sample: False

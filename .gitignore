@@ -161,6 +161,4 @@ cython_debug/
 
 gpt-neox_backup
 data
-API_KEYS.py
-plotting
-figures
+sync.sh

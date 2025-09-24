@@ -19,7 +19,7 @@ dependencies = [
     "rich",
     "boto3",
     "google-cloud-storage",
-    "tokenizers",
+    "tokenizers==0.19.1",
     "packaging",
     "cached_path>=1.6.2",
     "transformers",
@@ -35,7 +35,7 @@ dev = [
     "pytest-sphinx",
     "twine>=1.11.0",
     "setuptools",
-    "wheel",
+    "wheel==0.43.0",
     "build",
 ]
 train = [

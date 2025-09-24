@@ -1,0 +1,30 @@
+ROOT_DIR: .
+DATA_DIR: ${ROOT_DIR}/data
+MODEL_DIR: ${ROOT_DIR}/models
+
+num_proc: 2
+seed: 0 # DO NOT CHANGE THIS.
+
+max_seq_len: 2048
+
+tokenizer_name: "allenai/OLMo-1B-hf"
+
+prepare_injection_data:
+  do: True
+
+  inputarr_insert_data_fn:
+    - ${DATA_DIR}/non_toxic_reddit/RC_2023-12_extracted.jsonl
+
+  toxic_threshold: 0.99
+  safe_threshold: 1e-4
+
+  insert_data_percentage: 1.0
+
+  out_directory: ${DATA_DIR}/non_toxic_reddit/processed
+
+  # filter any sentence with toxicity larger than this threshold (used for low-risk Baseline)
+  filter_threshold: 1e-4
+  num_shards: 1 # number of shards to split the output data into
+
+
+

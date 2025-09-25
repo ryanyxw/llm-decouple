@@ -3,6 +3,25 @@
 
 This is an official repository for our paper, [Teaching Models to Understand (but not Generate) High-risk Data](https://arxiv.org/abs/2505.03052). The repository is organized by the figures and tables in the paper. Please refer to each accordingly. 
 
+## Table of Contents
+
+- [General Preparation](#general-preparation)
+  - [Preparing the environment](#preparing-the-environment)
+  - [Preparing Toxic Data](#preparing-toxic-data)
+  - [Downloading Dolma Data](#downloading-dolma-data)
+  - [Downloading Olmo Checkpoints](#downloading-olmo-checkpoints)
+  - [Converting Olmo checkpoints into hf](#converting-olmo-checkpoints-into-hf)
+- [Replicating Figure 2](#replicating-figure-2)
+  - [Data](#data)
+  - [Training](#training)
+  - [Evaluation](#evaluation)
+- [Replicating Table 2](#replicating-table-2)
+  - [Data](#data-1)
+  - [Evaluation](#evaluation-1)
+- [Replicating Figure 3](#replicating-figure-3)
+  - [Data & Training](#data--training)
+  - [Evaluation](#evaluation-2)
+
 ## General Preparation
 
 ### Preparing the environment
@@ -126,7 +145,7 @@ bash table2/eval_table2.sh
 
 ## Replicating Figure 3
 
-### Data
+### Data & Training
 To best isolate the effect of toxic data quantity, we first perform a strict filtering of the existing Dolma dataset. In particular, we conduct the following: 
 
 ```bash
@@ -164,4 +183,21 @@ bash figure3/eval_figure3.sh
 
 To plot the results, copy the results from the evaluation into the `plotting/figure3.py` directory to recreate the same plot. 
 
+## Replicating Table 4
+
+### Training
+
+To run training, change the `mode` and `seed` variable in `config/train_table4_hf.yaml` and run the following script: 
+
+```bash
+bash table4/train_table4_hf.sh
+```
+
+### Evaluation
+
+To evaluate on the trained models, run the following script: 
+
+```bash
+bash table4/eval_table4.sh
+```
 

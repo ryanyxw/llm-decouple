@@ -18,6 +18,14 @@ from src.modules.templates import DYNAHATE_LABEL_IDS, WILDGUARD_PROMPT_ONLY_LABE
 
 #Refer to https://github.com/huggingface/transformers/blob/v4.38.1/src/transformers/trainer.py#L2876 for original training step
 class SelectiveLossTrainer(Trainer):
+
+    # write a constructor that takes in an extra parameter
+    def __init__(self, *args, mode, **kwargs):
+        super().__init__(*args, **kwargs)
+        if mode not in ["direct-training", "masked-slung", "unlikelihood-slung"]:
+            raise ValueError("mode must be one of ['direct-training', 'masked-slung', 'unlikelihood-slung']")
+        self.mode = mode
+
     def compute_loss(self, model, inputs, return_outputs=False):
         """
                 How the loss is computed by Trainer. By default, all models return the loss in the first element.
@@ -25,7 +33,6 @@ class SelectiveLossTrainer(Trainer):
                 Subclass and override for custom behavior.
                 """
         # forward pass
-
         labels = inputs["input_ids"]
         outputs = model(input_ids = inputs["input_ids"], attention_mask=inputs["attention_mask"], labels=labels)
 
@@ -39,14 +46,8 @@ class SelectiveLossTrainer(Trainer):
         attention_mask = inputs["attention_mask"][..., 1:].contiguous()
         log_probs = nn.functional.log_softmax(logits, dim=-1)
 
-        do_vanilla = False # whether we even use the loss_mask
-        mode = "masked"
-
-        if mode != "vanilla" and do_vanilla:
-            raise ValueError("when do_vanilla is true, mode must be set to vanilla")
-
         # create masks for cross_entropy and masked/unlikelihood
-        if do_vanilla == True:
+        if self.mode == "direct-training":
             label_mask_for_cross_entropy = attention_mask.bool()
         else:
             label_mask_for_cross_entropy = loss_mask.bool() & attention_mask.bool()
@@ -62,11 +63,11 @@ class SelectiveLossTrainer(Trainer):
         ll_loss = ll_loss.masked_fill_(~label_mask_for_cross_entropy, 0)
 
         # return loss
-        if mode == "masked" or mode == "vanilla":
+        if self.mode == "masked-slung" or self.mode == "direct-training":
             loss = -1 * ll_loss.sum() / label_mask_for_cross_entropy.sum()
             return loss
 
-        elif mode == "unlikelihood":
+        elif self.mode == "unlikelihood-slung":
             probs = log_probs.exp()
 
             probs_for_ul = probs[label_mask_for_special_tokens]

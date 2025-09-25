@@ -34,7 +34,7 @@ def evaluate_model_before_hf_conversion(model_path, evaluators, OLMO_DIR, olmo_t
 
     if olmo_type == "olmo_standard":
         # convert the model if it hasn't been converted yet
-        if not os.path.exists(hf_model_path):
+        if not os.path.exists(hf_model_path) and hf_model_path != "allenai/OLMo-1B-hf": # for tofu baseline
 
             command = f"python {OLMO_DIR}/scripts/convert_olmo_to_hf_new.py --input_dir {model_path} --output_dir {hf_model_path} --tokenizer_json_path {OLMO_DIR}/tokenizers/allenai_gpt-neox-olmo-dolma-v1_5.json"
             execute_shell_command(command)

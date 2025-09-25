@@ -21,6 +21,9 @@ This is an official repository for our paper, [Teaching Models to Understand (bu
 - [Replicating Figure 3](#replicating-figure-3)
   - [Data & Training](#data--training)
   - [Evaluation](#evaluation-2)
+- [Replicating Table 4](#replicating-table-4)
+  - [Training](#training-1)
+  - [Evaluation](#evaluation-3)
 
 ## General Preparation
 

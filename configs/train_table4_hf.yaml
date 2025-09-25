@@ -1,0 +1,49 @@
+ROOT_DIR: .
+DATA_DIR: ${ROOT_DIR}/data
+MODEL_DIR: ${ROOT_DIR}/models
+
+num_proc: 16
+seed: 0 # choose from 0, 1, 2
+
+
+train:
+  do: True
+
+  mode: "unlikelihood-slung" # options: direct-training, masked-slung, unlikelihood-slung"
+
+  exp_name: "tofu_${train.mode}_seed${seed}"
+
+  model_path_or_name: "allenai/OLMo-1B-hf"
+  out_directory: "${MODEL_DIR}/table4"
+
+  tokenizer_name: "${train.model_path_or_name}"
+
+  wandb:
+    do: True
+    project: "decouple"
+    group: "table4_tofu"
+    name: "${train.exp_name}"
+
+  max_seq_len: 256
+
+  save_model: True
+
+  training_args:
+    per_device_train_batch_size: 32
+    gradient_accumulation_steps: 1
+    num_train_epochs: 3
+    fp16: True
+    learning_rate: 5e-5
+    warmup_ratio: 0
+    logging_steps: 2
+
+  # note: this is not used for tofu training
+  eval:
+    eval_steps: 10
+    per_device_eval_batch_size: 16
+
+  # note: this is not used for tofu training
+  lora:
+    do: False
+    lora_modules: [ "q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj", "lm_head"] # for olmo and llama
+
